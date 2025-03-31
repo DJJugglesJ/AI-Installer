@@ -6,6 +6,8 @@ CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 ACTION=$(yad --width=400 --height=300 --center --title="AI Workstation" \
   --list --radiolist \
   --column="Select" --column="Action"\
+  FALSE "🎭  Pair LLM + LoRA (SillyTavern)"\
+  FALSE "🧠  Pair LLM + LoRA (oobabooga)"\
   FALSE "🆕  Update Installer" \
   TRUE "🖼️  Run Stable Diffusion WebUI" \
   FALSE "🤖  Launch KoboldAI" \
@@ -16,6 +18,12 @@ ACTION=$(yad --width=400 --height=300 --center --title="AI Workstation" \
   FALSE "❌  Exit")
 
 case "$ACTION" in
+  *"Pair LLM + LoRA (SillyTavern)"*)
+    bash ~/AI-Installer/modules/pair_sillytavern.sh
+    ;;
+  *"Pair LLM + LoRA (oobabooga)"*)
+    bash ~/AI-Installer/modules/pair_oobabooga.sh
+    ;;
   *"Update Installer"*)
     bash ~/AI-Installer/modules/self_update.sh
     ;;
