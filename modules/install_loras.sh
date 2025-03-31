@@ -5,6 +5,11 @@ ENTRIES_FILE="/tmp/aihub_loRA_entries.json"
 TAG_GROUPS_FILE="/tmp/aihub_tag_groups.json"
 SELECTION_FILE="/tmp/aihub_lora_selected.tsv"
 DOWNLOAD_DIR="/opt/AI/models/Lora"
+FAVORITES_FILE="$HOME/.aihub/favorites.json"
+DESKTOP_ENTRY="$HOME/Desktop/AI-LoRA-Installer.desktop"
+
+mkdir -p "$(dirname $FAVORITES_FILE)"
+mkdir -p "$(dirname $DESKTOP_ENTRY)"
 
 API_URL="https://civitai.com/api/v1/models?types=LoRA&limit=100"
 
@@ -119,15 +124,36 @@ if [ -z "$selection" ]; then
   exit 0
 fi
 
+favorites=()
 echo "$selection" | tr "|" "\n" | while read -r selected; do
-  file=$(grep -F "$selected" "$SELECTION_FILE" | cut -f8)
-  tag=$(grep -F "$selected" "$SELECTION_FILE" | cut -f7)
-  model=$(grep -F "$selected" "$SELECTION_FILE" | cut -f3)
+  row=$(grep -F "$selected" "$SELECTION_FILE")
+  file=$(echo "$row" | cut -f8)
+  tag=$(echo "$row" | cut -f7)
+  model=$(echo "$row" | cut -f3)
+  creator=$(echo "$row" | cut -f2)
 
   install_path="${DOWNLOAD_DIR}/${model}/${tag}"
   sudo mkdir -p "$install_path"
-  echo "[*] Downloading $selected to $install_path"
   wget -q --show-progress -O "$install_path/$selected.safetensors" "$file"
+
+  favorites+=(\"$selected\")
 done
 
-yad --info --text="✅ Selected LoRAs installed successfully!" --title="Done"
+# Save favorites
+echo "{ \"favorites\": [${favorites[*]}] }" > "$FAVORITES_FILE"
+
+# Create desktop launcher
+cat > "$DESKTOP_ENTRY" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AI LoRA Installer
+Comment=Install or update LoRAs from CivitAI
+Exec=bash $PWD/modules/install_loras.sh
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;
+EOF
+chmod +x "$DESKTOP_ENTRY"
+
+yad --info --text="✅ Selected LoRAs installed and launcher created!" --title="Done"
