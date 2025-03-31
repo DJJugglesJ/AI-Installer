@@ -5,7 +5,8 @@ CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 
 ACTION=$(yad --width=400 --height=300 --center --title="AI Workstation" \
   --list --radiolist \
-  --column="Select" --column="Action" \
+  --column="Select" --column="Action"\
+  FALSE "🆕  Update Installer" \
   TRUE "🖼️  Run Stable Diffusion WebUI" \
   FALSE "🤖  Launch KoboldAI" \
   FALSE "🧠  Launch SillyTavern" \
@@ -15,6 +16,9 @@ ACTION=$(yad --width=400 --height=300 --center --title="AI Workstation" \
   FALSE "❌  Exit")
 
 case "$ACTION" in
+  *"Update Installer"*)
+    bash ~/AI-Installer/modules/self_update.sh
+    ;;
   *"Stable Diffusion"*)
     if [ "$webui_installed" != "true" ]; then
       yad --info --text="WebUI has not been installed yet. Please install it first." --title="Missing Component"
