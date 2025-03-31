@@ -4,10 +4,14 @@
 INSTALL_PATH="$HOME/AI-Installer"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
+LOG_FILE="$HOME/.config/aihub/install.log"
 
 mkdir -p "$INSTALL_PATH"
 mkdir -p "$(dirname $CONFIG_FILE)"
 mkdir -p "$(dirname $DESKTOP_ENTRY)"
+mkdir -p "$(dirname $LOG_FILE)"
+touch "$CONFIG_FILE"
+touch "$LOG_FILE"
 
 # ✅ Check for required dependencies
 bash "$INSTALL_PATH/modules/check_dependencies.sh"
@@ -15,28 +19,14 @@ bash "$INSTALL_PATH/modules/check_dependencies.sh"
 # 🔍 GPU detection
 bash "$INSTALL_PATH/modules/detect_gpu.sh"
 
-# 🔧 Track install progress in config file
-touch "$CONFIG_FILE"
-set_config() {
-  key="$1"
-  value="$2"
-  if grep -q "^$key=" "$CONFIG_FILE"; then
-    sed -i "s|^$key=.*|$key=$value|" "$CONFIG_FILE"
-  else
-    echo "$key=$value" >> "$CONFIG_FILE"
-  fi
-}
+# 🧠 Save GPU mode to config
+if grep -q "^gpu_mode=" "$CONFIG_FILE"; then
+  sed -i "s/^gpu_mode=.*/gpu_mode=$(lspci | grep -i 'VGA' | grep -Eo 'NVIDIA|AMD|Intel' | head -n 1 || echo 'CPU')/" "$CONFIG_FILE"
+else
+  echo "gpu_mode=$(lspci | grep -i 'VGA' | grep -Eo 'NVIDIA|AMD|Intel' | head -n 1 || echo 'CPU')" >> "$CONFIG_FILE"
+fi
 
-# Example install flow
-echo "[*] Running main AI workstation setup..."
-# Simulated install steps
-set_config "webui_installed" "false"
-set_config "kobold_installed" "false"
-set_config "loras_installed" "false"
-set_config "models_installed" "false"
-set_config "gpu_mode" "$(lspci | grep -i 'VGA' | grep -Eo 'NVIDIA|AMD|Intel' | head -n 1 || echo 'CPU')"
-
-# ✅ Create the main desktop launcher
+# ✅ Create the unified desktop launcher
 cat > "$DESKTOP_ENTRY" <<EOF
 [Desktop Entry]
 Version=1.0
@@ -51,3 +41,4 @@ EOF
 
 chmod +x "$DESKTOP_ENTRY"
 echo "[✔] Desktop launcher created at $DESKTOP_ENTRY"
+echo "$(date): Installer launched and launcher created." >> "$LOG_FILE"
