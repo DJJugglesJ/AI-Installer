@@ -1,3 +1,3 @@
 #!/bin/bash
-
-# Placeholder for model installer
+echo "Running Model installer (placeholder)..."
+# Will include: curated model list, SD/LLM downloader logic
