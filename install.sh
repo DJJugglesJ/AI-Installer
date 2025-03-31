@@ -1,49 +1,31 @@
 #!/bin/bash
 
-# Load config or initialize
-CONFIG_FILE="$HOME/.aihub/config.json"
-mkdir -p "$(dirname "$CONFIG_FILE")"
+# install.sh — AI Workstation Setup Launcher
+INSTALL_PATH="$HOME/AI-Installer"
+DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    selected_apps=$(yad --list --checklist \
-        --title="Select AI Tools to Install" \
-        --width=600 --height=300 \
-        --column="Install" --column="Tool" --column="Description" \
-        TRUE "StableDiffusion" "Image generation with A1111 WebUI" \
-        TRUE "KoboldAI" "Lightweight RP/Story-based LLM frontend" \
-        TRUE "SillyTavern" "Roleplay UI with characters and memory" \
-        TRUE "Oobabooga" "Multi-backend LLM chat with local model support")
+mkdir -p "$INSTALL_PATH"
+mkdir -p "$(dirname $DESKTOP_ENTRY)"
 
-    # Convert selection to JSON
-    sd=false; kobold=false; silly=false; ooba=false
-    [[ "$selected_apps" == *StableDiffusion* ]] && sd=true
-    [[ "$selected_apps" == *KoboldAI* ]] && kobold=true
-    [[ "$selected_apps" == *SillyTavern* ]] && silly=true
-    [[ "$selected_apps" == *Oobabooga* ]] && ooba=true
+# Placeholder for actual module execution logic
+echo "[*] Running main AI workstation setup..."
+# bash modules/install_webui.sh
+# bash modules/install_kobold.sh
+# bash modules/install_loras.sh
+# bash modules/install_models.sh
 
-    echo "{
-      \"apps\": {
-        \"StableDiffusion\": $sd,
-        \"KoboldAI\": $kobold,
-        \"SillyTavern\": $silly,
-        \"Oobabooga\": $ooba,
-        \"LoRAInstaller\": true,
-        \"ModelDownloader\": true
-      }
-    }" > "$CONFIG_FILE"
-fi
+# Create the main desktop launcher
+cat > "$DESKTOP_ENTRY" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AI Workstation Launcher
+Comment=Launch the AI Workstation Menu
+Exec=bash $INSTALL_PATH/aihub_menu.sh
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;
+EOF
 
-# Source config
-StableDiffusion=$(jq -r '.apps.StableDiffusion' "$CONFIG_FILE")
-KoboldAI=$(jq -r '.apps.KoboldAI' "$CONFIG_FILE")
-SillyTavern=$(jq -r '.apps.SillyTavern' "$CONFIG_FILE")
-Oobabooga=$(jq -r '.apps.Oobabooga' "$CONFIG_FILE")
-
-# Run installers (downloader modules are always run)
-bash modules/install_models.sh
-bash modules/install_loras.sh
-
-$StableDiffusion && echo "Installing Stable Diffusion..."
-$KoboldAI && echo "Installing KoboldAI..."
-$SillyTavern && echo "Installing SillyTavern..."
-$Oobabooga && echo "Installing Oobabooga..."
+chmod +x "$DESKTOP_ENTRY"
+echo "[✔] Desktop launcher created at $DESKTOP_ENTRY"
