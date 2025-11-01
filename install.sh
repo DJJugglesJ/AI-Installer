@@ -1,39 +1,35 @@
 #!/bin/bash
 
 # install.sh — AI Workstation Setup Launcher
-INSTALL_PATH="$HOME/AI-Installer"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_PATH="$SCRIPT_DIR"
+MODULE_DIR="$INSTALL_PATH/modules"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
 LOG_FILE="$HOME/.config/aihub/install.log"
 
 mkdir -p "$INSTALL_PATH"
-mkdir -p "$(dirname $CONFIG_FILE)"
-mkdir -p "$(dirname $DESKTOP_ENTRY)"
-mkdir -p "$(dirname $LOG_FILE)"
+mkdir -p "$(dirname "$CONFIG_FILE")"
+mkdir -p "$(dirname "$DESKTOP_ENTRY")"
+mkdir -p "$(dirname "$LOG_FILE")"
 touch "$CONFIG_FILE"
 touch "$LOG_FILE"
 
 # ✅ Check for required dependencies
-bash "$INSTALL_PATH/modules/check_dependencies.sh"
+bash "$MODULE_DIR/check_dependencies.sh"
 
 # 🔍 GPU detection
-bash "$INSTALL_PATH/modules/detect_gpu.sh"
-
-# 🧠 Save GPU mode to config
-if grep -q "^gpu_mode=" "$CONFIG_FILE"; then
-  sed -i "s/^gpu_mode=.*/gpu_mode=$(lspci | grep -i 'VGA' | grep -Eo 'NVIDIA|AMD|Intel' | head -n 1 || echo 'CPU')/" "$CONFIG_FILE"
-else
-  echo "gpu_mode=$(lspci | grep -i 'VGA' | grep -Eo 'NVIDIA|AMD|Intel' | head -n 1 || echo 'CPU')" >> "$CONFIG_FILE"
-fi
+CONFIG_FILE="$CONFIG_FILE" bash "$MODULE_DIR/detect_gpu.sh"
 
 # ✅ Create the unified desktop launcher
+LAUNCH_CMD="$INSTALL_PATH/aihub_menu.sh"
 cat > "$DESKTOP_ENTRY" <<EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=AI Workstation Launcher
 Comment=Launch the AI Workstation Menu
-Exec=bash $INSTALL_PATH/aihub_menu.sh
+Exec=/bin/bash -lc '"$LAUNCH_CMD"'
 Icon=utilities-terminal
 Terminal=false
 Categories=Utility;
