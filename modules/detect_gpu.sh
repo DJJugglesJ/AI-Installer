@@ -2,6 +2,10 @@
 
 # detect_gpu.sh — Identify installed GPU and prompt for driver setup or CPU fallback
 
+CONFIG_FILE="${CONFIG_FILE:-$HOME/.config/aihub/installer.conf}"
+mkdir -p "$(dirname "$CONFIG_FILE")"
+touch "$CONFIG_FILE"
+
 NVIDIA_FOUND=$(lspci | grep -i 'NVIDIA')
 AMD_FOUND=$(lspci | grep -i 'AMD' | grep -i 'VGA')
 INTEL_FOUND=$(lspci | grep -i 'Intel' | grep -i 'VGA')
@@ -27,12 +31,7 @@ case "$GPU_TYPE" in
     fi
     ;;
   "AMD")
-    yad --question --title="AMD GPU Detected" \
-      --text="An AMD GPU was detected. Would you like to install the ROCm stack for AI workloads?" \
-      --button="Yes!install_rocm:0" --button="No:1"
-    if [[ $? -eq 0 ]]; then
-      sudo apt update
-      sudo apt install -y rocm-dkms
+@@ -36,25 +40,32 @@ case "$GPU_TYPE" in
     fi
     ;;
   "INTEL")
@@ -57,4 +56,11 @@ if [[ "$GPU_TYPE" == "CPU" ]]; then
   echo "[CPU MODE] Proceeding with CPU fallback setup..."
   sudo apt update
   sudo apt install -y libopenblas-dev
+fi
+
+# Persist selection to config file
+if grep -q '^gpu_mode=' "$CONFIG_FILE"; then
+  sed -i "s/^gpu_mode=.*/gpu_mode=$GPU_TYPE/" "$CONFIG_FILE"
+else
+  echo "gpu_mode=$GPU_TYPE" >> "$CONFIG_FILE"
 fi
