@@ -1,5 +1,8 @@
++14-12
 #!/bin/bash
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODULE_DIR="$SCRIPT_DIR/modules"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
@@ -22,40 +25,40 @@ ACTION=$(yad --width=450 --height=450 --center --title="AI Workstation Launcher"
 )\n
 case "$ACTION" in
   *"🖼️  Run Stable Diffusion WebUI"*)
-    bash ~/AI-Installer/modules/run_webui.sh
+    bash "$MODULE_DIR/run_webui.sh"
     ;;
   *"🤖  Launch KoboldAI"*)
-    bash ~/AI-Installer/modules/run_kobold.sh
+    bash "$MODULE_DIR/run_kobold.sh"
     ;;
   *"🧠  Launch SillyTavern"*)
-    bash ~/AI-Installer/modules/run_sillytavern.sh
+    bash "$MODULE_DIR/run_sillytavern.sh"
     ;;
   *"📥  Install or Update LoRAs"*)
-    bash ~/AI-Installer/modules/install_loras.sh
+    bash "$MODULE_DIR/install_loras.sh"
     ;;
   *"📦  Install or Update Models"*)
-    bash ~/AI-Installer/modules/install_models.sh
+    bash "$MODULE_DIR/install_models.sh"
     ;;
   *"🆕  Update Installer"*)
-    bash ~/AI-Installer/modules/self_update.sh
+    bash "$MODULE_DIR/self_update.sh"
     ;;
   *"🔁  Pull Updates"*)
-    git -C ~/AI-Installer pull
+    git -C "$SCRIPT_DIR" pull
     ;;
   *"🧠  Pair LLM + LoRA (oobabooga)"*)
-    bash ~/AI-Installer/modules/pair_oobabooga.sh
+    bash "$MODULE_DIR/pair_oobabooga.sh"
     ;;
   *"🎭  Pair LLM + LoRA (SillyTavern)"*)
-    bash ~/AI-Installer/modules/pair_sillytavern.sh
+    bash "$MODULE_DIR/pair_sillytavern.sh"
     ;;
   *"🎨  Select LoRA for Preset"*)
-    bash ~/AI-Installer/modules/select_lora.sh
+    bash "$MODULE_DIR/select_lora.sh"
     ;;
   *"💾  Save Current Pairing as Preset"*)
-    bash ~/AI-Installer/modules/save_pairing_preset.sh
+    bash "$MODULE_DIR/save_pairing_preset.sh"
     ;;
   *"📂  Load Saved Pairing Preset"*)
-    bash ~/AI-Installer/modules/load_pairing_preset.sh
+    bash "$MODULE_DIR/load_pairing_preset.sh"
     ;;
   *"❌  Exit"*)
     exit 0
