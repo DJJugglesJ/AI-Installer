@@ -9,7 +9,7 @@ touch "$LOG_FILE"
 
 yad --info --title="Installing SillyTavern" --text="Cloning SillyTavern..."
 
-echo "$(date): Cloning Sillytavern..." >> "$LOG_FILE"
+echo "$(date): Cloning SillyTavern..." >> "$LOG_FILE"
 git clone https://github.com/SillyTavern/SillyTavern ~/AI/SillyTavern
 
 if grep -q "^sillytavern_installed=" "$CONFIG_FILE"; then
