@@ -2,7 +2,7 @@
 
 # check_dependencies.sh — Ensure required packages are installed
 
-REQUIRED=(git curl jq yad python3 python3-pip wget)
+REQUIRED=(git curl jq yad python3 python3-pip wget aria2)
 MISSING=()
 
 echo "[*] Checking for required packages..."
@@ -12,6 +12,20 @@ for pkg in "${REQUIRED[@]}"; do
     MISSING+=("$pkg")
   fi
 done
+
+TERMINAL_FOUND=false
+for term in gnome-terminal x-terminal-emulator konsole kitty; do
+  if command -v "$term" >/dev/null 2>&1; then
+    TERMINAL_FOUND=true
+    break
+  fi
+done
+
+if ! $TERMINAL_FOUND; then
+  if ! dpkg -s gnome-terminal >/dev/null 2>&1; then
+    MISSING+=("gnome-terminal")
+  fi
+fi
 
 if [ ${#MISSING[@]} -eq 0 ]; then
   echo "[✔] All dependencies are already installed."
