@@ -52,21 +52,41 @@ SELECTED_MODEL=$(echo "$MODEL_CHOICE" | cut -d '|' -f1)
 echo "$SELECTED_BACKEND:$SELECTED_MODEL" > "$PAIR_FILE"
 
 # Offer actions: launch, inject, or both
-ACTION=$(yad --list --title="Select Action" --width=400 --height=200 --column="Action" --column="Description"   "Launch Script" "Generate a launch script for the paired backend"   "Inject to SillyTavern" "Write API config to SillyTavern config.json"   "Both" "Do both actions")
+ACTIONS=$(yad --list --title="Select Action" --width=400 --height=200 --column="Action" --column="Description"   "Launch Script" "Generate a launch script for the paired backend"   "Inject to SillyTavern" "Write API config to SillyTavern config.json"   "Both" "Do both actions")
 
+if [ -z "$ACTIONS" ]; then
+  yad --info --title="Cancelled" --text="No action selected."
+  exit 0
+fi
+
+IFS='|' read -r ACTION _ <<< "$ACTIONS"
+
+launch_in_terminal() {
+  local command_file="$1"
+  local launch_sequence="\"$command_file\"; exec bash"
+  if command -v gnome-terminal >/dev/null 2>&1; then
+    gnome-terminal -- bash -lc "$launch_sequence"
+  elif command -v x-terminal-emulator >/dev/null 2>&1; then
+    x-terminal-emulator -e bash -lc "$launch_sequence"
+  else
+    bash "$command_file"
+  fi
+}
 case "$ACTION" in
-  *Launch*)
+   "Launch Script"|"Both")
     OUTFILE="/tmp/st_llm_launch.sh"
-    echo "#!/bin/bash" > "$OUTFILE"
-    if [[ "$SELECTED_BACKEND" == "oobabooga" ]]; then
-      echo "cd "$OOBA_DIR"" >> "$OUTFILE"
-      echo "python server.py --model-dir models --model "$SELECTED_MODEL"" >> "$OUTFILE"
-    else
-      echo "cd "$KOBOLD_DIR"" >> "$OUTFILE"
-      echo "python KoboldAI.py --model "$SELECTED_MODEL"" >> "$OUTFILE"
-    fi
+    {
+      echo "#!/bin/bash"
+      if [[ "$SELECTED_BACKEND" == "oobabooga" ]]; then
+        echo "cd \"$OOBA_DIR\""
+        echo "python server.py --model-dir models --model \"$SELECTED_MODEL\""
+      else
+        echo "cd \"$KOBOLD_DIR\""
+        echo "python KoboldAI.py --model \"$SELECTED_MODEL\""
+      fi
+    } > "$OUTFILE"
     chmod +x "$OUTFILE"
-    gnome-terminal -- bash -c "$OUTFILE; exec bash"
+    launch_in_terminal "$OUTFILE"
     ;;
 esac
 
