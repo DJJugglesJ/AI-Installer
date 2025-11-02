@@ -1,6 +1,7 @@
 #!/bin/bash
 
-INSTALL_DIR="$HOME/AI-Installer"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_FILE="$HOME/.config/aihub/install.log"
 
 if [ ! -d "$INSTALL_DIR/.git" ]; then
