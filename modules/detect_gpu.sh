@@ -31,7 +31,12 @@ case "$GPU_TYPE" in
     fi
     ;;
   "AMD")
-@@ -36,25 +40,32 @@ case "$GPU_TYPE" in
+    yad --question --title="AMD GPU Detected" \
+      --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?" \
+      --button="Yes!install:0" --button="No:1"
+    if [[ $? -eq 0 ]]; then
+      sudo apt update
+      sudo apt install -y mesa-vulkan-drivers
     fi
     ;;
   "INTEL")
