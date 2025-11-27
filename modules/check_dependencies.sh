@@ -31,14 +31,20 @@ if [ ${#MISSING[@]} -eq 0 ]; then
   echo "[✔] All dependencies are already installed."
 else
   LIST=$(IFS=, ; echo "${MISSING[*]}")
-  yad --question --title="Missing Dependencies" \
-    --text="The following packages are required and will be installed:\n\n$LIST\n\nProceed with installation?" \
-    --button="Yes!install:0" --button="Cancel:1"
-  if [[ $? -eq 0 ]]; then
+  if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+    echo "[headless] Installing missing dependencies: $LIST"
     sudo apt update
     sudo apt install -y "${MISSING[@]}"
   else
-    yad --error --title="Cancelled" --text="Installation aborted due to missing dependencies."
-    exit 1
+    yad --question --title="Missing Dependencies" \
+      --text="The following packages are required and will be installed:\n\n$LIST\n\nProceed with installation?" \
+      --button="Yes!install:0" --button="Cancel:1"
+    if [[ $? -eq 0 ]]; then
+      sudo apt update
+      sudo apt install -y "${MISSING[@]}"
+    else
+      yad --error --title="Cancelled" --text="Installation aborted due to missing dependencies."
+      exit 1
+    fi
   fi
 fi

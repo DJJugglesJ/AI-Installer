@@ -16,10 +16,16 @@ See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the
    chmod +x install.sh
    ./install.sh
    ```
+   *Use `./install.sh --headless --gpu cpu --install webui` to run without any YAD prompts while forcing CPU mode and directly installing the Stable Diffusion WebUI. Use `./install.sh --help` to view all flags.*
 3. The installer will:
    - Ensure required packages are available (prompting to install missing ones).
    - Detect your GPU and suggest a driver (NVIDIA) or continue with CPU/Intel/AMD fallbacks.
    - Create a desktop entry pointing to `aihub_menu.sh` so you can launch the menu from your Desktop.
+
+## Command-line options
+- `--headless`: Run without YAD dialogs, using config defaults and logging headless decisions to `~/.config/aihub/install.log`.
+- `--gpu <mode>`: Force a GPU mode (`nvidia`, `amd`, `intel`, or `cpu`) and skip the GPU prompt.
+- `--install <target>`: Trigger a direct install for `webui`, `kobold`, `sillytavern`, `loras`, or `models` immediately after setup.
 
 ## Launcher menu
 Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with these actions:
