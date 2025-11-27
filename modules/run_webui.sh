@@ -1,9 +1,19 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+LOG_FILE="$HOME/.config/aihub/install.log"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+
+log_msg() {
+  local message="$1"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
 
 WEBUI_DIR="$HOME/AI/WebUI"
+GPU_LABEL=${gpu_mode:-"Unknown"}
+log_msg "Launching Stable Diffusion WebUI with GPU mode: $GPU_LABEL"
 
 if [ ! -d "$WEBUI_DIR" ]; then
   yad --error --title="WebUI Not Found" --text="Stable Diffusion WebUI folder not found. Please install it first."
@@ -34,6 +44,7 @@ case "$gpu_mode" in
     GPU_FLAGS="--use-cpu all"
     ;;
 esac
+log_msg "Computed WebUI launch flags: ${GPU_FLAGS:-'(none)'}"
 
 # Launch WebUI with proper flags
 python launch.py $GPU_FLAGS

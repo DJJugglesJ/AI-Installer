@@ -3,46 +3,71 @@
 # detect_gpu.sh — Identify installed GPU and prompt for driver setup or CPU fallback
 
 CONFIG_FILE="${CONFIG_FILE:-$HOME/.config/aihub/installer.conf}"
+LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
 mkdir -p "$(dirname "$CONFIG_FILE")"
+mkdir -p "$(dirname "$LOG_FILE")"
 touch "$CONFIG_FILE"
+touch "$LOG_FILE"
+
+log_msg() {
+  local message="$1"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
 
 NVIDIA_FOUND=$(lspci | grep -i 'NVIDIA')
 AMD_FOUND=$(lspci | grep -i 'AMD' | grep -i 'VGA')
 INTEL_FOUND=$(lspci | grep -i 'Intel' | grep -i 'VGA')
+GPU_DETAILS=$(lspci | grep -Ei 'VGA|3D|Display')
 
-if [[ ! -z "$NVIDIA_FOUND" ]]; then
-  GPU_TYPE="NVIDIA"
-elif [[ ! -z "$AMD_FOUND" ]]; then
-  GPU_TYPE="AMD"
-elif [[ ! -z "$INTEL_FOUND" ]]; then
-  GPU_TYPE="INTEL"
+if [[ -n "$NVIDIA_FOUND" ]]; then
+  DETECTED_GPU="NVIDIA"
+elif [[ -n "$AMD_FOUND" ]]; then
+  DETECTED_GPU="AMD"
+elif [[ -n "$INTEL_FOUND" ]]; then
+  DETECTED_GPU="INTEL"
 else
-  GPU_TYPE="UNKNOWN"
+  DETECTED_GPU="UNKNOWN"
 fi
 
-case "$GPU_TYPE" in
+GPU_MODE="$DETECTED_GPU"
+log_msg "Detected GPU hardware: ${DETECTED_GPU:-unknown}"
+[[ -n "$GPU_DETAILS" ]] && log_msg "PCIe GPU entries:\n$GPU_DETAILS"
+
+case "$DETECTED_GPU" in
   "NVIDIA")
+    DRIVER_HINT="Install recommended NVIDIA proprietary drivers via ubuntu-drivers autoinstall for best performance."
+    log_msg "$DRIVER_HINT"
     yad --question --title="NVIDIA GPU Detected" \
       --text="An NVIDIA GPU was detected. Would you like to install the recommended NVIDIA driver using ubuntu-drivers?" \
       --button="Yes!install:0" --button="No:1"
     if [[ $? -eq 0 ]]; then
       sudo apt update
       sudo ubuntu-drivers autoinstall
+      log_msg "User opted to install NVIDIA drivers via ubuntu-drivers."
+    else
+      log_msg "User skipped NVIDIA driver installation prompt."
     fi
     ;;
   "AMD")
+    DRIVER_HINT="For ROCm/AMDGPU acceleration, ensure mesa-vulkan-drivers are installed and see AMD acceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html"
+    log_msg "$DRIVER_HINT"
     yad --question --title="AMD GPU Detected" \
-      --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?" \
+      --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?\n\nAcceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html" \
       --button="Yes!install:0" --button="No:1"
     if [[ $? -eq 0 ]]; then
       sudo apt update
       sudo apt install -y mesa-vulkan-drivers
+      log_msg "User opted to install mesa-vulkan-drivers for AMD GPU."
+    else
+      log_msg "User skipped AMD mesa-vulkan-drivers installation prompt."
     fi
     ;;
   "INTEL")
+    DRIVER_HINT="Intel GPU detected. For acceleration, review Intel oneAPI/OpenVINO guidance: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html"
+    log_msg "$DRIVER_HINT"
     yad --info --title="Intel GPU Detected" \
-      --text="An Intel GPU was detected. While usable for graphics, most AI tools will fall back to CPU.\n\nTo enable Intel GPU acceleration, you would need to manually configure OpenVINO or oneAPI support.\n\nThe installer will now proceed with CPU fallback unless manually configured."
-    GPU_TYPE="CPU"
+      --text="An Intel GPU was detected. While usable for graphics, most AI tools will fall back to CPU.\n\nTo enable Intel GPU acceleration, you would need to manually configure OpenVINO or oneAPI support.\nIntel acceleration notes: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html\n\nThe installer will now proceed with CPU fallback unless manually configured."
+    GPU_MODE="CPU"
     ;;
   *)
     yad --question --title="No Supported GPU Detected" \
@@ -50,22 +75,25 @@ case "$GPU_TYPE" in
       --button="Yes!cpu_fallback:0" --button="No:1"
     if [[ $? -ne 0 ]]; then
       echo "Installation aborted by user due to no compatible GPU."
+      log_msg "User aborted installation after unsupported GPU detection."
       exit 1
     fi
-    GPU_TYPE="CPU"
+    GPU_MODE="CPU"
     ;;
 esac
 
 # Fallback setup
-if [[ "$GPU_TYPE" == "CPU" ]]; then
+if [[ "$GPU_MODE" == "CPU" ]]; then
   echo "[CPU MODE] Proceeding with CPU fallback setup..."
+  log_msg "CPU fallback selected. Installing CPU dependencies."
   sudo apt update
   sudo apt install -y libopenblas-dev
 fi
 
 # Persist selection to config file
 if grep -q '^gpu_mode=' "$CONFIG_FILE"; then
-  sed -i "s/^gpu_mode=.*/gpu_mode=$GPU_TYPE/" "$CONFIG_FILE"
+  sed -i "s/^gpu_mode=.*/gpu_mode=$GPU_MODE/" "$CONFIG_FILE"
 else
-  echo "gpu_mode=$GPU_TYPE" >> "$CONFIG_FILE"
+  echo "gpu_mode=$GPU_MODE" >> "$CONFIG_FILE"
 fi
+log_msg "Final GPU mode recorded as $GPU_MODE"

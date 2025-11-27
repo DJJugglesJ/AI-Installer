@@ -4,8 +4,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$SCRIPT_DIR/modules"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+LOG_FILE="$HOME/.config/aihub/install.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
 
-ACTION=$(yad --width=450 --height=450 --center --title="AI Workstation Launcher" \
+log_msg() {
+  local message="$1"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
+
+GPU_LABEL=${gpu_mode:-"Unknown"}
+MENU_TITLE="AI Workstation Launcher (GPU: $GPU_LABEL)"
+log_msg "Opening launcher menu with GPU mode: $GPU_LABEL"
+
+ACTION=$(yad --width=450 --height=450 --center --title="$MENU_TITLE" \
   --list --radiolist \
   --column="Select" --column="Action"
   FALSE "🖼️  Run Stable Diffusion WebUI" \
