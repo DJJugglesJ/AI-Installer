@@ -16,7 +16,11 @@ GPU_LABEL=${gpu_mode:-"Unknown"}
 log_msg "Launching Stable Diffusion WebUI with GPU mode: $GPU_LABEL"
 
 if [ ! -d "$WEBUI_DIR" ]; then
-  yad --error --title="WebUI Not Found" --text="Stable Diffusion WebUI folder not found. Please install it first."
+  if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+    log_msg "WebUI folder not found at $WEBUI_DIR."
+  else
+    yad --error --title="WebUI Not Found" --text="Stable Diffusion WebUI folder not found. Please install it first."
+  fi
   exit 1
 fi
 
@@ -26,7 +30,11 @@ cd "$WEBUI_DIR"
 if [ -f "venv/bin/activate" ]; then
   source venv/bin/activate
 else
-  yad --error --title="Environment Missing" --text="Virtual environment not found. Please reinstall WebUI."
+  if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+    log_msg "Virtual environment missing for WebUI at $WEBUI_DIR."
+  else
+    yad --error --title="Environment Missing" --text="Virtual environment not found. Please reinstall WebUI."
+  fi
   exit 1
 fi
 

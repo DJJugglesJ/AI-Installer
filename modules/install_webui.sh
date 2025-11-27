@@ -11,12 +11,21 @@ mkdir -p "$(dirname "$LOG_FILE")"
 touch "$CONFIG_FILE"
 touch "$LOG_FILE"
 
+log_msg() {
+  local message="$1"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
+
 REPO_URL="https://github.com/AUTOMATIC1111/stable-diffusion-webui.git"
 
-yad --question --title="Install WebUI" --text="This will install the AUTOMATIC1111 Stable Diffusion WebUI to:\n$INSTALL_DIR\n\nProceed?" --button="Yes:0" --button="Cancel:1"
-if [ $? -ne 0 ]; then
-  echo "$(date): User canceled WebUI installation." >> "$LOG_FILE"
-  exit 1
+if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+  log_msg "Headless mode: proceeding with WebUI installation without prompts."
+else
+  yad --question --title="Install WebUI" --text="This will install the AUTOMATIC1111 Stable Diffusion WebUI to:\n$INSTALL_DIR\n\nProceed?" --button="Yes:0" --button="Cancel:1"
+  if [ $? -ne 0 ]; then
+    echo "$(date): User canceled WebUI installation." >> "$LOG_FILE"
+    exit 1
+  fi
 fi
 
 mkdir -p "$INSTALL_DIR"
@@ -32,7 +41,11 @@ fi
 
 # Install python dependencies
 cd "$INSTALL_DIR"
-yad --info --title="Installing Requirements" --text="Installing required Python dependencies..."
+if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+  log_msg "Headless mode: installing WebUI requirements."
+else
+  yad --info --title="Installing Requirements" --text="Installing required Python dependencies..."
+fi
 if [ ! -d "venv" ]; then
   python3 -m venv venv
   echo "$(date): Created Python virtual environment." >> "$LOG_FILE"
@@ -57,4 +70,8 @@ else
   echo "webui_installed=true" >> "$CONFIG_FILE"
 fi
 
-yad --info --text="✅ WebUI installed and LoRA link created." --title="Install Complete"
+if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+  log_msg "WebUI installed and LoRA link created."
+else
+  yad --info --text="✅ WebUI installed and LoRA link created." --title="Install Complete"
+fi
