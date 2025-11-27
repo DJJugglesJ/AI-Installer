@@ -2,6 +2,8 @@
 
 AI Installer sets up a modular AI workstation on Ubuntu 22.04. It creates a desktop launcher with quick actions for common AI tools (Stable Diffusion, KoboldAI, SillyTavern), model/LoRA management, and pairing workflows, while handling GPU detection and prerequisite checks for you.
 
+See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the feature wishlist.
+
 ## Prerequisites
 - **Operating system:** Ubuntu 22.04.
 - **Packages:** The installer will prompt to install missing dependencies. It expects `git`, `curl`, `jq`, `yad`, `python3`, `python3-pip`, `wget`, `aria2`, and a terminal emulator (`gnome-terminal`, `x-terminal-emulator`, `konsole`, or `kitty`).
