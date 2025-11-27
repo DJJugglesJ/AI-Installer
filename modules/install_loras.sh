@@ -6,6 +6,7 @@ LOG_FILE="$HOME/.config/aihub/install.log"
 TMP_FILTERED="/tmp/civitai_loras.json"
 TMP_SELECTED_TAGS="/tmp/lora_selected_tags.txt"
 TMP_MATCHES="/tmp/lora_filtered_results.txt"
+TMP_SOURCE_INFO="/tmp/civitai_lora_source.txt"
 INSTALL_DIR="$HOME/AI/LoRAs"
 
 notify()
@@ -56,6 +57,10 @@ SELECTED_TAGS=()
 if [ -f "$TMP_SELECTED_TAGS" ]; then
   mapfile -t SELECTED_TAGS < "$TMP_SELECTED_TAGS"
 fi
+SOURCE_NOTE="Source: CivitAI LoRAs"
+if [ -f "$TMP_SOURCE_INFO" ]; then
+  SOURCE_NOTE=$(cat "$TMP_SOURCE_INFO")
+fi
 
 while IFS= read -r item; do
   name=$(echo "$item" | jq -r .name)
@@ -84,6 +89,7 @@ fi
 
 # Show filtered LoRAs and allow user to pick which to download
 CHOICE=$(yad --list --width=600 --height=400 --title="Select LoRAs to Download" \
+  --text="$SOURCE_NOTE" \
   --multiple --separator="|" \
   --column="Name" --column="Tags" "${FILTERED[@]}")
 
