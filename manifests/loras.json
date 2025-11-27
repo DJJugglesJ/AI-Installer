@@ -1,0 +1,38 @@
+{
+  "source": "CivitAI curated LoRAs",
+  "items": [
+    {
+      "name": "Not Artists Styles for Pony Diffusion V6 XL",
+      "version": "Abstract Painting",
+      "filename": "Abstract Painting - Style [LoRA] - Pony V6 XL.safetensors",
+      "url": "https://civitai.com/api/download/models/1558543",
+      "size_bytes": 57420828,
+      "checksum": "DF7C757437EF3696E76EE5CC18C063681478639132547B6292B0B4D773814BA5",
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["anime", "female", "male", "western art", "style", "ponyxl"],
+      "notes": "Abstract painting style LoRA for Pony Diffusion V6 XL"
+    },
+    {
+      "name": "Detail Tweaker LoRA (细节调整LoRA)",
+      "version": "v1.0",
+      "filename": "add_detail.safetensors",
+      "url": "https://civitai.com/api/download/models/62833",
+      "size_bytes": 37861176,
+      "checksum": "47AAAF0D2945CA937151D61304946DD229B3F072140B85484BC93E38F2A6E2F7",
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["anime", "photorealistic", "concept", "detailed", "lora"],
+      "notes": "Adds crisp detailing to anime and photorealistic renders"
+    },
+    {
+      "name": "Add More Details - Detail Enhancer / Tweaker (细节调整) LoRA",
+      "version": "v1.0",
+      "filename": "more_details.safetensors",
+      "url": "https://civitai.com/api/download/models/87153",
+      "size_bytes": 9547795,
+      "checksum": "D9CF2F88DEC53A8DD8C09ABA2B1D67963B265EBDF8255660F5BCD7F1C8EDBA33",
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["portraits", "landscape", "detail", "enhancer", "tool", "backgrounds"],
+      "notes": "Lightweight detail enhancer LoRA for portraits and landscapes"
+    }
+  ]
+}
