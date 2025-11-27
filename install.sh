@@ -8,6 +8,34 @@ CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
 LOG_FILE="$HOME/.config/aihub/install.log"
 
+notify_prereq() {
+  local message="$1"
+  if command -v yad >/dev/null 2>&1; then
+    yad --error --title="Missing Prerequisite" --text="$message" --width=400
+  else
+    echo "[!] $message" >&2
+  fi
+}
+
+require_commands() {
+  local missing=()
+  for cmd in "$@"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    local joined
+    joined=$(IFS=$'\n'; echo "${missing[*]}")
+    notify_prereq "The following tools are required before running the installer:\n\n$joined\n\nPlease install them with: sudo apt install ${missing[*]}"
+    exit 1
+  fi
+}
+
+# Ensure we have the basics to prompt and install dependencies before proceeding
+require_commands bash dpkg sudo apt
+
 mkdir -p "$INSTALL_PATH"
 mkdir -p "$(dirname "$CONFIG_FILE")"
 mkdir -p "$(dirname "$DESKTOP_ENTRY")"

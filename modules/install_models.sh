@@ -9,30 +9,108 @@ touch "$CONFIG_FILE" "$LOG_FILE"
 
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 
+notify() {
+  local level="$1" title="$2" message="$3"
+  if command -v yad >/dev/null 2>&1; then
+    case "$level" in
+      error) yad --error --title="$title" --text="$message" --width=400 ;;
+      info) yad --info --title="$title" --text="$message" --width=400 ;;
+      warning) yad --warning --title="$title" --text="$message" --width=400 ;;
+    esac
+  else
+    echo "$title: $message" >&2
+  fi
+}
+
+require_commands() {
+  local missing=()
+  for cmd in "$@"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    local joined
+    joined=$(IFS=$'\n'; echo "${missing[*]}")
+    notify error "Missing prerequisites" "The following commands are required before installing models:\n\n$joined"
+    exit 1
+  fi
+}
+
+ensure_downloader() {
+  if command -v aria2c >/dev/null 2>&1 || command -v wget >/dev/null 2>&1; then
+    return 0
+  fi
+  notify error "Downloader missing" "Please install either aria2 or wget to continue."
+  exit 1
+}
+
 log_msg() {
   echo "$(date): $1" >> "$LOG_FILE"
 }
 
+verify_checksum() {
+  local file="$1" expected="$2"
+  if [ -z "$expected" ] || [ "$expected" = "null" ]; then
+    log_msg "Checksum not provided for $(basename "$file"); skipping verification"
+    return 0
+  fi
+  local actual
+  actual=$(sha256sum "$file" | awk '{print $1}')
+  if [ "$actual" != "$expected" ]; then
+    notify error "Checksum mismatch" "The downloaded file $(basename "$file") failed verification. Expected $expected but found $actual."
+    log_msg "Checksum mismatch for $file (expected: $expected, got: $actual); removing corrupt download"
+    rm -f "$file"
+    return 1
+  fi
+  log_msg "Checksum verified for $(basename "$file")"
+  return 0
+}
+
 download_with_retries() {
-  local url="$1" dest="$2" header="$3"
+  local url="$1" dest="$2" header="$3" expected_checksum="$4"
+  local attempt=1 max_attempts=3 backoff=5
   log_msg "Starting download: $dest from $url"
 
-  if command -v aria2c >/dev/null 2>&1; then
-    local args=(--continue=true --max-tries=5 --retry-wait=5 --dir="$(dirname "$dest")" --out="$(basename "$dest")")
-    [ -n "$header" ] && args+=(--header="$header")
-    if aria2c "${args[@]}" "$url"; then
-      return 0
+  while [ $attempt -le $max_attempts ]; do
+    if [ $attempt -gt 1 ]; then
+      notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest")"
+      log_msg "Retry attempt $attempt for $dest"
+      sleep $backoff
+      backoff=$((backoff * 2))
     fi
-  else
-    local args=(--continue --show-progress --tries=5 --waitretry=5 -O "$dest")
-    [ -n "$header" ] && args+=(--header="$header")
-    if wget "${args[@]}" "$url"; then
-      return 0
-    fi
-  fi
 
+    if command -v aria2c >/dev/null 2>&1; then
+      local args=(--continue=true --max-tries=1 --retry-wait=3 --dir="$(dirname "$dest")" --out="$(basename "$dest")")
+      [ -n "$header" ] && args+=(--header="$header")
+      if aria2c "${args[@]}" "$url"; then
+        if verify_checksum "$dest" "$expected_checksum"; then
+          return 0
+        fi
+      fi
+    elif command -v wget >/dev/null 2>&1; then
+      local args=(--continue --show-progress --tries=1 --waitretry=3 -O "$dest")
+      [ -n "$header" ] && args+=(--header="$header")
+      if wget "${args[@]}" "$url"; then
+        if verify_checksum "$dest" "$expected_checksum"; then
+          return 0
+        fi
+      fi
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  notify error "Download failed" "Unable to download $(basename "$dest") after $max_attempts attempts."
+  log_msg "Download failed after $max_attempts attempts: $dest"
   return 1
 }
+
+require_commands jq python3 sha256sum
+ensure_downloader
+
+HF_SD15_SHA256="${huggingface_sha256:-}"
 
 set_config_value() {
   local key="$1" value="$2"
@@ -118,7 +196,8 @@ for item in items:
   filename = file.get("name") or "download.bin"
   file_format = "safetensors" if filename.endswith(".safetensors") else "ckpt" if filename.endswith(".ckpt") else "other"
   url = file.get("downloadUrl")
-  print("\t".join([name, model_type, size, nsfw, file_format, url, filename]))
+  checksum = (file.get("hashes") or {}).get("SHA256") or ""
+  print("\t".join([name, model_type, size, nsfw, file_format, url, filename, checksum]))
 PY
 }
 
@@ -147,7 +226,7 @@ download_civitai_models() {
 
   local selection
   selection=$(echo "$model_list" | yad --list --multiple --separator="\n" --width=900 --height=600 --title="CivitAI Checkpoint Browser" \
-    --column="Name" --column="Type" --column="Size" --column="NSFW" --column="Format" --column="URL" --column="Filename")
+    --column="Name" --column="Type" --column="Size" --column="NSFW" --column="Format" --column="URL" --column="Filename" --column="SHA256")
 
   if [ -z "$selection" ]; then
     log_msg "CivitAI selection canceled"
@@ -155,10 +234,10 @@ download_civitai_models() {
   fi
 
   local download_success=false
-  while IFS='|' read -r name type size nsfw format url filename; do
+  while IFS='|' read -r name type size nsfw format url filename checksum; do
     [ -z "$url" ] && continue
     local dest="$MODEL_DIR/$filename"
-    if download_with_retries "$url" "$dest" ""; then
+    if download_with_retries "$url" "$dest" "" "$checksum"; then
       log_msg "Downloaded $filename from CivitAI"
       download_success=true
     else
@@ -183,7 +262,7 @@ download_huggingface_model() {
   fi
 
   log_msg "Downloading base model (SD1.5) from Hugging Face"
-  if download_with_retries "$url" "$dest" "$header"; then
+  if download_with_retries "$url" "$dest" "$header" "$HF_SD15_SHA256"; then
     return 0
   fi
 
