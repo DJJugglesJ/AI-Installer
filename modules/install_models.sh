@@ -190,7 +190,17 @@ download_huggingface_model() {
   return 1
 }
 
-SOURCE=$(prompt_model_source)
+SOURCE="${MODEL_SOURCE:-$(prompt_model_source)}"
+SOURCE=$(echo "$SOURCE" | tr '[:upper:]' '[:lower:]')
+
+case "$SOURCE" in
+  civitai|huggingface)
+    ;;
+  *)
+    SOURCE="huggingface"
+    ;;
+esac
+
 log_msg "Selected model source: $SOURCE"
 
 if [ "$SOURCE" = "civitai" ] && ! command -v yad >/dev/null 2>&1; then

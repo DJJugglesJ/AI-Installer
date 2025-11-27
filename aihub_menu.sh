@@ -12,7 +12,8 @@ ACTION=$(yad --width=450 --height=450 --center --title="AI Workstation Launcher"
   FALSE "🤖  Launch KoboldAI" \
   FALSE "🧠  Launch SillyTavern" \
   FALSE "📥  Install or Update LoRAs" \
-  FALSE "📦  Install or Update Models" \
+  FALSE "📦  Install or Update Models (Hugging Face)" \
+  FALSE "📥  Download Models from CivitAI" \
   FALSE "🆕  Update Installer" \
   FALSE "🔁  Pull Updates" \
   FALSE "🧠  Pair LLM + LoRA (oobabooga)" \
@@ -36,8 +37,11 @@ case "$ACTION" in
   *"📥  Install or Update LoRAs"*)
     bash "$MODULE_DIR/install_loras.sh"
     ;;
-  *"📦  Install or Update Models"*)
+  *"📦  Install or Update Models (Hugging Face)"*)
     bash "$MODULE_DIR/install_models.sh"
+    ;;
+  *"📥  Download Models from CivitAI"*)
+    MODEL_SOURCE="civitai" bash "$MODULE_DIR/install_models.sh"
     ;;
   *"🆕  Update Installer"*)
     bash "$MODULE_DIR/self_update.sh"
