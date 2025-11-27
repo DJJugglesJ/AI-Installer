@@ -2,6 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$SCRIPT_DIR/modules"
+LAUNCHER_DIR="$SCRIPT_DIR/launcher"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 LOG_FILE="$HOME/.config/aihub/install.log"
@@ -28,6 +29,7 @@ ACTION=$(yad --width=450 --height=450 --center --title="$MENU_TITLE" \
   FALSE "📥  Download Models from CivitAI" \
   FALSE "🆕  Update Installer" \
   FALSE "🔁  Pull Updates" \
+  FALSE "ℹ️  View Installer Status" \
   FALSE "🧠  Pair LLM + LoRA (oobabooga)" \
   FALSE "🎭  Pair LLM + LoRA (SillyTavern)" \
   FALSE "🎨  Select LoRA for Preset" \
@@ -60,6 +62,9 @@ case "$ACTION" in
     ;;
   *"🔁  Pull Updates"*)
     git -C "$SCRIPT_DIR" pull
+    ;;
+  *"ℹ️  View Installer Status"*)
+    bash "$LAUNCHER_DIR/ai_hub_launcher.sh"
     ;;
   *"🧠  Pair LLM + LoRA (oobabooga)"*)
     bash "$MODULE_DIR/pair_oobabooga.sh"
