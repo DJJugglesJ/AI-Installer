@@ -1,7 +1,18 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+LOG_FILE="$HOME/.config/aihub/install.log"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+
+log_msg() {
+  local message="$1"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
+
+GPU_LABEL=${gpu_mode:-"Unknown"}
+log_msg "Launching KoboldAI with GPU mode: $GPU_LABEL"
 
 KOBOLD_DIR="$HOME/AI/KoboldAI"
 
