@@ -21,7 +21,8 @@ ACTION=$(yad --width=450 --height=450 --center --title="AI Workstation Launcher"
   FALSE "💾  Save Current Pairing as Preset" \
   FALSE "📂  Load Saved Pairing Preset" \
   FALSE "❌  Exit" \
-)\n
+) 
+
 case "$ACTION" in
   *"🖼️  Run Stable Diffusion WebUI"*)
     bash "$MODULE_DIR/run_webui.sh"
