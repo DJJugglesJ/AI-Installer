@@ -3,6 +3,9 @@
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 LOG_FILE="$HOME/.config/aihub/install.log"
 MODEL_DIR="$HOME/AI/models"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST_DIR="$SCRIPT_DIR/../manifests"
+MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 
 mkdir -p "$(dirname "$CONFIG_FILE")" "$(dirname "$LOG_FILE")" "$MODEL_DIR"
 touch "$CONFIG_FILE" "$LOG_FILE"
@@ -48,6 +51,48 @@ ensure_downloader() {
 
 log_msg() {
   echo "$(date): $1" >> "$LOG_FILE"
+}
+
+human_size() {
+  local size_bytes="$1"
+  local units=(B KB MB GB TB)
+  local unit=0
+  local value="$size_bytes"
+
+  while [ "$value" -ge 1024 ] && [ $unit -lt 4 ]; do
+    value=$((value / 1024))
+    unit=$((unit + 1))
+  done
+
+  printf "%s %s" "$value" "${units[$unit]}"
+}
+
+offer_backup() {
+  local backup_dir="$HOME/.config/aihub/backups/$(date +%Y%m%d%H%M%S)"
+  local files_to_backup=()
+
+  [ -f "$CONFIG_FILE" ] && files_to_backup+=("$CONFIG_FILE")
+  [ -f "$LOG_FILE" ] && files_to_backup+=("$LOG_FILE")
+  [ -f "$MODEL_MANIFEST" ] && files_to_backup+=("$MODEL_MANIFEST")
+
+  [ ${#files_to_backup[@]} -eq 0 ] && return
+
+  if command -v yad >/dev/null 2>&1; then
+    if yad --question --title="Backup files" --text="Create a backup of installer config and model manifest before changes?"; then
+      mkdir -p "$backup_dir"
+      cp "${files_to_backup[@]}" "$backup_dir/"
+      log_msg "Backed up manifest/config to $backup_dir"
+    fi
+  else
+    read -rp "Backup manifest/config before installing? [y/N]: " answer
+    case "$answer" in
+      [Yy]*)
+        mkdir -p "$backup_dir"
+        cp "${files_to_backup[@]}" "$backup_dir/"
+        log_msg "Backed up manifest/config to $backup_dir"
+        ;;
+    esac
+  fi
 }
 
 verify_checksum() {
@@ -109,6 +154,7 @@ download_with_retries() {
 
 require_commands jq python3 sha256sum
 ensure_downloader
+offer_backup
 
 HF_SD15_SHA256="${huggingface_sha256:-}"
 
@@ -122,16 +168,17 @@ set_config_value() {
 }
 
 prompt_model_source() {
-  local default_source="huggingface"
+  local default_source="curated"
   if command -v yad >/dev/null 2>&1; then
     local choice
-    choice=$(yad --list --radiolist --title="Choose Model Source" --width=400 --height=200 \
-      --column="Select":R --column="Source" TRUE "Hugging Face" FALSE "CivitAI")
+    choice=$(yad --list --radiolist --title="Choose Model Source" --width=450 --height=250 \
+      --column="Select":R --column="Source" TRUE "Curated Manifest" FALSE "Hugging Face" FALSE "CivitAI")
     choice=$(echo "$choice" | cut -d '|' -f2)
-    if [ "$choice" = "CivitAI" ]; then
-      echo "civitai"
-      return
-    fi
+    case "$choice" in
+      "Hugging Face") echo "huggingface"; return ;;
+      "CivitAI") echo "civitai"; return ;;
+      *) echo "curated"; return ;;
+    esac
   fi
   echo "$default_source"
 }
@@ -252,6 +299,74 @@ download_civitai_models() {
   return 0
 }
 
+choose_curated_model() {
+  if [ ! -f "$MODEL_MANIFEST" ]; then
+    log_msg "Model manifest not found at $MODEL_MANIFEST"
+    return 1
+  fi
+
+  local entries=()
+  declare -A ENTRY_DATA
+
+  while IFS= read -r item; do
+    local name version size checksum license tags notes filename url
+    name=$(echo "$item" | jq -r '.name')
+    version=$(echo "$item" | jq -r '.version')
+    size=$(echo "$item" | jq -r '.size_bytes // 0')
+    checksum=$(echo "$item" | jq -r '.checksum // ""')
+    license=$(echo "$item" | jq -r '.license // "Unknown"')
+    tags=$(echo "$item" | jq -r '.tags | join(", ")')
+    notes=$(echo "$item" | jq -r '.notes // ""')
+    filename=$(echo "$item" | jq -r '.filename')
+    url=$(echo "$item" | jq -r '.url')
+    size_human=$(human_size "$size")
+
+    entries+=(FALSE "$name" "$version" "$size_human" "$license" "$tags" "$notes")
+    ENTRY_DATA["$name"]="$item"
+  done < <(jq -c '.items[]' "$MODEL_MANIFEST")
+
+  if [ ${#entries[@]} -eq 0 ]; then
+    notify error "Manifest empty" "No models found in $MODEL_MANIFEST"
+    return 1
+  fi
+
+  local selection
+  selection=$(yad --list --checklist --separator="\n" --width=1000 --height=500 --title="Curated Models" \
+    --column="Select":CHK --column="Name" --column="Version" --column="Size" --column="License" --column="Tags" --column="Notes" \
+    "${entries[@]}")
+
+  if [ -z "$selection" ]; then
+    log_msg "No curated models selected"
+    return 1
+  fi
+
+  local download_success=false
+  while IFS='|' read -r name _rest; do
+    [ -z "$name" ] && continue
+    local item="${ENTRY_DATA[$name]}"
+    local url filename checksum size
+    url=$(echo "$item" | jq -r '.url')
+    filename=$(echo "$item" | jq -r '.filename')
+    checksum=$(echo "$item" | jq -r '.checksum')
+    size=$(echo "$item" | jq -r '.size_bytes // 0')
+    if [ -z "$url" ] || [ -z "$filename" ]; then
+      log_msg "Skipping $name due to missing URL or filename"
+      continue
+    fi
+    notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
+    local dest="$MODEL_DIR/$filename"
+    if download_with_retries "$url" "$dest" "" "$checksum"; then
+      log_msg "Downloaded curated model $filename"
+      download_success=true
+    else
+      log_msg "Failed to download curated model $filename"
+    fi
+  done <<< "$selection"
+
+  $download_success && return 0
+  return 1
+}
+
 download_huggingface_model() {
   local hf_token="$1"
   local dest="$MODEL_DIR/sd-v1-5.ckpt"
@@ -273,10 +388,10 @@ SOURCE="${MODEL_SOURCE:-$(prompt_model_source)}"
 SOURCE=$(echo "$SOURCE" | tr '[:upper:]' '[:lower:]')
 
 case "$SOURCE" in
-  civitai|huggingface)
+  civitai|huggingface|curated)
     ;;
   *)
-    SOURCE="huggingface"
+    SOURCE="curated"
     ;;
 esac
 
@@ -285,6 +400,16 @@ log_msg "Selected model source: $SOURCE"
 if [ "$SOURCE" = "civitai" ] && ! command -v yad >/dev/null 2>&1; then
   echo "CivitAI browsing requires YAD. Falling back to Hugging Face." >&2
   SOURCE="huggingface"
+fi
+
+if [ "$SOURCE" = "curated" ]; then
+  if ! command -v yad >/dev/null 2>&1; then
+    echo "Curated manifest browsing requires YAD. Falling back to Hugging Face." >&2
+    SOURCE="huggingface"
+  elif ! choose_curated_model; then
+    log_msg "Curated model selection failed or was canceled"
+    SOURCE="huggingface"
+  fi
 fi
 
 if [ "$SOURCE" = "huggingface" ]; then

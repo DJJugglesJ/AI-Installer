@@ -8,6 +8,8 @@ TMP_SELECTED_TAGS="/tmp/lora_selected_tags.txt"
 TMP_MATCHES="/tmp/lora_filtered_results.txt"
 TMP_SOURCE_INFO="/tmp/civitai_lora_source.txt"
 INSTALL_DIR="$HOME/AI/LoRAs"
+MANIFEST_DIR="$SCRIPT_DIR/../manifests"
+LORA_MANIFEST="$MANIFEST_DIR/loras.json"
 
 notify()
 {
@@ -29,6 +31,48 @@ notify()
 
 log_msg() {
   echo "$(date): $1" >> "$LOG_FILE"
+}
+
+human_size() {
+  local size_bytes="$1"
+  local units=(B KB MB GB TB)
+  local unit=0
+  local value="$size_bytes"
+
+  while [ "$value" -ge 1024 ] && [ $unit -lt 4 ]; do
+    value=$((value / 1024))
+    unit=$((unit + 1))
+  done
+
+  printf "%s %s" "$value" "${units[$unit]}"
+}
+
+offer_backup() {
+  local backup_dir="$HOME/.config/aihub/backups/$(date +%Y%m%d%H%M%S)"
+  local files_to_backup=()
+
+  [ -f "$CONFIG_FILE" ] && files_to_backup+=("$CONFIG_FILE")
+  [ -f "$LOG_FILE" ] && files_to_backup+=("$LOG_FILE")
+  [ -f "$LORA_MANIFEST" ] && files_to_backup+=("$LORA_MANIFEST")
+
+  [ ${#files_to_backup[@]} -eq 0 ] && return
+
+  if command -v yad >/dev/null 2>&1; then
+    if yad --question --title="Backup files" --text="Create a backup of installer config and LoRA manifest before changes?"; then
+      mkdir -p "$backup_dir"
+      cp "${files_to_backup[@]}" "$backup_dir/"
+      log_msg "Backed up manifest/config to $backup_dir"
+    fi
+  else
+    read -rp "Backup manifest/config before installing? [y/N]: " answer
+    case "$answer" in
+      [Yy]*)
+        mkdir -p "$backup_dir"
+        cp "${files_to_backup[@]}" "$backup_dir/"
+        log_msg "Backed up manifest/config to $backup_dir"
+        ;;
+    esac
+  fi
 }
 
 require_commands() {
@@ -73,6 +117,91 @@ verify_checksum() {
   return 0
 }
 
+prompt_lora_source() {
+  local default_source="curated"
+  if command -v yad >/dev/null 2>&1; then
+    local choice
+    choice=$(yad --list --radiolist --title="Choose LoRA Source" --width=450 --height=250 \
+      --column="Select":R --column="Source" TRUE "Curated Manifest" FALSE "CivitAI Browser")
+    choice=$(echo "$choice" | cut -d '|' -f2)
+    case "$choice" in
+      "CivitAI Browser") echo "civitai"; return ;;
+      *) echo "curated"; return ;;
+    esac
+  fi
+  echo "$default_source"
+}
+
+choose_curated_loras() {
+  if [ ! -f "$LORA_MANIFEST" ]; then
+    notify error "Manifest missing" "Curated LoRA manifest not found at $LORA_MANIFEST"
+    return 1
+  fi
+
+  local entries=()
+  declare -A ENTRY_DATA
+
+  while IFS= read -r item; do
+    local name version size license tags notes filename url checksum
+    name=$(echo "$item" | jq -r '.name')
+    version=$(echo "$item" | jq -r '.version')
+    size=$(echo "$item" | jq -r '.size_bytes // 0')
+    license=$(echo "$item" | jq -r '.license // "Unknown"')
+    tags=$(echo "$item" | jq -r '.tags | join(", ")')
+    notes=$(echo "$item" | jq -r '.notes // ""')
+    filename=$(echo "$item" | jq -r '.filename')
+    url=$(echo "$item" | jq -r '.url')
+    checksum=$(echo "$item" | jq -r '.checksum')
+    size_human=$(human_size "$size")
+
+    entries+=(FALSE "$name" "$version" "$size_human" "$license" "$tags" "$notes")
+    ENTRY_DATA["$name"]="$item"
+  done < <(jq -c '.items[]' "$LORA_MANIFEST")
+
+  if [ ${#entries[@]} -eq 0 ]; then
+    notify error "Manifest empty" "No LoRAs found in $LORA_MANIFEST"
+    return 1
+  fi
+
+  local selection
+  selection=$(yad --list --checklist --separator="\n" --width=1000 --height=500 --title="Curated LoRAs" \
+    --column="Select":CHK --column="Name" --column="Version" --column="Size" --column="License" --column="Tags" --column="Notes" \
+    "${entries[@]}")
+
+  if [ -z "$selection" ]; then
+    log_msg "No curated LoRAs selected"
+    return 1
+  fi
+
+  local download_success=false
+  while IFS='|' read -r name _rest; do
+    [ -z "$name" ] && continue
+    local item="${ENTRY_DATA[$name]}"
+    local url filename checksum size
+    url=$(echo "$item" | jq -r '.url')
+    filename=$(echo "$item" | jq -r '.filename')
+    checksum=$(echo "$item" | jq -r '.checksum')
+    size=$(echo "$item" | jq -r '.size_bytes // 0')
+
+    if [ -z "$url" ] || [ -z "$filename" ]; then
+      log_msg "Skipping $name due to missing URL or filename"
+      continue
+    fi
+
+    notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
+    local dest="$INSTALL_DIR/$filename"
+    if download_with_retries "$url" "$dest" "$checksum"; then
+      log_msg "Downloaded curated LoRA $filename"
+      download_success=true
+    else
+      log_msg "Failed to download curated LoRA $filename"
+    fi
+  done <<< "$selection"
+
+  $download_success && return 0
+  return 1
+}
+
 download_with_retries() {
   local url="$1" dest="$2" expected_checksum="$3"
   local attempt=1 max_attempts=3 backoff=5
@@ -110,6 +239,29 @@ download_with_retries() {
 
 require_commands yad jq curl sha256sum
 ensure_downloader
+offer_backup
+
+SOURCE="${LORA_SOURCE:-$(prompt_lora_source)}"
+SOURCE=$(echo "$SOURCE" | tr '[:upper:]' '[:lower:]')
+
+if [ "$SOURCE" = "curated" ]; then
+  if ! command -v yad >/dev/null 2>&1; then
+    echo "Curated manifest browsing requires YAD. Falling back to live CivitAI browser." >&2
+    SOURCE="civitai"
+  elif choose_curated_loras; then
+    if grep -q "^loras_installed=" "$CONFIG_FILE"; then
+      sed -i 's/^loras_installed=.*/loras_installed=true/' "$CONFIG_FILE"
+    else
+      echo "loras_installed=true" >> "$CONFIG_FILE"
+    fi
+    echo "$(date): Curated LoRA download completed." >> "$LOG_FILE"
+    notify info "LoRA Download Complete" "✅ Selected curated LoRAs downloaded to $INSTALL_DIR"
+    exit 0
+  else
+    log_msg "Curated LoRA workflow failed; reverting to CivitAI browser"
+    SOURCE="civitai"
+  fi
+fi
 
 mkdir -p "$(dirname "$CONFIG_FILE")"
 mkdir -p "$(dirname "$LOG_FILE")"

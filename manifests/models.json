@@ -1,0 +1,38 @@
+{
+  "source": "CivitAI curated checkpoints",
+  "items": [
+    {
+      "name": "Pony Diffusion V6 XL",
+      "version": "V6 (start with this one)",
+      "filename": "ponyDiffusionV6XL_v6StartWithThisOne.safetensors",
+      "url": "https://civitai.com/api/download/models/290640",
+      "size_bytes": 6938041050,
+      "checksum": "67AB2FD8EC439A89B3FEDB15CC65F54336AF163C7EB5E4F2ACC98F090A29B0B3",
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["western art", "my little pony", "base model"],
+      "notes": "Top-rated XL checkpoint with pony diffusion focus"
+    },
+    {
+      "name": "WAI-illustrious-SDXL",
+      "version": "v15.0",
+      "filename": "waiIllustriousSDXL_v150.safetensors",
+      "url": "https://civitai.com/api/download/models/2167369",
+      "size_bytes": 6938040682,
+      "checksum": "BEFC694A296F75E996488EBF9F9DB8A1493BD059B6E704B975829E87D5AEB4FA",
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["anime", "base model"],
+      "notes": "Anime-focused SDXL checkpoint"
+    },
+    {
+      "name": "majicMIX realistic 麦橘写实",
+      "version": "v7",
+      "filename": "majicmixRealistic_v7.safetensors",
+      "url": "https://civitai.com/api/download/models/176425",
+      "size_bytes": 2132625894,
+      "checksum": "7C819B6D13663ED720C2254F4FE18373107DFEF2448D337913C8FC545640881E",
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["base model", "asian", "realistic", "photorealistic"],
+      "notes": "Realistic checkpoint with photorealistic tuning"
+    }
+  ]
+}
