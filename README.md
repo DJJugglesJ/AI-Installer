@@ -1,6 +1,6 @@
 # AI Installer
 
-AI Installer sets up a modular AI workstation on Ubuntu 22.04. It creates a desktop launcher with quick actions for common AI tools (Stable Diffusion, KoboldAI, SillyTavern), model/LoRA management, and pairing workflows, while handling GPU detection and prerequisite checks for you.
+AI Installer sets up a modular AI workstation on Ubuntu 22.04. It presents AI-Hub as a general-purpose orchestration layer for image and text workflows (e.g., Stable Diffusion, KoboldAI, SillyTavern), model/LoRA management, and pairing routines, while handling GPU detection and prerequisite checks for you. Examples are written in a neutral style so they can be reused across setups, and AI-Hub can optionally support adult content workflows depending on your configuration and local policies.
 
 See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the feature wishlist.
 
@@ -46,7 +46,7 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 - If no supported GPU is found, the installer can continue in CPU mode (slower inference).
 
 ## Models and LoRAs
-- Base models download to `~/AI/models/`. The Stable Diffusion v1.5 checkpoint is fetched by default.
+- Base models download to `$HOME/ai-hub/models/`. The Stable Diffusion v1.5 checkpoint is fetched by default.
 - Hugging Face tokens are optional but recommended for gated or rate-limited downloads; tokens are stored in `~/.config/aihub/installer.conf`.
 - LoRA utilities can install/update assets and pair them with supported frontends.
 

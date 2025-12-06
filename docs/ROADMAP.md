@@ -103,11 +103,11 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 
 ### Phase 3 - NSFW & Anatomy Checklist (opt in)
 - Respect an `nsfw_allowed` flag on each Character Card.
-- Provide an anatomy / coverage checklist (topless, nude, different poses, etc).
+- Provide an anatomy / coverage checklist for opt-in adult datasets (varied outfits and poses).
 - For each checklist item, generate batches, allow selection, and caption using:
   - `trigger_token`
-  - anatomy tags (for stable traits like body, breasts, nipples, freckles, skin)
-  - state/pose/clothing tags (topless, nude, standing, lying_down, spread_legs, lingerie, etc).
+  - anatomy tags (for stable traits like physique, distinguishing features, or style cues)
+  - state/pose/clothing tags (varied poses, wardrobe choices, camera angles, etc.).
 
 ### Phase 4 - Tagging UI
 - Add a tagging interface to review and edit captions.
