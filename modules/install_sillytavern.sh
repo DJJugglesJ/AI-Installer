@@ -1,9 +1,13 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
-mkdir -p "$(dirname "$CONFIG_FILE")"
-touch "$CONFIG_FILE"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config_service/config_helpers.sh"
+
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 
@@ -40,11 +44,7 @@ else
 fi
 
 if [[ "$ACTION_STATUS" == "success" ]]; then
-  if grep -q "^sillytavern_installed=" "$CONFIG_FILE"; then
-    sed -i 's/^sillytavern_installed=.*/sillytavern_installed=true/' "$CONFIG_FILE"
-  else
-    echo "sillytavern_installed=true" >> "$CONFIG_FILE"
-  fi
+config_set "state.sillytavern_installed" "true"
 fi
 
 if [[ "${HEADLESS:-0}" -eq 1 ]]; then

@@ -3,10 +3,13 @@
 # detect_gpu.sh — Identify installed GPU and prompt for driver setup or CPU fallback
 
 CONFIG_FILE="${CONFIG_FILE:-$HOME/.config/aihub/installer.conf}"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
-mkdir -p "$(dirname "$CONFIG_FILE")"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config_service/config_helpers.sh"
+
 mkdir -p "$(dirname "$LOG_FILE")"
-touch "$CONFIG_FILE"
 touch "$LOG_FILE"
 
 log_msg() {
@@ -14,14 +17,7 @@ log_msg() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
 }
 
-set_config_value() {
-  local key="$1" value="$2"
-  if grep -q "^${key}=" "$CONFIG_FILE" 2>/dev/null; then
-    sed -i "s/^${key}=.*/${key}=${value}/" "$CONFIG_FILE"
-  else
-    echo "${key}=${value}" >> "$CONFIG_FILE"
-  fi
-}
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 
 NVIDIA_FOUND=$(lspci | grep -i 'NVIDIA')
 AMD_FOUND=$(lspci | grep -i 'AMD' | grep -i 'VGA')
@@ -72,9 +68,9 @@ fi
 if [[ -n "$GPU_MODE_OVERRIDE" ]]; then
   GPU_MODE=${GPU_MODE_OVERRIDE^^}
   log_msg "GPU mode overridden via CLI: $GPU_MODE"
-elif [[ "${HEADLESS:-0}" -eq 1 ]] && grep -q '^gpu_mode=' "$CONFIG_FILE"; then
-  GPU_MODE=$(grep '^gpu_mode=' "$CONFIG_FILE" | cut -d'=' -f2)
-  log_msg "Headless mode: loaded GPU mode from config ($GPU_MODE)."
+elif [[ "${HEADLESS:-0}" -eq 1 && -n "${gpu_mode:-}" ]]; then
+  GPU_MODE=${gpu_mode^^}
+  log_msg "Headless mode: loaded GPU mode from config (${GPU_MODE:-unknown})."
 else
   log_msg "No GPU mode override supplied; using hardware detection defaults."
 fi
@@ -193,22 +189,21 @@ case "$DETECTED_GPU" in
 esac
 
 # Record capability flags and defaults
-[[ -n "$GPU_VRAM_GB" ]] && set_config_value "detected_vram_gb" "$GPU_VRAM_GB"
-set_config_value "gpu_supports_fp16" "$FP16_SUPPORTED"
-set_config_value "gpu_supports_xformers" "$XFORMERS_SUPPORTED"
-set_config_value "gpu_supports_directml" "$DIRECTML_SUPPORTED"
-if ! grep -q '^enable_fp16=' "$CONFIG_FILE" 2>/dev/null; then
-  # Default to FP16 on NVIDIA, keep FP32 for others unless explicitly enabled.
-  set_config_value "enable_fp16" $([[ "$GPU_MODE" == "NVIDIA" ]] && echo "true" || echo "false")
+[[ -n "$GPU_VRAM_GB" ]] && config_set "gpu.detected_vram_gb" "$GPU_VRAM_GB"
+config_set "gpu.supports_fp16" "$FP16_SUPPORTED"
+config_set "gpu.supports_xformers" "$XFORMERS_SUPPORTED"
+config_set "gpu.supports_directml" "$DIRECTML_SUPPORTED"
+if [[ -z "${enable_fp16+x}" ]]; then
+  config_set "performance.enable_fp16" $([[ "$GPU_MODE" == "NVIDIA" ]] && echo "true" || echo "false")
 fi
-if ! grep -q '^enable_xformers=' "$CONFIG_FILE" 2>/dev/null; then
-  set_config_value "enable_xformers" "$XFORMERS_SUPPORTED"
+if [[ -z "${enable_xformers+x}" ]]; then
+  config_set "performance.enable_xformers" "$XFORMERS_SUPPORTED"
 fi
-if ! grep -q '^enable_directml=' "$CONFIG_FILE" 2>/dev/null; then
-  set_config_value "enable_directml" "false"
+if [[ -z "${enable_directml+x}" ]]; then
+  config_set "performance.enable_directml" "false"
 fi
-if ! grep -q '^enable_low_vram=' "$CONFIG_FILE" 2>/dev/null; then
-  set_config_value "enable_low_vram" "$LOW_VRAM_RECOMMENDED"
+if [[ -z "${enable_low_vram+x}" ]]; then
+  config_set "performance.enable_low_vram" "$LOW_VRAM_RECOMMENDED"
 fi
 [[ "$LOW_VRAM_RECOMMENDED" == "true" ]] && log_msg "Low VRAM recommendation recorded; medvram flag will be available."
 
@@ -220,16 +215,8 @@ if [[ "$GPU_MODE" == "CPU" ]]; then
   sudo apt install -y libopenblas-dev
 fi
 
-# Persist selection to config file
-if grep -q '^gpu_mode=' "$CONFIG_FILE"; then
-  sed -i "s/^gpu_mode=.*/gpu_mode=$GPU_MODE/" "$CONFIG_FILE"
-else
-  echo "gpu_mode=$GPU_MODE" >> "$CONFIG_FILE"
-fi
-if grep -q '^detected_gpu=' "$CONFIG_FILE"; then
-  sed -i "s/^detected_gpu=.*/detected_gpu=$DETECTED_GPU/" "$CONFIG_FILE"
-else
-  echo "detected_gpu=$DETECTED_GPU" >> "$CONFIG_FILE"
-fi
-log_msg "Final GPU mode recorded as $GPU_MODE"
-log_msg "Detection summary: hardware=$DETECTED_GPU, gpu_mode=$GPU_MODE"
+  # Persist selection to config file
+  config_set "gpu.mode" "${GPU_MODE,,}"
+  config_set "gpu.detected_gpu" "$DETECTED_GPU"
+  log_msg "Final GPU mode recorded as $GPU_MODE"
+  log_msg "Detection summary: hardware=$DETECTED_GPU, gpu_mode=$GPU_MODE"

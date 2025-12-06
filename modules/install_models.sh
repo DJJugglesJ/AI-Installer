@@ -1,6 +1,7 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
 MODEL_DIR="$HOME/ai-hub/models"
 WEBUI_SD_DIR="$HOME/AI/WebUI/models/Stable-diffusion"
@@ -9,10 +10,10 @@ MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 HEADLESS="${HEADLESS:-0}"
 
-mkdir -p "$(dirname "$CONFIG_FILE")" "$(dirname "$LOG_FILE")" "$MODEL_DIR"
-touch "$CONFIG_FILE" "$LOG_FILE"
-
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+source "$SCRIPT_DIR/config_service/config_helpers.sh"
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
+mkdir -p "$(dirname "$LOG_FILE")" "$MODEL_DIR"
+touch "$LOG_FILE"
 
 notify() {
   local level="$1" title="$2" message="$3"
@@ -249,11 +250,7 @@ HF_SD15_SHA256="${huggingface_sha256:-}"
 
 set_config_value() {
   local key="$1" value="$2"
-  if grep -q "^${key}=" "$CONFIG_FILE"; then
-    sed -i "s/^${key}=.*/${key}=${value}/" "$CONFIG_FILE"
-  else
-    echo "${key}=${value}" >> "$CONFIG_FILE"
-  fi
+  config_set "$key" "$value"
 }
 
 prompt_model_source() {
@@ -542,7 +539,7 @@ if [ "$SOURCE" = "huggingface" ]; then
   HF_TOKEN=$(echo "$HF_TOKEN" | tr -d '\r\n')
 
   if [ -n "$HF_TOKEN" ]; then
-    set_config_value "huggingface_token" "$HF_TOKEN"
+    config_set "installer.huggingface_token" "$HF_TOKEN"
   elif [[ "$HEADLESS" -eq 1 ]]; then
     log_msg "[headless] Proceeding with anonymous Hugging Face download; set HUGGINGFACE_TOKEN or huggingface_token in config to use authentication"
   fi
@@ -571,7 +568,7 @@ fi
 
 sync_webui_models
 
-set_config_value "models_installed" "true"
+config_set "state.models_installed" "true"
 
 if command -v yad >/dev/null 2>&1 && [[ "$HEADLESS" -ne 1 ]]; then
   yad --info --text="✅ Model installed and config updated." --title="Install Complete"

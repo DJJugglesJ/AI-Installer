@@ -1,8 +1,13 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config_service/config_helpers.sh"
+
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 mkdir -p "$(dirname "$LOG_FILE")"
 : "${gpu_mode:=Unknown}"
 
@@ -11,15 +16,6 @@ touch "$LOG_FILE"
 action_log() {
   local message="$1"
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
-
-set_config_value() {
-  local key="$1" value="$2"
-  if grep -q "^${key}=" "$CONFIG_FILE" 2>/dev/null; then
-    sed -i "s/^${key}=.*/${key}=${value}/" "$CONFIG_FILE"
-  else
-    echo "${key}=${value}" >> "$CONFIG_FILE"
-  fi
 }
 
 normalize_bool() {
@@ -74,7 +70,7 @@ save_flag() {
     action_log "${label} requested but not supported; disabling."
     normalized="false"
   fi
-  set_config_value "$key" "$normalized"
+  config_set "performance.${key}" "$normalized"
   action_log "${label} set to ${normalized}."
 }
 
@@ -82,8 +78,8 @@ save_flag "enable_fp16" "$fp16_choice" "$supports_fp16" "FP16"
 save_flag "enable_xformers" "$xformers_choice" "$supports_xformers" "xFormers"
 # DirectML conflicts with xFormers; prioritise DirectML when supported
 if [[ $(normalize_bool "$directml_choice") == "true" && "$supports_directml" == "true" ]]; then
-  set_config_value "enable_directml" "true"
-  set_config_value "enable_xformers" "false"
+  config_set "performance.enable_directml" "true"
+  config_set "performance.enable_xformers" "false"
   action_log "DirectML enabled; xFormers disabled due to mutual exclusivity."
 else
   save_flag "enable_directml" "$directml_choice" "$supports_directml" "DirectML"
