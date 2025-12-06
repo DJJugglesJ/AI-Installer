@@ -49,11 +49,43 @@ require_commands() {
 }
 
 ensure_downloader() {
-  if command -v aria2c >/dev/null 2>&1 || command -v wget >/dev/null 2>&1; then
-    return 0
+  local has_aria=0 has_wget=0
+  command -v aria2c >/dev/null 2>&1 && has_aria=1
+  command -v wget >/dev/null 2>&1 && has_wget=1
+
+  if [[ $has_aria -eq 0 && $has_wget -eq 0 ]]; then
+    notify error "Downloader missing" "Please install aria2 and/or wget to continue.\n\nExamples:\n  sudo apt-get install aria2\n  sudo apt-get install wget"
+    exit 1
   fi
-  notify error "Downloader missing" "Please install either aria2 or wget to continue."
-  exit 1
+
+  if [[ $has_aria -eq 0 ]]; then
+    notify warning "aria2c unavailable" "Falling back to wget for downloads. Install aria2 for faster parallel downloads:\n  sudo apt-get install aria2"
+    log_msg "aria2c missing; using wget fallback"
+  fi
+
+  if [[ $has_wget -eq 0 ]]; then
+    notify warning "wget unavailable" "Falling back to aria2c for downloads. Install wget for compatibility:\n  sudo apt-get install wget"
+    log_msg "wget missing; using aria2c fallback"
+  fi
+}
+
+run_downloader() {
+  local tool="$1" url="$2" dest="$3" header="$4"
+  case "$tool" in
+    aria2c)
+      local args=(--continue=true --max-tries=1 --retry-wait=3 --dir="$(dirname "$dest")" --out="$(basename "$dest")")
+      [ -n "$header" ] && args+=(--header="$header")
+      aria2c "${args[@]}" "$url"
+      ;;
+    wget)
+      local args=(--continue --show-progress --tries=1 --waitretry=3 -O "$dest")
+      [ -n "$header" ] && args+=(--header="$header")
+      wget "${args[@]}" "$url"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 log_msg() {
@@ -127,40 +159,45 @@ verify_checksum() {
 
 download_with_retries() {
   local url="$1" dest="$2" header="$3" expected_checksum="$4"
-  local attempt=1 max_attempts=3 backoff=5
-  log_msg "Starting download: $dest from $url"
+  local downloaders=()
+  local max_attempts=3
+  local backoff_start=5
 
-  while [ $attempt -le $max_attempts ]; do
-    if [ $attempt -gt 1 ]; then
-      notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest")"
-      log_msg "Retry attempt $attempt for $dest"
-      sleep $backoff
-      backoff=$((backoff * 2))
-    fi
+  command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
+  command -v wget >/dev/null 2>&1 && downloaders+=(wget)
 
-    if command -v aria2c >/dev/null 2>&1; then
-      local args=(--continue=true --max-tries=1 --retry-wait=3 --dir="$(dirname "$dest")" --out="$(basename "$dest")")
-      [ -n "$header" ] && args+=(--header="$header")
-      if aria2c "${args[@]}" "$url"; then
+  log_msg "Starting download: $dest from $url using ${downloaders[*]}"
+
+  for ((i = 0; i < ${#downloaders[@]}; i++)); do
+    local downloader="${downloaders[$i]}"
+    local attempt=1
+    local backoff=$backoff_start
+
+    while [ $attempt -le $max_attempts ]; do
+      if [ $attempt -gt 1 ]; then
+        notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
+        log_msg "Retry attempt $attempt for $dest with $downloader"
+        sleep $backoff
+        backoff=$((backoff * 2))
+      fi
+
+      if run_downloader "$downloader" "$url" "$dest" "$header"; then
         if verify_checksum "$dest" "$expected_checksum"; then
           return 0
         fi
       fi
-    elif command -v wget >/dev/null 2>&1; then
-      local args=(--continue --show-progress --tries=1 --waitretry=3 -O "$dest")
-      [ -n "$header" ] && args+=(--header="$header")
-      if wget "${args[@]}" "$url"; then
-        if verify_checksum "$dest" "$expected_checksum"; then
-          return 0
-        fi
-      fi
-    fi
 
-    attempt=$((attempt + 1))
+      attempt=$((attempt + 1))
+    done
+
+    if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
+      notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
+      log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]}"
+    fi
   done
 
-  notify error "Download failed" "Unable to download $(basename "$dest") after $max_attempts attempts."
-  log_msg "Download failed after $max_attempts attempts: $dest"
+  notify error "Download failed" "Unable to download $(basename "$dest") after trying ${downloaders[*]}.\nConsider installing missing download tools for better reliability."
+  log_msg "Download failed after attempting ${downloaders[*]}: $dest"
   return 1
 }
 
