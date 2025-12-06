@@ -4,21 +4,76 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOG_FILE="$HOME/.config/aihub/install.log"
 
+mkdir -p "$(dirname "$LOG_FILE")"
+
+HEADLESS_MODE=false
+
+if [[ "$1" == "--headless" || "$HEADLESS_UPDATE" == "1" ]]; then
+  HEADLESS_MODE=true
+fi
+
+if ! command -v yad >/dev/null 2>&1; then
+  HEADLESS_MODE=true
+  echo "YAD not found. Falling back to CLI mode." >> "$LOG_FILE"
+fi
+
+log_msg() {
+  echo "$(date): $1" >> "$LOG_FILE"
+}
+
+if $HEADLESS_MODE; then
+  log_msg "Headless mode enabled; using CLI prompts."
+fi
+
+notify_info() {
+  log_msg "$1"
+  if $HEADLESS_MODE; then
+    echo "INFO: $1"
+  else
+    yad --info --title="Updating Installer" --text="$1"
+  fi
+}
+
+notify_error() {
+  log_msg "$1"
+  if $HEADLESS_MODE; then
+    echo "ERROR: $1" >&2
+  else
+    yad --error --title="Update Failed" --text="$1"
+  fi
+}
+
+prompt_continue() {
+  if $HEADLESS_MODE; then
+    read -r -p "Proceed with updating the AI Installer? [y/N]: " response
+    [[ "$response" =~ ^[Yy]$ ]]
+  else
+    yad --question --title="Confirm Update" --text="Proceed with updating the AI Installer?" --button=gtk-yes:0 --button=gtk-no:1
+    [ $? -eq 0 ]
+  fi
+}
+
 if [ ! -d "$INSTALL_DIR/.git" ]; then
-  yad --error --title="Update Failed" --text="❌ This installation wasn't cloned from GitHub.\nSelf-updater is unavailable."
-  echo "$(date): Update failed — no .git directory found." >> "$LOG_FILE"
+  notify_error $'❌ This installation wasn\'t cloned from GitHub.\nSelf-updater is unavailable.'
   exit 1
 fi
 
-cd "$INSTALL_DIR"
-yad --info --title="Updating Installer" --text="🔄 Checking for updates from GitHub..."
-git pull
+cd "$INSTALL_DIR" || {
+  notify_error "❌ Failed to change directory to installation path at $INSTALL_DIR."
+  exit 1
+}
 
-if [ $? -eq 0 ]; then
-  echo "$(date): Installer updated via git pull." >> "$LOG_FILE"
-  yad --info --title="Update Complete" --text="✅ AI Installer has been updated. Relaunching..."
+notify_info "🔄 Checking for updates from GitHub..."
+
+if ! prompt_continue; then
+  notify_info "Update canceled by user."
+  exit 0
+fi
+
+if git pull; then
+  notify_info "✅ AI Installer has been updated. Relaunching..."
   exec bash "$INSTALL_DIR/aihub_menu.sh"
 else
-  echo "$(date): Git pull failed." >> "$LOG_FILE"
-  yad --error --title="Update Failed" --text="❌ Git pull failed.\nCheck your internet connection or repository state."
+  notify_error $'❌ Git pull failed.\nCheck your internet connection or repository state.'
+  exit 1
 fi
