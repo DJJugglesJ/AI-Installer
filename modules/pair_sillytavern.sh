@@ -19,8 +19,8 @@ load_prompt_bundle() {
     return 1
   fi
 
-  POSITIVE_PROMPT=$(jq -r '(.positive_prompt // []) | join(" | ")' "$path")
-  NEGATIVE_PROMPT=$(jq -r '(.negative_prompt // []) | join(" | ")' "$path")
+  POSITIVE_PROMPT=$(jq -r 'if .positive_prompt_text? then .positive_prompt_text else (.positive_prompt // []) | join(" | ") end' "$path")
+  NEGATIVE_PROMPT=$(jq -r 'if .negative_prompt_text? then .negative_prompt_text else (.negative_prompt // []) | join(" | ") end' "$path")
   LORA_FLAGS=$(jq -r '(.lora_calls // []) | map(.name + (if (.weight // null) != null then ":" + (.weight|tostring) else "" end) + (if (.trigger // null) != null then ":" + .trigger else "" end)) | join(",")' "$path")
 
   export PROMPT_BUILDER_POSITIVE="$POSITIVE_PROMPT"

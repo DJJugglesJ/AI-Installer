@@ -20,8 +20,8 @@ load_prompt_bundle() {
   fi
 
   local positive negative loras
-  positive=$(jq -r '(.positive_prompt // []) | join(" | ")' "$path")
-  negative=$(jq -r '(.negative_prompt // []) | join(" | ")' "$path")
+  positive=$(jq -r 'if .positive_prompt_text? then .positive_prompt_text else (.positive_prompt // []) | join(" | ") end' "$path")
+  negative=$(jq -r 'if .negative_prompt_text? then .negative_prompt_text else (.negative_prompt // []) | join(" | ") end' "$path")
   loras=$(jq -r '(.lora_calls // []) | map(.name + (if (.weight // null) != null then ":" + (.weight|tostring) else "" end) + (if (.trigger // null) != null then ":" + .trigger else "" end)) | join(",")' "$path")
 
   export PROMPT_BUILDER_POSITIVE="$positive"
