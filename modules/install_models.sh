@@ -6,6 +6,7 @@ MODEL_DIR="$HOME/ai-hub/models"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
+HEADLESS="${HEADLESS:-0}"
 
 mkdir -p "$(dirname "$CONFIG_FILE")" "$(dirname "$LOG_FILE")" "$MODEL_DIR"
 touch "$CONFIG_FILE" "$LOG_FILE"
@@ -14,6 +15,11 @@ touch "$CONFIG_FILE" "$LOG_FILE"
 
 notify() {
   local level="$1" title="$2" message="$3"
+  if [[ "$HEADLESS" -eq 1 ]]; then
+    log_msg "[$level] $title — $message"
+    return
+  fi
+
   if command -v yad >/dev/null 2>&1; then
     case "$level" in
       error) yad --error --title="$title" --text="$message" --width=400 ;;
@@ -76,6 +82,11 @@ offer_backup() {
   [ -f "$MODEL_MANIFEST" ] && files_to_backup+=("$MODEL_MANIFEST")
 
   [ ${#files_to_backup[@]} -eq 0 ] && return
+
+  if [[ "$HEADLESS" -eq 1 ]]; then
+    log_msg "[headless] Skipping backup prompt; continuing without creating backups"
+    return
+  fi
 
   if command -v yad >/dev/null 2>&1; then
     if yad --question --title="Backup files" --text="Create a backup of installer config and model manifest before changes?"; then
@@ -169,6 +180,13 @@ set_config_value() {
 
 prompt_model_source() {
   local default_source="curated"
+
+  if [[ "$HEADLESS" -eq 1 ]]; then
+    log_msg "[headless] Defaulting model source to Hugging Face"
+    echo "huggingface"
+    return
+  fi
+
   if command -v yad >/dev/null 2>&1; then
     local choice
     choice=$(yad --list --radiolist --title="Choose Model Source" --width=450 --height=250 \
@@ -249,6 +267,11 @@ PY
 }
 
 download_civitai_models() {
+  if [[ "$HEADLESS" -eq 1 ]]; then
+    log_msg "[headless] Skipping CivitAI flow because it requires interactive selection"
+    return 1
+  fi
+
   log_msg "Fetching CivitAI model list"
   local model_list
   if ! model_list=$(fetch_civitai_models); then
@@ -300,6 +323,11 @@ download_civitai_models() {
 }
 
 choose_curated_model() {
+  if [[ "$HEADLESS" -eq 1 ]]; then
+    log_msg "[headless] Skipping curated manifest flow because it requires interactive selection"
+    return 1
+  fi
+
   if [ ! -f "$MODEL_MANIFEST" ]; then
     log_msg "Model manifest not found at $MODEL_MANIFEST"
     return 1
@@ -387,6 +415,15 @@ download_huggingface_model() {
 SOURCE="${MODEL_SOURCE:-$(prompt_model_source)}"
 SOURCE=$(echo "$SOURCE" | tr '[:upper:]' '[:lower:]')
 
+if [[ "$HEADLESS" -eq 1 ]]; then
+  case "$SOURCE" in
+    civitai|curated)
+      log_msg "[headless] Forcing model source to Hugging Face to avoid interactive prompts"
+      SOURCE="huggingface"
+      ;;
+  esac
+fi
+
 case "$SOURCE" in
   civitai|huggingface|curated)
     ;;
@@ -413,9 +450,9 @@ if [ "$SOURCE" = "curated" ]; then
 fi
 
 if [ "$SOURCE" = "huggingface" ]; then
-  HF_TOKEN="${huggingface_token:-}"
+  HF_TOKEN="${huggingface_token:-${HUGGINGFACE_TOKEN:-}}"
 
-  if [ -z "$HF_TOKEN" ]; then
+  if [ -z "$HF_TOKEN" ] && [[ "$HEADLESS" -ne 1 ]]; then
     if command -v yad >/dev/null 2>&1; then
       TOKEN_INPUT=$(yad --form --width=500 --title="Hugging Face Access" --field="Hugging Face token (optional)::TXT" "$HF_TOKEN")
       HF_TOKEN=$(echo "$TOKEN_INPUT" | cut -d '|' -f1 | tr -d '\r\n')
@@ -428,15 +465,19 @@ if [ "$SOURCE" = "huggingface" ]; then
 
   if [ -n "$HF_TOKEN" ]; then
     set_config_value "huggingface_token" "$HF_TOKEN"
+  elif [[ "$HEADLESS" -eq 1 ]]; then
+    log_msg "[headless] Proceeding with anonymous Hugging Face download; set HUGGINGFACE_TOKEN or huggingface_token in config to use authentication"
   fi
 
-  if command -v yad >/dev/null 2>&1; then
+  if command -v yad >/dev/null 2>&1 && [[ "$HEADLESS" -ne 1 ]]; then
     yad --info --title="Downloading Model" --text="Fetching Stable Diffusion base model (SD1.5)..."
+  else
+    log_msg "Starting base model download from Hugging Face"
   fi
 
   if ! download_huggingface_model "$HF_TOKEN"; then
     log_msg "Model download failed from Hugging Face"
-    if command -v yad >/dev/null 2>&1; then
+    if command -v yad >/dev/null 2>&1 && [[ "$HEADLESS" -ne 1 ]]; then
       yad --error --title="Download Failed" --text="Unable to download the Stable Diffusion model.\nEnsure your Hugging Face token is valid or try again later."
     else
       echo "Download failed. Ensure your Hugging Face token is valid or try again later." >&2
@@ -452,8 +493,10 @@ fi
 
 set_config_value "models_installed" "true"
 
-if command -v yad >/dev/null 2>&1; then
+if command -v yad >/dev/null 2>&1 && [[ "$HEADLESS" -ne 1 ]]; then
   yad --info --text="✅ Model installed and config updated." --title="Install Complete"
+else
+  log_msg "Model installed and config updated"
 fi
 
 log_msg "install_models.sh installation completed"
