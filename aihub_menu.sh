@@ -15,28 +15,29 @@ log_msg() {
 }
 
 GPU_LABEL=${gpu_mode:-"Unknown"}
+HEADLESS_FLAG=${HEADLESS:-0}
 MENU_TITLE="AI Workstation Launcher (GPU: $GPU_LABEL)"
-log_msg "Opening launcher menu with GPU mode: $GPU_LABEL"
+log_msg "Opening launcher menu with GPU mode: $GPU_LABEL (HEADLESS=$HEADLESS_FLAG)"
 
-ACTION=$(yad --width=450 --height=450 --center --title="$MENU_TITLE" \
+ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   --list --radiolist \
-  --column="Select" --column="Action"
-  FALSE "🖼️  Run Stable Diffusion WebUI" \
-  FALSE "🤖  Launch KoboldAI" \
-  FALSE "🧠  Launch SillyTavern" \
-  FALSE "📥  Install or Update LoRAs" \
-  FALSE "📦  Install or Update Models (Hugging Face)" \
-  FALSE "📥  Download Models from CivitAI" \
-  FALSE "🆕  Update Installer" \
-  FALSE "🔁  Pull Updates" \
-  FALSE "ℹ️  View Installer Status" \
-  FALSE "🧠  Pair LLM + LoRA (oobabooga)" \
-  FALSE "🎭  Pair LLM + LoRA (SillyTavern)" \
-  FALSE "🎨  Select LoRA for Preset" \
-  FALSE "💾  Save Current Pairing as Preset" \
-  FALSE "📂  Load Saved Pairing Preset" \
-  FALSE "❌  Exit" \
-) 
+  --column="Select":R --column="Action" --column="Description" \
+  TRUE "🖼️  Run Stable Diffusion WebUI" "Starts the WebUI from ~/AI/WebUI with models in Stable-diffusion/; uses current GPU setup." \
+  FALSE "🤖  Launch KoboldAI" "Launches KoboldAI from ~/AI/KoboldAI using your downloaded models." \
+  FALSE "🧠  Launch SillyTavern" "Opens SillyTavern in ~/AI/SillyTavern with existing API/backends." \
+  FALSE "📥  Install or Update LoRAs" "Downloads curated/CivitAI LoRAs into the default ~/AI/LoRAs directory." \
+  FALSE "📦  Install or Update Models (Hugging Face)" "Installs LLMs to the default ~/ai-hub/models directory (HEADLESS=$HEADLESS_FLAG)." \
+  FALSE "📥  Download Models from CivitAI" "Fetches CivitAI models to the default ~/ai-hub/models directory with GUI prompts by default." \
+  FALSE "🆕  Update Installer" "Runs the built-in self-update to refresh installer scripts in this repository." \
+  FALSE "🔁  Pull Updates" "Pulls the latest Git changes for AI-Hub into $(basename "$SCRIPT_DIR")." \
+  FALSE "ℹ️  View Installer Status" "Opens the AI Hub launcher status panel from $LAUNCHER_DIR." \
+  FALSE "🧠  Pair LLM + LoRA (oobabooga)" "Create a launch script pairing ~/AI/oobabooga/models with LoRAs in ~/AI/oobabooga/lora." \
+  FALSE "🎭  Pair LLM + LoRA (SillyTavern)" "Choose backend (oobabooga/KoboldAI) and model for SillyTavern pairing from ~/AI." \
+  FALSE "🎨  Select LoRA for Preset" "Pick a LoRA from ~/AI/LoRAs to use in pairing presets." \
+  FALSE "💾  Save Current Pairing as Preset" "Save the active model/LoRA pairing preset to reuse later." \
+  FALSE "📂  Load Saved Pairing Preset" "Load a previously saved pairing preset to quickly apply settings." \
+  FALSE "❌  Exit" "Close the launcher without making changes." \
+)
 
 case "$ACTION" in
   *"🖼️  Run Stable Diffusion WebUI"*)
