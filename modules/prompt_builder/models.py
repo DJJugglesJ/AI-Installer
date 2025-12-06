@@ -24,3 +24,21 @@ class SceneDescription:
     camera: Optional[str] = None
     characters: List[CharacterRef] = field(default_factory=list)
     extra_elements: List[str] = field(default_factory=list)
+
+
+@dataclass
+class LoRACall:
+    """Represents a LoRA invocation with optional weights or triggers."""
+
+    name: str
+    weight: Optional[float] = None
+    trigger: Optional[str] = None
+
+
+@dataclass
+class PromptAssembly:
+    """Compiled prompt bundle ready for consumption by launcher scripts."""
+
+    positive_prompt: List[str] = field(default_factory=list)
+    negative_prompt: List[str] = field(default_factory=list)
+    lora_calls: List[LoRACall] = field(default_factory=list)
