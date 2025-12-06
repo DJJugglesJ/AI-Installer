@@ -31,6 +31,7 @@ log_error() {
   echo "[!] $message" | tee -a "$LOG_FILE" >&2
 }
 
+
 CONFIG_STATE_BACKUP=""
 CONFIG_ENV_BACKUP=""
 
@@ -48,6 +49,38 @@ backup_file_with_timestamp() {
 restore_backups() {
   [[ -n "$CONFIG_STATE_BACKUP" && -f "$CONFIG_STATE_BACKUP" ]] && cp "$CONFIG_STATE_BACKUP" "$CONFIG_STATE_FILE"
   [[ -n "$CONFIG_ENV_BACKUP" && -f "$CONFIG_ENV_BACKUP" ]] && cp "$CONFIG_ENV_BACKUP" "$CONFIG_FILE"
+}
+
+run_package_install() {
+  local description="$1"
+  shift
+  local cmd=("$@")
+  local attempts=0 max_attempts=2
+
+  while (( attempts < max_attempts )); do
+    attempts=$((attempts + 1))
+    log_msg "Executing package command ($attempts/$max_attempts): ${cmd[*]} for ${description:-packages}"
+    if "${cmd[@]}"; then
+      log_msg "Package command succeeded for ${description:-packages}"
+      return 0
+    fi
+
+    local exit_code=$?
+    log_error "Package command failed or was canceled (exit $exit_code) for ${description:-packages}"
+    if (( attempts >= max_attempts )); then
+      break
+    fi
+
+    if command -v yad >/dev/null 2>&1; then
+      yad --question --title="Retry ${description:-install}" --text="The last package command failed or was canceled.\nWould you like to retry?" --tooltip="If network was interrupted, connect and retry" --button="Yes!retry:0" --button="No:1"
+      [[ $? -eq 0 ]] || break
+    else
+      read -rp "Retry ${description:-install}? [y/N]: " answer || break
+      [[ "$answer" =~ ^[Yy]$ ]] || break
+    fi
+  done
+
+  return 1
 }
 
 usage() {
@@ -139,7 +172,7 @@ fi
 notify_prereq() {
   local message="$1"
   if command -v yad >/dev/null 2>&1; then
-    yad --error --title="Missing Prerequisite" --text="$message" --width=400
+    yad --error --title="Missing Prerequisite" --text="$message" --width=400 --tooltip="See installer docs for remediation"
   else
     echo "[!] $message" >&2
   fi
@@ -147,22 +180,30 @@ notify_prereq() {
 
 require_commands() {
   local missing=()
+  declare -A remediation
+  remediation["bash"]="Install bash via your package manager (e.g., sudo apt install bash)"
+  remediation["sudo"]="Install sudo and ensure your user is in the sudoers file"
+  remediation["lspci"]="Install pciutils: sudo apt install pciutils"
+  remediation["lsmod"]="Install kmod: sudo apt install kmod"
+  remediation["yad"]="Install YAD for dialogs: sudo apt install yad"
   for cmd in "$@"; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-      missing+=("$cmd")
+      missing+=("$cmd — ${remediation[$cmd]:-Install via your package manager}")
+    else
+      log_msg "Prerequisite check passed for $cmd"
     fi
   done
 
   if [ ${#missing[@]} -gt 0 ]; then
     local joined
     joined=$(IFS=$'\n'; echo "${missing[*]}")
-    notify_prereq "The following tools are required before running the installer:\n\n$joined\n\nPlease install them using your system package manager (e.g., apt, dnf, or pacman)."
+    notify_prereq "The following tools are required before running the installer:\n\n$joined\n\nHelp: https://github.com/AI-Hub/AI-Hub#prerequisites"
     exit 1
   fi
 }
 
 # Ensure we have the basics to prompt and install dependencies before proceeding
-require_commands bash sudo
+require_commands bash sudo lspci lsmod yad
 
 mkdir -p "$INSTALL_PATH"
 mkdir -p "$(dirname "$CONFIG_FILE")"
@@ -170,6 +211,7 @@ mkdir -p "$(dirname "$DESKTOP_ENTRY")"
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$CONFIG_FILE"
 touch "$LOG_FILE"
+log_msg "Installer starting with LOG_FILE=$LOG_FILE"
 
 strip_quotes() {
   local value="$1"

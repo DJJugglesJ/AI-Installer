@@ -37,6 +37,8 @@ log_msg() {
   echo "$(date): $1" >> "$LOG_FILE"
 }
 
+log_msg "LoRA installer starting; logging to $LOG_FILE"
+
 human_size() {
   local size_bytes="$1"
   local units=(B KB MB GB TB)
@@ -81,16 +83,24 @@ offer_backup() {
 
 require_commands() {
   local missing=()
+  declare -A remediation
+  remediation["jq"]="Install jq: sudo apt install jq"
+  remediation["python3"]="Install Python 3: sudo apt install python3"
+  remediation["sha256sum"]="Install coreutils/sha256sum: sudo apt install coreutils"
+  remediation["aria2c"]="Install aria2: sudo apt install aria2"
+  remediation["wget"]="Install wget: sudo apt install wget"
   for cmd in "$@"; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-      missing+=("$cmd")
+      missing+=("$cmd — ${remediation[$cmd]:-Install via your package manager}")
+    else
+      log_msg "Prerequisite check passed for $cmd"
     fi
   done
 
   if [ ${#missing[@]} -gt 0 ]; then
     local joined
     joined=$(IFS=$'\n'; echo "${missing[*]}")
-    notify error "Missing prerequisites" "The following commands are required before downloading LoRAs:\n\n$joined"
+    notify error "Missing prerequisites" "The following commands are required before downloading LoRAs:\n\n$joined\n\nHelp: https://github.com/AI-Hub/AI-Hub#prerequisites"
     exit 1
   fi
 }
@@ -147,6 +157,63 @@ verify_checksum() {
   fi
   log_msg "Checksum verified for $(basename "$file")"
   return 0
+}
+
+download_with_retries() {
+  local url="$1" dest="$2" expected_checksum="$3" mirror_list="$4"
+  local downloaders=()
+  local max_attempts=3
+  local backoff_start=5
+  local urls=("$url")
+  local current_url=""
+
+  if [[ -n "$mirror_list" ]]; then
+    while IFS= read -r mirror; do
+      [[ -n "$mirror" ]] && urls+=("$mirror")
+    done <<< "$mirror_list"
+  fi
+
+  command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
+  command -v wget >/dev/null 2>&1 && downloaders+=(wget)
+
+  for current_url in "${urls[@]}"; do
+    log_msg "Starting download: $dest from $current_url using ${downloaders[*]}"
+    for ((i = 0; i < ${#downloaders[@]}; i++)); do
+      local downloader="${downloaders[$i]}"
+      local attempt=1
+      local backoff=$backoff_start
+
+      while [ $attempt -le $max_attempts ]; do
+        if [ $attempt -gt 1 ]; then
+          notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
+          log_msg "Retry attempt $attempt for $dest with $downloader (url: $current_url)"
+          sleep $backoff
+          backoff=$((backoff * 2))
+        fi
+
+        if run_downloader "$downloader" "$current_url" "$dest"; then
+          if verify_checksum "$dest" "$expected_checksum"; then
+            log_msg "Download succeeded with $downloader from $current_url"
+            return 0
+          fi
+        fi
+
+        attempt=$((attempt + 1))
+      done
+
+      if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
+        notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
+        log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]}"
+      fi
+    done
+
+    notify warning "Trying mirror" "Switching to next mirror for $(basename "$dest")"
+    log_msg "Primary URL failed for $dest; moving to mirror"
+  done
+
+  notify error "Download failed" "Unable to download $(basename "$dest") after trying mirrors and downloaders."
+  log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest"
+  return 1
 }
 
 prompt_lora_source() {
@@ -209,10 +276,11 @@ choose_curated_loras() {
   while IFS='|' read -r name _rest; do
     [ -z "$name" ] && continue
     local item="${ENTRY_DATA[$name]}"
-    local url filename checksum size
+    local url filename checksum size mirrors
     url=$(echo "$item" | jq -r '.url')
     filename=$(echo "$item" | jq -r '.filename')
     checksum=$(echo "$item" | jq -r '.checksum')
+    mirrors=$(echo "$item" | jq -r '.mirrors[]?')
     size=$(echo "$item" | jq -r '.size_bytes // 0')
 
     if [ -z "$url" ] || [ -z "$filename" ]; then
@@ -222,7 +290,7 @@ choose_curated_loras() {
 
     notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
     local dest="$INSTALL_DIR/$filename"
-    if download_with_retries "$url" "$dest" "$checksum"; then
+    if download_with_retries "$url" "$dest" "$checksum" "$mirrors"; then
       log_msg "Downloaded curated LoRA $filename"
       download_success=true
     else
@@ -231,50 +299,6 @@ choose_curated_loras() {
   done <<< "$selection"
 
   $download_success && return 0
-  return 1
-}
-
-download_with_retries() {
-  local url="$1" dest="$2" expected_checksum="$3"
-  local downloaders=()
-  local max_attempts=3
-  local backoff_start=5
-
-  command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
-  command -v wget >/dev/null 2>&1 && downloaders+=(wget)
-
-  log_msg "Starting download for $dest from $url using ${downloaders[*]}"
-
-  for ((i = 0; i < ${#downloaders[@]}; i++)); do
-    local downloader="${downloaders[$i]}"
-    local attempt=1
-    local backoff=$backoff_start
-
-    while [ $attempt -le $max_attempts ]; do
-      if [ $attempt -gt 1 ]; then
-        notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
-        log_msg "Retry attempt $attempt for $dest with $downloader"
-        sleep $backoff
-        backoff=$((backoff * 2))
-      fi
-
-      if run_downloader "$downloader" "$url" "$dest"; then
-        if verify_checksum "$dest" "$expected_checksum"; then
-          return 0
-        fi
-      fi
-
-      attempt=$((attempt + 1))
-    done
-
-    if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
-      notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
-      log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]}"
-    fi
-  done
-
-  notify error "Download failed" "Unable to download $(basename "$dest") after trying ${downloaders[*]}.\nConsider installing missing download tools for better reliability."
-  log_msg "Download failed after attempting ${downloaders[*]}: $dest"
   return 1
 }
 
@@ -404,7 +428,7 @@ for NAME in "${NAMES[@]}"; do
   DEST="$INSTALL_DIR/$OUTNAME.$EXT"
 
   log_msg "Downloading $OUTNAME.$EXT"
-  if ! download_with_retries "$URL" "$DEST" "$CHECKSUM"; then
+  if ! download_with_retries "$URL" "$DEST" "$CHECKSUM" ""; then
     echo "$(date): Download failed for $OUTNAME.$EXT" >> "$LOG_FILE"
     continue
   fi

@@ -17,17 +17,50 @@ log_msg() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
 }
 
+log_msg "Starting GPU detection flow; log file located at $LOG_FILE"
+
+run_package_install() {
+  local description="$1"
+  shift
+  local cmd=("$@")
+  local attempts=0 max_attempts=2
+
+  while (( attempts < max_attempts )); do
+    attempts=$((attempts + 1))
+    log_msg "Executing package command ($attempts/$max_attempts): ${cmd[*]} for ${description:-packages}"
+    if "${cmd[@]}"; then
+      log_msg "Package command succeeded for ${description:-packages}"
+      return 0
+    fi
+
+    local exit_code=$?
+    log_msg "Package command failed or was canceled (exit $exit_code) for ${description:-packages}"
+    if (( attempts >= max_attempts )); then
+      break
+    fi
+
+    if command -v yad >/dev/null 2>&1; then
+      yad --question --title="Retry ${description:-install}" --text="The last package command failed or was canceled.\nWould you like to retry?" --tooltip="Reconnect your network or re-open the terminal if sudo timed out." --button="Yes!retry:0" --button="No:1"
+      [[ $? -eq 0 ]] || break
+    fi
+  done
+
+  return 1
+}
+
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 
 NVIDIA_FOUND=$(lspci | grep -i 'NVIDIA')
 AMD_FOUND=$(lspci | grep -i 'AMD' | grep -i 'VGA')
 INTEL_FOUND=$(lspci | grep -i 'Intel' | grep -i 'VGA')
 GPU_DETAILS=$(lspci | grep -Ei 'VGA|3D|Display')
+GPU_MODULES=$(lsmod | awk '{print $1}' | grep -E 'nvidia|amdgpu|i915' || true)
 
 log_msg "Running lspci scan for GPUs."
 log_msg "NVIDIA entries found: $([[ -n "$NVIDIA_FOUND" ]] && echo yes || echo no)"
 log_msg "AMD entries found: $([[ -n "$AMD_FOUND" ]] && echo yes || echo no)"
 log_msg "Intel entries found: $([[ -n "$INTEL_FOUND" ]] && echo yes || echo no)"
+[[ -n "$GPU_MODULES" ]] && log_msg "Kernel modules currently loaded: $GPU_MODULES"
 
 if [[ -n "$NVIDIA_FOUND" ]]; then
   DETECTED_GPU="NVIDIA"
@@ -101,7 +134,7 @@ fi
 
 case "$DETECTED_GPU" in
   "NVIDIA")
-    DRIVER_HINT="Install recommended NVIDIA proprietary drivers via ubuntu-drivers autoinstall for best performance."
+    DRIVER_HINT="Install recommended NVIDIA proprietary drivers via ubuntu-drivers autoinstall for best performance. (Help: https://ubuntu.com/server/docs/nvidia-drivers-installation)"
     log_msg "$DRIVER_HINT"
     FP16_SUPPORTED="true"
     if command -v nvidia-smi >/dev/null 2>&1; then
@@ -115,11 +148,11 @@ case "$DETECTED_GPU" in
       log_msg "Headless mode: skipping NVIDIA driver prompt."
     else
       yad --question --title="NVIDIA GPU Detected" \
-        --text="An NVIDIA GPU was detected. Would you like to install the recommended NVIDIA driver using ubuntu-drivers?" \
+        --text="An NVIDIA GPU was detected. Would you like to install the recommended NVIDIA driver using ubuntu-drivers?\n\nHelp: https://ubuntu.com/server/docs/nvidia-drivers-installation" \
         --button="Yes!install:0" --button="No:1"
       if [[ $? -eq 0 ]]; then
-        sudo apt update
-        sudo ubuntu-drivers autoinstall
+        run_package_install "NVIDIA driver update" sudo apt update
+        run_package_install "NVIDIA driver installation" sudo ubuntu-drivers autoinstall
         log_msg "User opted to install NVIDIA drivers via ubuntu-drivers."
       else
         log_msg "User skipped NVIDIA driver installation prompt."
@@ -141,11 +174,11 @@ case "$DETECTED_GPU" in
       log_msg "Headless mode: skipping AMD driver prompt."
     else
       yad --question --title="AMD GPU Detected" \
-        --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?\n\nAcceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html" \
+        --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?\n\nAcceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html\nVulkan troubleshooting: https://docs.mesa3d.org/install.html" \
         --button="Yes!install:0" --button="No:1"
       if [[ $? -eq 0 ]]; then
-        sudo apt update
-        sudo apt install -y mesa-vulkan-drivers
+        run_package_install "AMD Vulkan prerequisites" sudo apt update
+        run_package_install "mesa-vulkan-drivers" sudo apt install -y mesa-vulkan-drivers
         log_msg "User opted to install mesa-vulkan-drivers for AMD GPU."
       else
         log_msg "User skipped AMD mesa-vulkan-drivers installation prompt."
@@ -167,7 +200,7 @@ case "$DETECTED_GPU" in
       log_msg "Headless mode: defaulting Intel detection to CPU fallback."
     else
       yad --info --title="Intel GPU Detected" \
-        --text="An Intel GPU was detected. While usable for graphics, most AI tools will fall back to CPU.\n\nTo enable Intel GPU acceleration, you would need to manually configure OpenVINO or oneAPI support.\nIntel acceleration notes: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html\n\nThe installer will now proceed with CPU fallback unless manually configured."
+        --text="An Intel GPU was detected. While usable for graphics, most AI tools will fall back to CPU.\n\nTo enable Intel GPU acceleration, you would need to manually configure OpenVINO or oneAPI support.\nIntel acceleration notes: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html\nGPU driver help: https://dgpu-docs.intel.com/driver/installation.html\n\nThe installer will now proceed with CPU fallback unless manually configured." --tooltip="OpenVINO/oneAPI required for acceleration"
     fi
     GPU_MODE="CPU"
     ;;
