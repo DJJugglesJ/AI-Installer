@@ -414,5 +414,9 @@ done
 # Update config
 config_set "state.loras_installed" "true"
 
+if [[ -x "$SCRIPT_DIR/artifact_manager.sh" ]]; then
+  HEADLESS=1 bash "$SCRIPT_DIR/artifact_manager.sh" --scan --verify-links --rotate-logs
+fi
+
 echo "$(date): LoRA selection and download completed." >> "$LOG_FILE"
 notify info "LoRA Download Complete" "✅ Selected LoRAs downloaded to $INSTALL_DIR"
