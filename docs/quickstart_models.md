@@ -55,3 +55,9 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 - oobabooga: `~/AI/oobabooga/` (LLM models in `models/`, LoRAs in `lora/`)
 - KoboldAI: `~/AI/KoboldAI/` (models in `models/`)
 - SillyTavern: `~/AI/SillyTavern/` (config at `config.json`)
+
+## Troubleshooting downloads
+- Logs: all download attempts write to `~/.config/aihub/install.log`, including the downloader chosen, retry counts, and whether a mirror URL was used.
+- Resume: failed transfers automatically resume with exponential backoff across both `aria2c` and `wget`. If a transfer is interrupted mid-file, re-running the installer continues from the partial download.
+- Mirrors: curated manifests optionally list `.mirrors` entries. When the primary URL fails, mirrors are tried in order with the same checksum verification. If every source fails, the dialog surfaces the error and the log lists each attempted URL.
+- If you see repeated checksum mismatches, remove the partially downloaded file in `~/ai-hub/models/` or `~/AI/LoRAs/` and retry to avoid reusing corrupted data.

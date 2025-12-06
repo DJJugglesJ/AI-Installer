@@ -10,10 +10,15 @@ MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 HEADLESS="${HEADLESS:-0}"
 
+log_msg() {
+  echo "$(date): $1" >> "$LOG_FILE"
+}
+
 source "$SCRIPT_DIR/config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 mkdir -p "$(dirname "$LOG_FILE")" "$MODEL_DIR"
 touch "$LOG_FILE"
+log_msg "Model installer starting; logging to $LOG_FILE"
 
 notify() {
   local level="$1" title="$2" message="$3"
@@ -35,16 +40,24 @@ notify() {
 
 require_commands() {
   local missing=()
+  declare -A remediation
+  remediation["jq"]="Install jq: sudo apt install jq"
+  remediation["python3"]="Install Python 3: sudo apt install python3"
+  remediation["sha256sum"]="Install coreutils/sha256sum: sudo apt install coreutils"
+  remediation["aria2c"]="Install aria2: sudo apt install aria2"
+  remediation["wget"]="Install wget: sudo apt install wget"
   for cmd in "$@"; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-      missing+=("$cmd")
+      missing+=("$cmd — ${remediation[$cmd]:-Install via your package manager}")
+    else
+      log_msg "Prerequisite check passed for $cmd"
     fi
   done
 
   if [ ${#missing[@]} -gt 0 ]; then
     local joined
     joined=$(IFS=$'\n'; echo "${missing[*]}")
-    notify error "Missing prerequisites" "The following commands are required before installing models:\n\n$joined"
+    notify error "Missing prerequisites" "The following commands are required before installing models:\n\n$joined\n\nHelp: https://github.com/AI-Hub/AI-Hub#prerequisites"
     exit 1
   fi
 }
@@ -87,10 +100,6 @@ run_downloader() {
       return 1
       ;;
   esac
-}
-
-log_msg() {
-  echo "$(date): $1" >> "$LOG_FILE"
 }
 
 human_size() {
@@ -159,46 +168,59 @@ verify_checksum() {
 }
 
 download_with_retries() {
-  local url="$1" dest="$2" header="$3" expected_checksum="$4"
+  local url="$1" dest="$2" header="$3" expected_checksum="$4" mirror_list="$5"
   local downloaders=()
   local max_attempts=3
   local backoff_start=5
+  local urls=("$url")
+  local current_url=""
+
+  if [[ -n "$mirror_list" ]]; then
+    while IFS= read -r mirror; do
+      [[ -n "$mirror" ]] && urls+=("$mirror")
+    done <<< "$mirror_list"
+  fi
 
   command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
   command -v wget >/dev/null 2>&1 && downloaders+=(wget)
 
-  log_msg "Starting download: $dest from $url using ${downloaders[*]}"
+  for current_url in "${urls[@]}"; do
+    log_msg "Starting download: $dest from $current_url using ${downloaders[*]}"
+    for ((i = 0; i < ${#downloaders[@]}; i++)); do
+      local downloader="${downloaders[$i]}"
+      local attempt=1
+      local backoff=$backoff_start
 
-  for ((i = 0; i < ${#downloaders[@]}; i++)); do
-    local downloader="${downloaders[$i]}"
-    local attempt=1
-    local backoff=$backoff_start
-
-    while [ $attempt -le $max_attempts ]; do
-      if [ $attempt -gt 1 ]; then
-        notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
-        log_msg "Retry attempt $attempt for $dest with $downloader"
-        sleep $backoff
-        backoff=$((backoff * 2))
-      fi
-
-      if run_downloader "$downloader" "$url" "$dest" "$header"; then
-        if verify_checksum "$dest" "$expected_checksum"; then
-          return 0
+      while [ $attempt -le $max_attempts ]; do
+        if [ $attempt -gt 1 ]; then
+          notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
+          log_msg "Retry attempt $attempt for $dest with $downloader (url: $current_url)"
+          sleep $backoff
+          backoff=$((backoff * 2))
         fi
-      fi
 
-      attempt=$((attempt + 1))
+        if run_downloader "$downloader" "$current_url" "$dest" "$header"; then
+          if verify_checksum "$dest" "$expected_checksum"; then
+            log_msg "Download succeeded with $downloader from $current_url"
+            return 0
+          fi
+        fi
+
+        attempt=$((attempt + 1))
+      done
+
+      if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
+        notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
+        log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]}"
+      fi
     done
 
-    if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
-      notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
-      log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]}"
-    fi
+    notify warning "Trying mirror" "Switching to next mirror for $(basename "$dest")"
+    log_msg "Primary URL failed for $dest; moving to mirror"
   done
 
-  notify error "Download failed" "Unable to download $(basename "$dest") after trying ${downloaders[*]}.\nConsider installing missing download tools for better reliability."
-  log_msg "Download failed after attempting ${downloaders[*]}: $dest"
+  notify error "Download failed" "Unable to download $(basename "$dest") after trying mirrors and downloaders.\nCheck connectivity or replace the URL."
+  log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest"
   return 1
 }
 
@@ -382,7 +404,7 @@ download_civitai_models() {
   while IFS='|' read -r name type size nsfw format url filename checksum; do
     [ -z "$url" ] && continue
     local dest="$MODEL_DIR/$filename"
-    if download_with_retries "$url" "$dest" "" "$checksum"; then
+    if download_with_retries "$url" "$dest" "" "$checksum" ""; then
       log_msg "Downloaded $filename from CivitAI"
       download_success=true
     else
@@ -447,10 +469,11 @@ choose_curated_model() {
   while IFS='|' read -r name _rest; do
     [ -z "$name" ] && continue
     local item="${ENTRY_DATA[$name]}"
-    local url filename checksum size
+    local url filename checksum size mirrors
     url=$(echo "$item" | jq -r '.url')
     filename=$(echo "$item" | jq -r '.filename')
     checksum=$(echo "$item" | jq -r '.checksum')
+    mirrors=$(echo "$item" | jq -r '.mirrors[]?')
     size=$(echo "$item" | jq -r '.size_bytes // 0')
     if [ -z "$url" ] || [ -z "$filename" ]; then
       log_msg "Skipping $name due to missing URL or filename"
@@ -458,7 +481,7 @@ choose_curated_model() {
     fi
     notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
     local dest="$MODEL_DIR/$filename"
-    if download_with_retries "$url" "$dest" "" "$checksum"; then
+    if download_with_retries "$url" "$dest" "" "$checksum" "$mirrors"; then
       log_msg "Downloaded curated model $filename"
       download_success=true
     else
@@ -480,7 +503,7 @@ download_huggingface_model() {
   fi
 
   log_msg "Downloading base model (SD1.5) from Hugging Face"
-  if download_with_retries "$url" "$dest" "$header" "$HF_SD15_SHA256"; then
+  if download_with_retries "$url" "$dest" "$header" "$HF_SD15_SHA256" ""; then
     return 0
   fi
 
