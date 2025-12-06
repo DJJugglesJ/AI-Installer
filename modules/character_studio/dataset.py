@@ -1,4 +1,9 @@
-"""Dataset management helpers for Character Studio."""
+"""Dataset management helpers for Character Studio.
+
+- Purpose: structure character datasets, enforce NSFW boundaries, and generate caption scaffolding.
+- Assumptions: Character Cards exist on disk and dataset directories are writable.
+- Side effects: creates dataset folders, copies user images, and writes caption metadata files.
+"""
 
 from __future__ import annotations
 
@@ -89,6 +94,7 @@ def add_images_to_dataset(character_id: str, images: Iterable[str], subset_name:
         image_path = Path(image_path_str).expanduser().resolve()
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
+        # Avoid accidental overwrite by suffixing duplicates inside the chosen subset.
         destination = target_dir / image_path.name
         suffix_counter = 1
         while destination.exists():

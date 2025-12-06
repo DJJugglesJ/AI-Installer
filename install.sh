@@ -1,6 +1,9 @@
 #!/bin/bash
 
-# install.sh — AI Workstation Setup Launcher
+# AI Hub installer entrypoint
+# - Purpose: orchestrates interactive/headless setup flows and shared maintenance tasks.
+# - Assumptions: config helpers are available under modules/config_service and HEADLESS is respected.
+# - Side effects: reads/writes user config files, may invoke package managers, and prunes artifacts when requested.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_PATH="$SCRIPT_DIR"
 MODULE_DIR="$INSTALL_PATH/modules"
@@ -142,12 +145,14 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# Derive HEADLESS value for downstream scripts; exposed for called modules.
 export HEADLESS=$([[ "$HEADLESS_MODE" == true ]] && echo 1 || echo 0)
 
 if [[ "$HEADLESS_MODE" == true && -n "$USER_CONFIG_FILE" ]]; then
   CONFIG_FILE="$USER_CONFIG_FILE"
 fi
 
+# Snapshot user config before mutating values so failures can be rolled back safely.
 CONFIG_STATE_BACKUP=$(backup_file_with_timestamp "$CONFIG_STATE_FILE")
 CONFIG_ENV_BACKUP=$(backup_file_with_timestamp "$CONFIG_FILE")
 
@@ -158,6 +163,7 @@ if ! CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" confi
 fi
 export CONFIG_ENV_FILE="$CONFIG_FILE"
 
+# Short-circuit when running maintenance only, allowing CI jobs to reuse the installer shell.
 if [[ "$RUN_ARTIFACT_MAINT" == true ]]; then
   ARTIFACT_MANAGER="$MODULE_DIR/artifact_manager.sh"
   if [[ -x "$ARTIFACT_MANAGER" ]]; then

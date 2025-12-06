@@ -1,4 +1,9 @@
-"""Service placeholders for the Prompt Builder module."""
+"""Service placeholders for the Prompt Builder module.
+
+- Purpose: provide thin wrappers that compile scenes and persist prompt bundles for launcher use.
+- Assumptions: callers pass validated SceneDescription objects and bundle path is writable.
+- Side effects: writes compiled prompt bundles and timestamps to disk for downstream consumers.
+"""
 
 from dataclasses import asdict
 from datetime import datetime
@@ -58,6 +63,7 @@ class UIIntegrationHooks:
         bundle_dir = self.bundle_path.parent
         bundle_dir.mkdir(parents=True, exist_ok=True)
 
+        # Persist metadata alongside prompts so shell launchers can determine freshness without parsing logs.
         enriched_payload = {
             **payload,
             "compiled_at": datetime.utcnow().isoformat() + "Z",

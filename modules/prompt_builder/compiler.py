@@ -1,4 +1,9 @@
-"""Prompt Builder compiler utilities."""
+"""Prompt Builder compiler utilities.
+
+- Purpose: validate scene payloads and convert them into prompt assemblies consumed by launchers.
+- Assumptions: Character Card registry paths are available and scene JSON matches expected schema.
+- Side effects: none beyond raising validation errors; downstream callers handle disk writes.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +29,7 @@ def _validate_scene_json(scene_json: Dict) -> Dict:
         raise ValueError("scene_json must be a dictionary")
 
     validated: Dict[str, object] = {}
+    # Normalize top-level scene attributes while preserving unset values as None.
     for key in ["world", "setting", "mood", "style", "nsfw_level", "camera"]:
         validated[key] = _validate_text(scene_json.get(key), key)
 
@@ -32,6 +38,7 @@ def _validate_scene_json(scene_json: Dict) -> Dict:
         raise ValueError("characters must be a list")
 
     validated_characters = []
+    # Validate each character mapping to ensure slot references are explicit for pairing.
     for idx, character in enumerate(characters):
         if not isinstance(character, dict):
             raise ValueError(f"characters[{idx}] must be a dictionary")

@@ -1,4 +1,9 @@
-"""Entry point for Prompt Builder CLI."""
+"""Prompt Builder CLI entry point.
+
+- Purpose: load a scene payload, optionally apply natural language feedback, and emit a prompt bundle.
+- Assumptions: SceneDescription JSON is well-formed UTF-8 and UI hooks perform their own validation.
+- Side effects: writes the latest prompt bundle to disk for launcher consumption via UIIntegrationHooks.
+"""
 
 from __future__ import annotations
 
@@ -43,6 +48,7 @@ def main(argv: Iterable[str] | None = None) -> None:
     scene = _load_scene(args.scene)
     scene_json = asdict(scene)
     if args.feedback:
+        # Apply heuristic feedback before validation hooks so users see deterministic adjustments.
         scene_json = compiler.apply_feedback_to_scene(scene_json, args.feedback)
         scene = _load_scene_from_json(scene_json)
 
@@ -53,6 +59,7 @@ def main(argv: Iterable[str] | None = None) -> None:
 
     compiler_service = PromptCompilerService()
     assembly = compiler_service.compile_scene(scene)
+    # Persist the compiled bundle for downstream launchers while echoing JSON for CLI users.
     payload = hooks.publish_prompt(assembly)
     print(json.dumps(payload, indent=2))
 

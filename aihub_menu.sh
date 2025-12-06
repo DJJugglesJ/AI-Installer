@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# AI Hub menu launcher
+# - Purpose: present a YAD-driven control panel for installs/launchers using recorded config state.
+# - Assumptions: installer.conf is readable and YAD is available for interactive selection.
+# - Side effects: triggers downstream install/update scripts and logs menu opens for audit.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$SCRIPT_DIR/modules"
 LAUNCHER_DIR="$SCRIPT_DIR/launcher"
@@ -12,6 +17,7 @@ GPU_LABEL=${gpu_mode:-"Unknown"}
 HEADLESS_FLAG=${HEADLESS:-0}
 MENU_TITLE="AI Workstation Launcher (GPU: $GPU_LABEL)"
 HEALTH_TEXT=$(HEADLESS=1 "$MODULE_DIR/health_summary.sh")
+# Log menu intent before rendering so failed dialog invocations are still captured.
 log_event "info" app=aihub event=menu_open gpu_mode="$GPU_LABEL" headless="$HEADLESS_FLAG"
 
 ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \

@@ -1,7 +1,8 @@
 """LLM abstraction layer for Prompt Builder operations.
 
-The concrete implementation here is intentionally lightweight so it can be
-swapped with a real LLM client later without modifying compiler callers.
+- Purpose: derive prompts and LoRA calls from scene payloads while handling feedback heuristics.
+- Assumptions: Character Card metadata is available via the registry and callers pass validated scenes.
+- Side effects: none beyond deterministic prompt assembly; file writes occur in service hooks.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ class SceneLLMAdapter:
         """Produce a PromptAssembly for a scene using Character Card context."""
 
         positive_prompt: List[str] = []
+        # Aggregate high-level context first so downstream strings have predictable ordering.
         context_parts = [
             f"world: {scene.world}" if scene.world else None,
             f"setting: {scene.setting}" if scene.setting else None,
@@ -57,6 +59,7 @@ class SceneLLMAdapter:
             positive_prompt.append("extras: " + ", ".join(extras))
 
         negative_prompt = ["low quality", "blurry"]
+        # Respect NSFW boundaries declared by the scene and underlying cards to avoid unsafe mixes.
         if scene.nsfw_level in {"sfw", "safe"}:
             negative_prompt.append("nsfw")
         if any(card for card in cards.values() if not card.nsfw_allowed and scene.nsfw_level not in {None, "sfw", "safe"}):
@@ -91,6 +94,7 @@ class SceneLLMAdapter:
         if not feedback_text or not feedback_text.strip():
             return updated
 
+        # Interpret feedback as key:value directives to keep updates deterministic for CLI usage.
         directives = re.split(r"[\n;]+", feedback_text)
         for directive in directives:
             if ":" not in directive:
