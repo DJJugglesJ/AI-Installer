@@ -3,6 +3,7 @@
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 LOG_FILE="$HOME/.config/aihub/install.log"
 MODEL_DIR="$HOME/ai-hub/models"
+WEBUI_SD_DIR="$HOME/AI/WebUI/models/Stable-diffusion"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
@@ -161,6 +162,46 @@ download_with_retries() {
   notify error "Download failed" "Unable to download $(basename "$dest") after $max_attempts attempts."
   log_msg "Download failed after $max_attempts attempts: $dest"
   return 1
+}
+
+sync_webui_models() {
+  mkdir -p "$WEBUI_SD_DIR"
+  log_msg "Ensured WebUI Stable Diffusion directory exists at $WEBUI_SD_DIR"
+
+  local model_files=()
+  while IFS= read -r file; do
+    model_files+=("$file")
+  done < <(find "$MODEL_DIR" -maxdepth 1 -type f \( -name '*.ckpt' -o -name '*.safetensors' \))
+
+  if [ ${#model_files[@]} -eq 0 ]; then
+    log_msg "No checkpoint files found in $MODEL_DIR to link into WebUI directory"
+    return
+  fi
+
+  for file in "${model_files[@]}"; do
+    local filename link_path existing_target
+    filename="$(basename "$file")"
+    link_path="$WEBUI_SD_DIR/$filename"
+
+    if [ -L "$link_path" ]; then
+      existing_target=$(readlink -f "$link_path")
+      if [ "$existing_target" = "$file" ]; then
+        log_msg "Symlink already present for $filename; skipping"
+        continue
+      fi
+      log_msg "Updating symlink for $filename to point to $file"
+      ln -sf "$file" "$link_path"
+      continue
+    fi
+
+    if [ -e "$link_path" ]; then
+      log_msg "Existing file found at $link_path; leaving in place to avoid duplicates"
+      continue
+    fi
+
+    ln -s "$file" "$link_path"
+    log_msg "Linked $filename into WebUI Stable Diffusion directory"
+  done
 }
 
 require_commands jq python3 sha256sum
@@ -490,6 +531,8 @@ else
     exit 1
   fi
 fi
+
+sync_webui_models
 
 set_config_value "models_installed" "true"
 
