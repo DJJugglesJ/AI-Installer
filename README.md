@@ -1,22 +1,39 @@
 # AI Installer
 
-AI Installer sets up a modular AI workstation on Ubuntu 22.04 (including Windows via WSL2 + Ubuntu). It presents AI-Hub as a general-purpose orchestration layer for image and text workflows (e.g., Stable Diffusion, KoboldAI, SillyTavern), model/LoRA management, and pairing routines, while handling GPU detection and prerequisite checks for you. Examples are written in a neutral style so they can be reused across setups, and AI-Hub can optionally support adult content workflows depending on your configuration and local policies.
+AI-Hub provides a unified installer and launcher for creative and conversational AI tools on Linux (including Windows via WSL2). The goal is to give newcomers a dependable, repeatable setup that handles GPUs, dependencies, and launch workflows so you can focus on using the apps rather than wiring them together. See the [roadmap](docs/ROADMAP.md) for current capabilities and upcoming milestones.
 
-See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the feature wishlist.
+## Why it matters
+- **Reliable setup:** Cross-distro bootstrapper installs prerequisites, validates GPU drivers, and records configuration so you avoid guesswork.
+- **One menu for many tools:** Launch or update Stable Diffusion WebUI, KoboldAI, SillyTavern, model downloads, and LoRA utilities from a single place.
+- **Guided performance:** Sensible defaults for FP16, xFormers, low-VRAM mode, and GPU fallbacks keep things running smoothly across hardware.
+- **Designed for shared devices:** Headless automation and desktop shortcuts make it easy to support multiple users or repeat installations.
+
+## New to AI-Hub? Start here
+- **Supported workflows:**
+  - Image generation with Stable Diffusion WebUI
+  - Text and story workflows with KoboldAI
+  - Chat/front-end experiences with SillyTavern
+  - Model and LoRA download, pairing, and preset management
+- **Installation modes:**
+  - **Interactive:** `./install.sh` with guided YAD dialogs for GPU selection, package installation, and feature toggles.
+  - **Headless/automated:** `./install.sh --headless` with optional config file (`--config <file>`) for unattended deployments. See [`docs/headless_config.md`](docs/headless_config.md).
+- **Launcher capabilities:**
+  - Launch apps, update assets, manage pairings, and self-update the installer via `aihub_menu.sh` or the desktop shortcut it creates.
+  - Direct install targets with `--install <target>` for `webui`, `kobold`, `sillytavern`, `loras`, or `models` when you want to skip the menu.
 
 ## Prerequisites
-- **Operating system:** Tested on Ubuntu/Debian, Arch, and Fedora/RHEL-based distributions (including WSL2 with Ubuntu). Other distributions may work if you install dependencies manually.
-- **Packages:** The installer will prompt to install missing dependencies through the new bootstrapper. Required tools include `git`, `curl`, `jq`, `yad`, `python3` (or `python` on Arch), `python3-pip`/`python-pip`, `nodejs`, `npm`, `wget`, `aria2`, and GPU helper packages (`ubuntu-drivers-common`/`mesa-utils` or `vulkan-tools`/`mesa-dri-drivers` on RPM-based systems).
+- **Operating system:** Tested on Ubuntu/Debian, Arch, and Fedora/RHEL-based distributions (including WSL2 with Ubuntu). Other distributions may work with manual dependency installation.
+- **Packages:** `git`, `curl`, `jq`, `yad`, `python3` (or `python` on Arch), `python3-pip`/`python-pip`, `nodejs`, `npm`, `wget`, `aria2`, and GPU helpers (`ubuntu-drivers-common`/`mesa-utils` or `vulkan-tools`/`mesa-dri-drivers` on RPM-based systems). Missing tools are installed for you during bootstrap.
 - **Permissions:** Ability to run package manager commands with `sudo` when prompted.
 
 ## Installation
-1. Clone or download this repository on a supported distro (Ubuntu/Debian, Arch, Fedora/RHEL). On Windows, enable WSL2 and install the Ubuntu distribution first, then launch the installer from the WSL shell.
+1. Clone or download this repository on a supported distro. On Windows, enable WSL2 and install the Ubuntu distribution first, then launch the installer from the WSL shell.
 2. From the repo root, run:
    ```bash
    chmod +x install.sh
    ./install.sh
    ```
-   *Use `./install.sh --headless --gpu cpu --install webui` to run without any YAD prompts while forcing CPU mode and directly installing the Stable Diffusion WebUI. Use `./install.sh --help` to view all flags.*
+   *Use `./install.sh --headless --gpu cpu --install webui` to run without prompts while forcing CPU mode and directly installing the Stable Diffusion WebUI. Use `./install.sh --help` to view all flags.*
 3. The installer will:
    - Run a cross-distro bootstrap to install or verify required packages (skipping tools that are already present and logging versions). On unsupported distributions, install dependencies manually with your package manager.
    - Detect your GPU and suggest a driver (NVIDIA) or continue with CPU/Intel/AMD fallbacks.
@@ -43,12 +60,8 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 
 ## GPU considerations
 - NVIDIA cards trigger an optional driver install via `ubuntu-drivers autoinstall`.
-- **AMD:** The installer can install `mesa-vulkan-drivers` for the open-source stack and will record the detected AMD GPU. For
-  hardware acceleration beyond the default Vulkan/OpenCL stack, plan to configure ROCm following the [AMD ROCm installation
-  guide](https://rocm.docs.amd.com/en/latest/deploy/linux/install.html). Expect workloads to fall back to CPU if ROCm/AMDGPU
-  acceleration is unavailable.
-- **Intel:** Intel GPUs are detected, but the installer defaults to CPU mode for AI workloads. To enable Intel acceleration,
-  configure oneAPI/OpenVINO as described in Intel's [OpenVINO toolkit overview](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html). Until that is configured, assume CPU-only performance.
+- **AMD:** The installer can install `mesa-vulkan-drivers` for the open-source stack and will record the detected AMD GPU. For hardware acceleration beyond the default Vulkan/OpenCL stack, plan to configure ROCm following the [AMD ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/install.html). Expect workloads to fall back to CPU if ROCm/AMDGPU acceleration is unavailable.
+- **Intel:** Intel GPUs are detected, but the installer defaults to CPU mode for AI workloads. To enable Intel acceleration, configure oneAPI/OpenVINO as described in Intel's [OpenVINO toolkit overview](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html). Until that is configured, assume CPU-only performance.
 - If no supported GPU is found, the installer can continue in CPU mode (slower inference).
 - **Performance flags:**
   - FP16 defaults to **enabled on NVIDIA** and **disabled elsewhere**; the installer will force full precision when FP16 is unstable/unsupported.
