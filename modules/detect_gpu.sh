@@ -19,6 +19,11 @@ AMD_FOUND=$(lspci | grep -i 'AMD' | grep -i 'VGA')
 INTEL_FOUND=$(lspci | grep -i 'Intel' | grep -i 'VGA')
 GPU_DETAILS=$(lspci | grep -Ei 'VGA|3D|Display')
 
+log_msg "Running lspci scan for GPUs."
+log_msg "NVIDIA entries found: $([[ -n "$NVIDIA_FOUND" ]] && echo yes || echo no)"
+log_msg "AMD entries found: $([[ -n "$AMD_FOUND" ]] && echo yes || echo no)"
+log_msg "Intel entries found: $([[ -n "$INTEL_FOUND" ]] && echo yes || echo no)"
+
 if [[ -n "$NVIDIA_FOUND" ]]; then
   DETECTED_GPU="NVIDIA"
 elif [[ -n "$AMD_FOUND" ]]; then
@@ -33,12 +38,36 @@ GPU_MODE="$DETECTED_GPU"
 log_msg "Detected GPU hardware: ${DETECTED_GPU:-unknown}"
 [[ -n "$GPU_DETAILS" ]] && log_msg "PCIe GPU entries:\n$GPU_DETAILS"
 
+if [[ "$DETECTED_GPU" == "NVIDIA" ]]; then
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    log_msg "nvidia-smi detected; NVIDIA driver likely present."
+  else
+    log_msg "nvidia-smi not found; proprietary driver may be missing."
+  fi
+elif [[ "$DETECTED_GPU" == "AMD" ]]; then
+  if lsmod | grep -qi amdgpu; then
+    log_msg "amdgpu kernel module loaded."
+  else
+    log_msg "amdgpu kernel module not detected; defaulting to open-source stack."
+  fi
+elif [[ "$DETECTED_GPU" == "INTEL" ]]; then
+  if lsmod | grep -qi i915; then
+    log_msg "i915 kernel module loaded for Intel graphics."
+  else
+    log_msg "i915 kernel module not detected; GPU acceleration may be limited."
+  fi
+else
+  log_msg "No supported GPU modules detected; proceeding with CPU-only expectations."
+fi
+
 if [[ -n "$GPU_MODE_OVERRIDE" ]]; then
   GPU_MODE=${GPU_MODE_OVERRIDE^^}
   log_msg "GPU mode overridden via CLI: $GPU_MODE"
 elif [[ "${HEADLESS:-0}" -eq 1 ]] && grep -q '^gpu_mode=' "$CONFIG_FILE"; then
   GPU_MODE=$(grep '^gpu_mode=' "$CONFIG_FILE" | cut -d'=' -f2)
   log_msg "Headless mode: loaded GPU mode from config ($GPU_MODE)."
+else
+  log_msg "No GPU mode override supplied; using hardware detection defaults."
 fi
 
 case "$DETECTED_GPU" in
@@ -63,6 +92,7 @@ case "$DETECTED_GPU" in
   "AMD")
     DRIVER_HINT="For ROCm/AMDGPU acceleration, ensure mesa-vulkan-drivers are installed and see AMD acceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html"
     log_msg "$DRIVER_HINT"
+    log_msg "AMD GPU detected; default GPU mode set to AMD. Without ROCm/Vulkan tuning, some workloads may still fall back to CPU."
     if [[ "${HEADLESS:-0}" -eq 1 ]]; then
       log_msg "Headless mode: skipping AMD driver prompt."
     else
@@ -81,6 +111,7 @@ case "$DETECTED_GPU" in
   "INTEL")
     DRIVER_HINT="Intel GPU detected. For acceleration, review Intel oneAPI/OpenVINO guidance: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html"
     log_msg "$DRIVER_HINT"
+    log_msg "Intel GPU detected; installer will proceed with CPU fallback unless OpenVINO/oneAPI is configured manually."
     if [[ "${HEADLESS:-0}" -eq 1 ]]; then
       log_msg "Headless mode: defaulting Intel detection to CPU fallback."
     else
@@ -120,4 +151,10 @@ if grep -q '^gpu_mode=' "$CONFIG_FILE"; then
 else
   echo "gpu_mode=$GPU_MODE" >> "$CONFIG_FILE"
 fi
+if grep -q '^detected_gpu=' "$CONFIG_FILE"; then
+  sed -i "s/^detected_gpu=.*/detected_gpu=$DETECTED_GPU/" "$CONFIG_FILE"
+else
+  echo "detected_gpu=$DETECTED_GPU" >> "$CONFIG_FILE"
+fi
 log_msg "Final GPU mode recorded as $GPU_MODE"
+log_msg "Detection summary: hardware=$DETECTED_GPU, gpu_mode=$GPU_MODE"
