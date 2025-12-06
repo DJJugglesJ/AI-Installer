@@ -1,4 +1,9 @@
-"""Training wrappers for Character Studio."""
+"""Training helpers for Character Studio LoRA workflows.
+
+- Purpose: assemble dataset metadata into trainer configs, export packs, and optionally invoke external trainers.
+- Assumptions: datasets are prepared on disk and trainer command (if configured) accepts generated config paths.
+- Side effects: writes configs/archives to dataset folders and may update Character Cards with produced LoRAs.
+"""
 
 from __future__ import annotations
 
@@ -76,6 +81,7 @@ def export_training_pack(character_id: str) -> str:
     config_path = pack_dir / "training_config.json"
     config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
+    # Package everything under dataset_dir to keep relative paths intact for third-party trainers.
     archive_base = pack_dir / "pack"
     archive_path = shutil.make_archive(str(archive_base), "zip", root_dir=dataset_dir)
     return archive_path
@@ -96,6 +102,7 @@ def run_lora_training(character_id: str) -> Optional[str]:
 
     cmd = [part.format(config=str(config_path), dataset=str(dataset_dir), output=config["output_path"]) for part in shlex.split(trainer_cmd)]
     try:
+        # Delegate execution to the configured trainer command; stderr surfaces upstream failures.
         subprocess.run(cmd, check=True)
     except FileNotFoundError as exc:
         raise RuntimeError(f"Trainer command not found: {cmd[0]}") from exc

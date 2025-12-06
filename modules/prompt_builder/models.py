@@ -1,4 +1,9 @@
-"""Data models for Prompt Builder."""
+"""Shared data models for the Prompt Builder module.
+
+- Purpose: define serializable structures for scenes, character references, and compiled prompt bundles.
+- Assumptions: dataclass consumers will serialize via ``asdict`` and lists remain order-sensitive.
+- Side effects: none; classes are passive containers.
+"""
 
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional

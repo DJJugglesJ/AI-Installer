@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# AI Hub launcher status panel
+# - Purpose: assemble an at-a-glance status report for installed apps and share it via clipboard-friendly dialog.
+# - Assumptions: installer.conf and config.yaml reflect recent installs and YAD is available for UI rendering.
+# - Side effects: reads recent log tail and may interact with clipboard utilities when requested.
+
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
@@ -11,6 +16,7 @@ CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_loa
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 
+# Use best-effort clipboard helpers so the dialog can export without assuming a desktop environment.
 copy_to_clipboard() {
   local payload="$1"
 
@@ -55,6 +61,7 @@ collect_report() {
   local gpu_label
   gpu_label="${gpu_mode:-Unknown}"
 
+  # Flatten install booleans into human-readable status lines for the dialog body.
   local statuses
   statuses=$(cat <<EOF
 $(status_line "Stable Diffusion WebUI" "webui_installed")
