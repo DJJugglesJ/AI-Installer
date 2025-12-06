@@ -7,7 +7,7 @@ CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/config_service/config_helpers.sh"
+source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"

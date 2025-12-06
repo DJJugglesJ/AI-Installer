@@ -11,8 +11,8 @@ import re
 from dataclasses import asdict
 from typing import Dict, Iterable, List, Optional
 
-from modules.character_studio.models import CharacterCard
-from modules.character_studio.registry import CharacterCardRegistry
+from modules.runtime.character_studio.models import CharacterCard
+from modules.runtime.character_studio.registry import CharacterCardRegistry
 
 from .models import CharacterRef, LoRACall, PromptAssembly, SceneDescription
 

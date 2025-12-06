@@ -14,7 +14,7 @@ log_msg() {
   echo "$(date): $1" >> "$LOG_FILE"
 }
 
-source "$SCRIPT_DIR/config_service/config_helpers.sh"
+source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 mkdir -p "$(dirname "$LOG_FILE")" "$MODEL_DIR"
 touch "$LOG_FILE"

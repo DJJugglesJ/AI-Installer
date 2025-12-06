@@ -165,7 +165,7 @@ export CONFIG_ENV_FILE="$CONFIG_FILE"
 
 # Short-circuit when running maintenance only, allowing CI jobs to reuse the installer shell.
 if [[ "$RUN_ARTIFACT_MAINT" == true ]]; then
-  ARTIFACT_MANAGER="$MODULE_DIR/artifact_manager.sh"
+    ARTIFACT_MANAGER="$MODULE_DIR/shell/artifact_manager.sh"
   if [[ -x "$ARTIFACT_MANAGER" ]]; then
     HEADLESS=1 bash "$ARTIFACT_MANAGER" --auto --headless
   else
@@ -403,7 +403,7 @@ else
 fi
 
 # 🔍 GPU detection
-CONFIG_FILE="$CONFIG_FILE" HEADLESS=$HEADLESS GPU_MODE_OVERRIDE="$GPU_MODE_OVERRIDE" bash "$MODULE_DIR/detect_gpu.sh"
+  CONFIG_FILE="$CONFIG_FILE" HEADLESS=$HEADLESS GPU_MODE_OVERRIDE="$GPU_MODE_OVERRIDE" bash "$MODULE_DIR/shell/detect_gpu.sh"
 DETECTED_GPU=$(grep '^detected_gpu=' "$CONFIG_FILE" | cut -d'=' -f2)
 GPU_MODE_SELECTED=$(grep '^gpu_mode=' "$CONFIG_FILE" | cut -d'=' -f2)
 GPU_SUMMARY_MSG="GPU summary: detected=${DETECTED_GPU:-unknown}, mode=${GPU_MODE_SELECTED:-unknown}"
@@ -435,23 +435,23 @@ if [[ -n "$INSTALL_TARGET" ]]; then
   case "$INSTALL_TARGET" in
     webui)
       log_msg "Headless install requested: webui"
-      HEADLESS=$HEADLESS bash "$MODULE_DIR/install_webui.sh"
+        HEADLESS=$HEADLESS bash "$MODULE_DIR/shell/install_webui.sh"
       ;;
     kobold)
       log_msg "Headless install requested: kobold"
-      HEADLESS=$HEADLESS bash "$MODULE_DIR/install_kobold.sh"
+        HEADLESS=$HEADLESS bash "$MODULE_DIR/shell/install_kobold.sh"
       ;;
     sillytavern)
       log_msg "Headless install requested: sillytavern"
-      HEADLESS=$HEADLESS bash "$MODULE_DIR/install_sillytavern.sh"
+        HEADLESS=$HEADLESS bash "$MODULE_DIR/shell/install_sillytavern.sh"
       ;;
     loras)
       log_msg "Headless install requested: loras"
-      HEADLESS=$HEADLESS bash "$MODULE_DIR/install_loras.sh"
+        HEADLESS=$HEADLESS bash "$MODULE_DIR/shell/install_loras.sh"
       ;;
     models)
       log_msg "Headless install requested: models (Hugging Face)"
-      HEADLESS=$HEADLESS bash "$MODULE_DIR/install_models.sh"
+        HEADLESS=$HEADLESS bash "$MODULE_DIR/shell/install_models.sh"
       ;;
     *)
       log_msg "Unknown install target: $INSTALL_TARGET"

@@ -33,7 +33,7 @@ save_scene_and_compile() {
     show_error "Python is required to run the Prompt Builder compiler."
     return 1
   fi
-  PROMPT_BUNDLE_PATH="$BUNDLE_PATH" (cd "$PROJECT_ROOT" && python -m modules.prompt_builder --scene "$SCENE_FILE") || show_error "Failed to compile scene into prompts."
+  PROMPT_BUNDLE_PATH="$BUNDLE_PATH" (cd "$PROJECT_ROOT" && python -m modules.runtime.prompt_builder --scene "$SCENE_FILE") || show_error "Failed to compile scene into prompts."
 }
 
 parse_characters() {

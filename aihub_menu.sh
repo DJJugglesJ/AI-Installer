@@ -11,12 +11,12 @@ LAUNCHER_DIR="$SCRIPT_DIR/launcher"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 LOG_FILE="$HOME/.config/aihub/install.log"
-source "$MODULE_DIR/logging.sh"
+source "$MODULE_DIR/shell/logging.sh"
 
 GPU_LABEL=${gpu_mode:-"Unknown"}
 HEADLESS_FLAG=${HEADLESS:-0}
 MENU_TITLE="AI Workstation Launcher (GPU: $GPU_LABEL)"
-HEALTH_TEXT=$(HEADLESS=1 "$MODULE_DIR/health_summary.sh")
+HEALTH_TEXT=$(HEADLESS=1 "$MODULE_DIR/shell/health_summary.sh")
 # Log menu intent before rendering so failed dialog invocations are still captured.
 log_event "info" app=aihub event=menu_open gpu_mode="$GPU_LABEL" headless="$HEADLESS_FLAG"
 
@@ -46,31 +46,31 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
 
 case "$ACTION" in
   *"🖼️  Run Stable Diffusion WebUI"*)
-    bash "$MODULE_DIR/run_webui.sh"
+    bash "$MODULE_DIR/shell/run_webui.sh"
     ;;
   *"⚙️  Performance Flags"*)
-    bash "$MODULE_DIR/performance_flags.sh"
+    bash "$MODULE_DIR/shell/performance_flags.sh"
     ;;
   *"🤖  Launch KoboldAI"*)
-    bash "$MODULE_DIR/run_kobold.sh"
+    bash "$MODULE_DIR/shell/run_kobold.sh"
     ;;
   *"🧠  Launch SillyTavern"*)
-    bash "$MODULE_DIR/run_sillytavern.sh"
+    bash "$MODULE_DIR/shell/run_sillytavern.sh"
     ;;
   *"📥  Install or Update LoRAs"*)
-    bash "$MODULE_DIR/install_loras.sh"
+    bash "$MODULE_DIR/shell/install_loras.sh"
     ;;
   *"📦  Install or Update Models (Hugging Face)"*)
-    bash "$MODULE_DIR/install_models.sh"
+    bash "$MODULE_DIR/shell/install_models.sh"
     ;;
   *"📥  Download Models from CivitAI"*)
-    MODEL_SOURCE="civitai" bash "$MODULE_DIR/install_models.sh"
+    MODEL_SOURCE="civitai" bash "$MODULE_DIR/shell/install_models.sh"
     ;;
   *"🧹  Artifact Maintenance"*)
-    bash "$MODULE_DIR/artifact_manager.sh"
+    bash "$MODULE_DIR/shell/artifact_manager.sh"
     ;;
   *"🆕  Update Installer"*)
-    bash "$MODULE_DIR/self_update.sh"
+    bash "$MODULE_DIR/shell/self_update.sh"
     ;;
   *"🔁  Pull Updates"*)
     git -C "$SCRIPT_DIR" pull
@@ -79,22 +79,22 @@ case "$ACTION" in
     bash "$LAUNCHER_DIR/ai_hub_launcher.sh"
     ;;
   *"🧠  Pair LLM + LoRA (oobabooga)"*)
-    bash "$MODULE_DIR/pair_oobabooga.sh"
+    bash "$MODULE_DIR/shell/pair_oobabooga.sh"
     ;;
   *"🎭  Pair LLM + LoRA (SillyTavern)"*)
-    bash "$MODULE_DIR/pair_sillytavern.sh"
+    bash "$MODULE_DIR/shell/pair_sillytavern.sh"
     ;;
   *"🎨  Select LoRA for Preset"*)
-    bash "$MODULE_DIR/select_lora.sh"
+    bash "$MODULE_DIR/shell/select_lora.sh"
     ;;
   *"💾  Save Current Pairing as Preset"*)
-    bash "$MODULE_DIR/save_pairing_preset.sh"
+    bash "$MODULE_DIR/shell/save_pairing_preset.sh"
     ;;
   *"📂  Load Saved Pairing Preset"*)
-    bash "$MODULE_DIR/load_pairing_preset.sh"
+    bash "$MODULE_DIR/shell/load_pairing_preset.sh"
     ;;
   *"📊  Health Summary"*)
-    bash "$MODULE_DIR/health_summary.sh"
+    bash "$MODULE_DIR/shell/health_summary.sh"
     ;;
   *"❌  Exit"*)
     exit 0
