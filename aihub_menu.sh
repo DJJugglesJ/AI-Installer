@@ -6,20 +6,16 @@ LAUNCHER_DIR="$SCRIPT_DIR/launcher"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 LOG_FILE="$HOME/.config/aihub/install.log"
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
+source "$MODULE_DIR/logging.sh"
 
 GPU_LABEL=${gpu_mode:-"Unknown"}
 HEADLESS_FLAG=${HEADLESS:-0}
 MENU_TITLE="AI Workstation Launcher (GPU: $GPU_LABEL)"
-log_msg "Opening launcher menu with GPU mode: $GPU_LABEL (HEADLESS=$HEADLESS_FLAG)"
+HEALTH_TEXT=$(HEADLESS=1 "$MODULE_DIR/health_summary.sh")
+log_event "info" app=aihub event=menu_open gpu_mode="$GPU_LABEL" headless="$HEADLESS_FLAG"
 
 ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
+  --text="Health summary:\n${HEALTH_TEXT}" \
   --list --radiolist \
   --column="Select":R --column="Action" --column="Description" \
   TRUE "🖼️  Run Stable Diffusion WebUI" "Starts the WebUI from ~/AI/WebUI with models in Stable-diffusion/; uses current GPU setup." \
@@ -38,6 +34,7 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   FALSE "🎨  Select LoRA for Preset" "Pick a LoRA from ~/AI/LoRAs to use in pairing presets." \
   FALSE "💾  Save Current Pairing as Preset" "Save the active model/LoRA pairing preset to reuse later." \
   FALSE "📂  Load Saved Pairing Preset" "Load a previously saved pairing preset to quickly apply settings." \
+  FALSE "📊  Health Summary" "Run connectivity, backend, and model-path checks for all apps with remediation hints." \
   FALSE "❌  Exit" "Close the launcher without making changes." \
 )
 
@@ -89,6 +86,9 @@ case "$ACTION" in
     ;;
   *"📂  Load Saved Pairing Preset"*)
     bash "$MODULE_DIR/load_pairing_preset.sh"
+    ;;
+  *"📊  Health Summary"*)
+    bash "$MODULE_DIR/health_summary.sh"
     ;;
   *"❌  Exit"*)
     exit 0

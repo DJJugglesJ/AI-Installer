@@ -3,16 +3,15 @@
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 LOG_FILE="$HOME/.config/aihub/install.log"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/logging.sh"
+metrics_record_start "sillytavern"
 
 GPU_LABEL=${gpu_mode:-"Unknown"}
-log_msg "Launching SillyTavern with GPU mode: $GPU_LABEL"
+log_event "info" app=sillytavern event=launch message="Launching SillyTavern" gpu_mode="$GPU_LABEL"
+if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+  HEADLESS=1 "$SCRIPT_DIR/health_sillytavern.sh" >/dev/null
+fi
 
 SILLY_DIR="$HOME/AI/SillyTavern"
 
@@ -38,6 +37,7 @@ notify_info() {
 
 if [ ! -d "$SILLY_DIR" ]; then
   notify_error "SillyTavern Not Found" "SillyTavern folder not found in ~/AI. Please install it first."
+  log_event "error" app=sillytavern event=missing_path path="$SILLY_DIR" message="SillyTavern folder not found"
   exit 1
 fi
 
@@ -50,6 +50,7 @@ fi
 
 if ! command -v npm >/dev/null 2>&1; then
   notify_error "Node.js Missing" "npm was not found on this system. Please install Node.js before launching SillyTavern."
+  log_event "error" app=sillytavern event=dependency_missing dependency="npm"
   exit 1
 fi
 
@@ -58,6 +59,7 @@ if [ ! -d "node_modules" ]; then
   export NODE_ENV=production
   if ! npm i --no-audit --no-fund --loglevel=error --no-progress --omit=dev; then
     notify_error "Install Failed" "Failed to install npm dependencies for SillyTavern."
+    log_event "error" app=sillytavern event=dependency_install_failed dependency="npm"
     exit 1
   fi
 fi
