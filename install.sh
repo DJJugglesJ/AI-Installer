@@ -92,13 +92,13 @@ require_commands() {
   if [ ${#missing[@]} -gt 0 ]; then
     local joined
     joined=$(IFS=$'\n'; echo "${missing[*]}")
-    notify_prereq "The following tools are required before running the installer:\n\n$joined\n\nPlease install them with: sudo apt install ${missing[*]}"
+    notify_prereq "The following tools are required before running the installer:\n\n$joined\n\nPlease install them using your system package manager (e.g., apt, dnf, or pacman)."
     exit 1
   fi
 }
 
 # Ensure we have the basics to prompt and install dependencies before proceeding
-require_commands bash dpkg sudo apt
+require_commands bash sudo
 
 mkdir -p "$INSTALL_PATH"
 mkdir -p "$(dirname "$CONFIG_FILE")"
@@ -264,8 +264,17 @@ fi
 apply_headless_config
 export GPU_MODE_OVERRIDE
 
-# ✅ Check for required dependencies
-HEADLESS=$HEADLESS bash "$MODULE_DIR/check_dependencies.sh"
+# ✅ Cross-distro bootstrap for required packages
+BOOTSTRAP_SCRIPT="$MODULE_DIR/bootstrap/bootstrap.sh"
+if [[ -x "$BOOTSTRAP_SCRIPT" ]]; then
+  log_msg "Running bootstrap to verify/install prerequisites."
+  if ! HEADLESS=$HEADLESS bash "$BOOTSTRAP_SCRIPT" | tee -a "$LOG_FILE"; then
+    echo "[!] Bootstrap failed; see $LOG_FILE for details." >&2
+    exit 1
+  fi
+else
+  log_msg "Bootstrap script missing; please ensure required packages are installed manually."
+fi
 
 # 🔍 GPU detection
 CONFIG_FILE="$CONFIG_FILE" HEADLESS=$HEADLESS GPU_MODE_OVERRIDE="$GPU_MODE_OVERRIDE" bash "$MODULE_DIR/detect_gpu.sh"

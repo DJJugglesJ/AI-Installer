@@ -5,12 +5,12 @@ AI Installer sets up a modular AI workstation on Ubuntu 22.04 (including Windows
 See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the feature wishlist.
 
 ## Prerequisites
-- **Operating system:** Ubuntu 22.04.
-- **Packages:** The installer will prompt to install missing dependencies. It expects `git`, `curl`, `jq`, `yad`, `python3`, `python3-pip`, `wget`, `aria2`, and a terminal emulator (`gnome-terminal`, `x-terminal-emulator`, `konsole`, or `kitty`).
-- **Permissions:** Ability to run `sudo apt update` and `sudo apt install` when prompted.
+- **Operating system:** Tested on Ubuntu/Debian, Arch, and Fedora/RHEL-based distributions (including WSL2 with Ubuntu). Other distributions may work if you install dependencies manually.
+- **Packages:** The installer will prompt to install missing dependencies through the new bootstrapper. Required tools include `git`, `curl`, `jq`, `yad`, `python3` (or `python` on Arch), `python3-pip`/`python-pip`, `nodejs`, `npm`, `wget`, `aria2`, and GPU helper packages (`ubuntu-drivers-common`/`mesa-utils` or `vulkan-tools`/`mesa-dri-drivers` on RPM-based systems).
+- **Permissions:** Ability to run package manager commands with `sudo` when prompted.
 
 ## Installation
-1. Clone or download this repository on Ubuntu 22.04. On Windows, enable WSL2 and install the Ubuntu distribution first, then launch the installer from the WSL shell.
+1. Clone or download this repository on a supported distro (Ubuntu/Debian, Arch, Fedora/RHEL). On Windows, enable WSL2 and install the Ubuntu distribution first, then launch the installer from the WSL shell.
 2. From the repo root, run:
    ```bash
    chmod +x install.sh
@@ -18,7 +18,7 @@ See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the
    ```
    *Use `./install.sh --headless --gpu cpu --install webui` to run without any YAD prompts while forcing CPU mode and directly installing the Stable Diffusion WebUI. Use `./install.sh --help` to view all flags.*
 3. The installer will:
-   - Ensure required packages are available (prompting to install missing ones).
+   - Run a cross-distro bootstrap to install or verify required packages (skipping tools that are already present and logging versions). On unsupported distributions, install dependencies manually with your package manager.
    - Detect your GPU and suggest a driver (NVIDIA) or continue with CPU/Intel/AMD fallbacks.
    - Create a desktop entry pointing to `aihub_menu.sh` so you can launch the menu from your Desktop.
 
