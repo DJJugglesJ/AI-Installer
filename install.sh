@@ -5,10 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_PATH="$SCRIPT_DIR"
 MODULE_DIR="$INSTALL_PATH/modules"
 DEFAULT_CONFIG_FILE="$HOME/.config/aihub/installer.conf"
-CONFIG_FILE="$DEFAULT_CONFIG_FILE"
-CONFIG_STATE_FILE="$HOME/.config/aihub/config.yaml"
-DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
-LOG_FILE="$HOME/.config/aihub/install.log"
+CONFIG_FILE="${CONFIG_FILE:-$DEFAULT_CONFIG_FILE}"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
+DESKTOP_ENTRY="${DESKTOP_ENTRY:-$HOME/Desktop/AI-Workstation-Launcher.desktop}"
+LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
 
 source "$MODULE_DIR/config_service/config_helpers.sh"
 
@@ -18,6 +18,37 @@ GPU_MODE_OVERRIDE=""
 USER_CONFIG_FILE=""
 CONFIG_OVERRIDES=()
 RUN_ARTIFACT_MAINT=false
+PROFILE_NAME=""
+CONFIG_SCHEMA_PATH="$MODULE_DIR/config_service/installer_schema.yaml"
+
+log_msg() {
+  local message="$1"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
+
+log_error() {
+  local message="$1"
+  echo "[!] $message" | tee -a "$LOG_FILE" >&2
+}
+
+CONFIG_STATE_BACKUP=""
+CONFIG_ENV_BACKUP=""
+
+backup_file_with_timestamp() {
+  local src="$1"
+  local dest=""
+  if [[ -f "$src" ]]; then
+    dest="${src}.$(date '+%Y%m%d-%H%M%S').bak"
+    cp "$src" "$dest"
+    log_msg "Created backup for $(basename "$src") at $dest"
+  fi
+  echo "$dest"
+}
+
+restore_backups() {
+  [[ -n "$CONFIG_STATE_BACKUP" && -f "$CONFIG_STATE_BACKUP" ]] && cp "$CONFIG_STATE_BACKUP" "$CONFIG_STATE_FILE"
+  [[ -n "$CONFIG_ENV_BACKUP" && -f "$CONFIG_ENV_BACKUP" ]] && cp "$CONFIG_ENV_BACKUP" "$CONFIG_FILE"
+}
 
 usage() {
   cat <<EOF
@@ -26,6 +57,8 @@ Usage: $0 [options]
 Options:
   --headless           Run without YAD prompts using config defaults.
   --config <file>      Path to a JSON or env-style config file used in headless mode.
+  --profile <name>     Use a predefined installer profile (e.g. ci-basic) validated against the schema.
+  --config-schema <path> Override the installer schema path (for custom CI pipelines).
   --install <target>   Install a component directly (e.g. webui, kobold, sillytavern, loras, models).
   --gpu <mode>         Force GPU mode (nvidia|amd|intel|cpu) and skip GPU prompts.
   --cleanup            Run artifact maintenance (prune caches, rotate logs, verify links) and exit.
@@ -52,6 +85,14 @@ while [[ $# -gt 0 ]]; do
       USER_CONFIG_FILE="$2"
       shift
       ;;
+    --profile)
+      PROFILE_NAME="$2"
+      shift
+      ;;
+    --config-schema)
+      CONFIG_SCHEMA_PATH="$2"
+      shift
+      ;;
     --cleanup)
       RUN_ARTIFACT_MAINT=true
       ;;
@@ -74,10 +115,15 @@ if [[ "$HEADLESS_MODE" == true && -n "$USER_CONFIG_FILE" ]]; then
   CONFIG_FILE="$USER_CONFIG_FILE"
 fi
 
+CONFIG_STATE_BACKUP=$(backup_file_with_timestamp "$CONFIG_STATE_FILE")
+CONFIG_ENV_BACKUP=$(backup_file_with_timestamp "$CONFIG_FILE")
+
 if ! CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load "${CONFIG_OVERRIDES[@]}"; then
-  echo "[!] Failed to load configuration from $CONFIG_STATE_FILE" >&2
+  log_error "Failed to load configuration from $CONFIG_STATE_FILE; restoring backups."
+  restore_backups
   exit 1
 fi
+export CONFIG_ENV_FILE="$CONFIG_FILE"
 
 if [[ "$RUN_ARTIFACT_MAINT" == true ]]; then
   ARTIFACT_MANAGER="$MODULE_DIR/artifact_manager.sh"
@@ -124,11 +170,6 @@ mkdir -p "$(dirname "$DESKTOP_ENTRY")"
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$CONFIG_FILE"
 touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
 
 strip_quotes() {
   local value="$1"
@@ -194,30 +235,40 @@ PY
   done <<< "$python_output"
 }
 
-apply_headless_config() {
-  [[ "$HEADLESS_MODE" != true ]] && return
+load_validated_headless_config() {
+  local args=("$MODULE_DIR/config_service/config_service.py" installer-profile --schema "$CONFIG_SCHEMA_PATH" --format env)
+  [[ -n "$USER_CONFIG_FILE" ]] && args+=(--file "$USER_CONFIG_FILE")
+  [[ -n "$PROFILE_NAME" ]] && args+=(--profile "$PROFILE_NAME")
 
-  local source_file="$CONFIG_FILE"
-  if [[ -n "$USER_CONFIG_FILE" ]]; then
-    log_msg "Headless config supplied via --config: $source_file"
-  else
-    log_msg "Headless mode using default config path: $source_file"
+  local python_output
+  if ! python_output=$(python3 "${args[@]}"); then
+    log_error "Installer configuration validation failed."
+    [[ -n "$python_output" ]] && echo "$python_output" >&2
+    exit 1
   fi
 
-  if [[ ! -f "$source_file" ]]; then
-    log_msg "Headless config file not found; proceeding with built-in defaults."
+  declare -gA HEADLESS_CONFIG
+  while IFS='=' read -r key value; do
+    [[ -z "$key" ]] && continue
+    HEADLESS_CONFIG[$key]="$value"
+  done <<< "$python_output"
+}
+
+apply_headless_config() {
+  [[ "$HEADLESS_MODE" != true && -z "$PROFILE_NAME" ]] && return
+
+  load_validated_headless_config
+
+  if [[ "$HEADLESS_MODE" == true ]]; then
+    log_msg "Running installer in headless mode."
+  fi
+
+  if [[ -n "$PROFILE_NAME" ]]; then
+    log_msg "Installer profile '${PROFILE_NAME}' loaded (schema: $CONFIG_SCHEMA_PATH)."
+  elif [[ -n "$USER_CONFIG_FILE" ]]; then
+    log_msg "Headless config supplied via --config: $CONFIG_FILE"
   else
-    if grep -q '{' "$source_file"; then
-      if parse_json_config "$source_file"; then
-        log_msg "Parsed JSON headless config successfully."
-      else
-        log_msg "Failed to parse JSON config; attempting env-style parsing instead."
-        parse_env_config "$source_file"
-      fi
-    else
-      parse_env_config "$source_file"
-      log_msg "Parsed env-style headless config successfully."
-    fi
+    log_msg "Headless mode using default config path: $CONFIG_FILE"
   fi
 
   if [[ -z "$GPU_MODE_OVERRIDE" ]]; then
@@ -229,6 +280,10 @@ apply_headless_config() {
     fi
   else
     log_msg "GPU mode override provided via CLI; skipping config lookup."
+  fi
+
+  if [[ -n "$GPU_MODE_OVERRIDE" ]]; then
+    config_set "gpu.mode" "$GPU_MODE_OVERRIDE"
   fi
 
   if [[ -z "$INSTALL_TARGET" ]]; then
@@ -243,6 +298,10 @@ apply_headless_config() {
     fi
   else
     log_msg "Install target provided via CLI; skipping config lookup."
+  fi
+
+  if [[ -n "$INSTALL_TARGET" ]]; then
+    config_set "installer.install_target" "$INSTALL_TARGET"
   fi
 
   local hf_token_config="${HEADLESS_CONFIG[huggingface_token]:-${HEADLESS_CONFIG[HUGGINGFACE_TOKEN]:-}}"
@@ -275,12 +334,13 @@ apply_headless_config() {
   apply_boolean_flag "enable_low_vram" "low VRAM mode"
 }
 
-if [[ "$HEADLESS" -eq 1 ]]; then
-  log_msg "Running installer in headless mode."
-fi
-
 apply_headless_config
 export GPU_MODE_OVERRIDE
+
+if [[ "$AIHUB_SKIP_INSTALL_STEPS" == "1" ]]; then
+  log_msg "AIHUB_SKIP_INSTALL_STEPS set; stopping after configuration validation."
+  exit 0
+fi
 
 # ✅ Cross-distro bootstrap for required packages
 BOOTSTRAP_SCRIPT="$MODULE_DIR/bootstrap/bootstrap.sh"

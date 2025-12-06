@@ -22,6 +22,9 @@ except ImportError:  # pragma: no cover - optional dependency
 CONFIG_ROOT = os.path.expanduser("~/.config/aihub")
 DEFAULT_CONFIG_PATH = os.path.join(CONFIG_ROOT, "config.yaml")
 CURRENT_VERSION = 2
+INSTALLER_SCHEMA_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "installer_schema.yaml"
+)
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -147,6 +150,24 @@ def parse_env_style(text: str) -> Dict[str, Any]:
     return parsed
 
 
+def load_structured_file(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    if not text.strip():
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        if yaml is None:
+            raise ConfigError(
+                "YAML requested but PyYAML is not installed. Please install PyYAML or convert the file to JSON."
+            )
+        loaded = yaml.safe_load(text)
+        if not isinstance(loaded, dict):
+            raise ConfigError("Installer profile files must be a mapping/object.")
+        return loaded
+
+
 def load_raw_config(path: str) -> Tuple[Dict[str, Any], List[str]]:
     warnings: List[str] = []
     if not os.path.exists(path):
@@ -205,6 +226,66 @@ MIGRATIONS = {
 
 
 ALLOWED_GPU_MODES = {"auto", "nvidia", "amd", "intel", "cpu"}
+
+
+def load_installer_schema(path: str = INSTALLER_SCHEMA_PATH) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        raise ConfigError(f"Installer schema file not found at {path}")
+    try:
+        return load_structured_file(path)
+    except ConfigError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        raise ConfigError(f"Failed to parse installer schema: {exc}")
+
+
+def validate_simple_type(value: Any, expected: Any) -> bool:
+    type_map = {
+        "string": str,
+        "boolean": bool,
+        "number": (int, float),
+        "integer": int,
+        "object": dict,
+    }
+    if isinstance(expected, list):
+        return any(validate_simple_type(value, t) for t in expected)
+    py_type = type_map.get(expected)
+    if py_type is None:
+        return True
+    return isinstance(value, py_type)
+
+
+def validate_schema_fragment(value: Any, schema: Dict[str, Any], path: str, errors: List[str]) -> None:
+    expected_type = schema.get("type")
+    enum = schema.get("enum")
+
+    if enum is not None and value not in enum:
+        errors.append(f"{path or 'value'} must be one of {enum}; received {value!r}")
+        return
+
+    if expected_type == "object":
+        if not isinstance(value, dict):
+            errors.append(f"{path or 'value'} must be an object/mapping")
+            return
+        properties: Dict[str, Any] = schema.get("properties", {})
+        additional = schema.get("additionalProperties", True)
+        for key, child in value.items():
+            if key in properties:
+                validate_schema_fragment(child, properties[key], f"{path}.{key}" if path else key, errors)
+            elif additional is False:
+                errors.append(f"Unexpected field '{key}' in {path or 'root'}")
+            elif isinstance(additional, dict):
+                validate_schema_fragment(child, additional, f"{path}.{key}" if path else key, errors)
+        return
+
+    if expected_type and not validate_simple_type(value, expected_type):
+        errors.append(f"{path or 'value'} expected type {expected_type}; received {type(value).__name__}")
+
+
+def validate_against_schema(data: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
+    errors: List[str] = []
+    validate_schema_fragment(data, schema, path="", errors=errors)
+    return errors
 
 
 def validate(config: Dict[str, Any], warnings: List[str]) -> Dict[str, Any]:
@@ -316,6 +397,43 @@ def apply_env_overrides(config: Dict[str, Any], prefix: str, warnings: List[str]
         deep_set(config, path, coerce_value(value))
 
 
+def load_installer_profile(file_path: str | None, profile: str | None, schema_path: str) -> Dict[str, Any]:
+    schema = load_installer_schema(schema_path)
+    merged: Dict[str, Any] = {}
+
+    if profile:
+        profile_path = profile
+        if not os.path.exists(profile_path):
+            candidate = os.path.join(os.path.dirname(schema_path), "profiles", f"{profile}.yaml")
+            if os.path.exists(candidate):
+                profile_path = candidate
+        if not os.path.exists(profile_path):
+            raise ConfigError(f"Profile '{profile}' not found at {profile_path}")
+        merged.update(load_structured_file(profile_path))
+
+    if file_path:
+        if not os.path.exists(file_path):
+            raise ConfigError(f"Installer config file not found: {file_path}")
+        with open(file_path, "r", encoding="utf-8") as f:
+            raw_text = f.read()
+        if raw_text.strip().startswith("{") or raw_text.strip().startswith("["):
+            merged.update(json.loads(raw_text))
+        elif ":" in raw_text.splitlines()[0] or raw_text.strip().startswith("-"):
+            merged.update(load_structured_file(file_path))
+        else:
+            merged.update(parse_env_style(raw_text))
+
+    normalized: Dict[str, Any] = {}
+    for key, value in merged.items():
+        normalized[key] = coerce_value(value)
+
+    validation_errors = validate_against_schema(normalized, schema)
+    if validation_errors:
+        raise ConfigError("; ".join(validation_errors))
+
+    return normalized
+
+
 def load_config(path: str, env_prefix: str, overrides: List[str]) -> LoadedConfig:
     raw, warnings = load_raw_config(path)
     migrated_config, migrated = migrate(raw, warnings)
@@ -329,6 +447,15 @@ def load_config(path: str, env_prefix: str, overrides: List[str]) -> LoadedConfi
 def export_env(config: Dict[str, Any]) -> str:
     flat = flatten_for_env(config)
     lines = [f"{key}={value}" for key, value in flat.items()]
+    return "\n".join(lines)
+
+
+def installer_env(config: Dict[str, Any]) -> str:
+    lines = []
+    for key, value in config.items():
+        if isinstance(value, bool):
+            value = "true" if value else "false"
+        lines.append(f"{key}={value}")
     return "\n".join(lines)
 
 
@@ -348,6 +475,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     save_parser.add_argument("--write-env", dest="write_env", help="Write a legacy env-style file alongside save")
 
     subparsers.add_parser("migrate", help="Migrate config file to the latest version")
+    installer_parser = subparsers.add_parser(
+        "installer-profile", help="Validate and merge installer profile/config"
+    )
+    installer_parser.add_argument("--schema", default=INSTALLER_SCHEMA_PATH, help="Path to installer schema file")
+    installer_parser.add_argument("--file", dest="file_path", help="User-supplied installer config path")
+    installer_parser.add_argument("--profile", dest="profile", help="Named profile or path to profile file")
+    installer_parser.add_argument("--set", dest="overrides", action="append", default=[], help="Additional overrides to merge")
+    installer_parser.add_argument("--format", choices=["env", "json"], default="env")
     return parser
 
 
@@ -393,6 +528,26 @@ def command_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_installer_profile(args: argparse.Namespace) -> int:
+    try:
+        profile_data = load_installer_profile(args.file_path, args.profile, args.schema)
+        if args.overrides:
+            apply_overrides(profile_data, args.overrides)
+            errors = validate_against_schema(profile_data, load_installer_schema(args.schema))
+            if errors:
+                raise ConfigError("; ".join(errors))
+    except ConfigError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
+
+    if args.format == "json":
+        json.dump(profile_data, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(installer_env(profile_data) + "\n")
+    return 0
+
+
 def main(argv: List[str]) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
@@ -404,6 +559,8 @@ def main(argv: List[str]) -> int:
             return command_save(args)
         if args.command == "migrate":
             return command_migrate(args)
+        if args.command == "installer-profile":
+            return command_installer_profile(args)
     except ConfigError as exc:
         print(f"[error] {exc}", file=sys.stderr)
         return 1

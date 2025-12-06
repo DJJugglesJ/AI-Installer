@@ -1,6 +1,6 @@
 # Headless installer configuration
 
-Headless runs can load a configuration file when you pass `--headless` (optionally with `--config <file>`). The installer supports simple `KEY=value` files **or** JSON objects and logs every decision—including defaults when entries are missing—to `~/.config/aihub/install.log`.
+Headless runs can load a configuration file when you pass `--headless` (optionally with `--config <file>`). The installer supports simple `KEY=value` files **or** JSON objects and logs every decision—including defaults when entries are missing—to `~/.config/aihub/install.log`. All files are validated against the installer schema at `modules/config_service/installer_schema.yaml` to keep CI runs predictable.
 
 ## Supported keys
 
@@ -15,6 +15,15 @@ Headless runs can load a configuration file when you pass `--headless` (optional
 | `enable_low_vram` | Apply `--medvram` when launching WebUI. | Auto-enabled when <8GB of VRAM is detected on NVIDIA cards; can be forced on/off explicitly. |
 
 Additional scalar fields in JSON files are ignored by the loader to keep parsing predictable.
+
+### Profiles and schema validation
+
+For CI runs you can ship repeatable profiles and validate them automatically:
+
+* `--profile ci-basic` loads `modules/config_service/profiles/ci-basic.yaml` and validates it against `installer_schema.yaml`.
+* `--config-schema /path/to/custom-schema.yaml` points the installer at a different schema if your pipeline needs extra keys.
+
+Both flags work with `--headless` and will abort early with a log entry if validation fails.
 
 ## Formats
 
