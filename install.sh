@@ -4,13 +4,15 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_PATH="$SCRIPT_DIR"
 MODULE_DIR="$INSTALL_PATH/modules"
-CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+DEFAULT_CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+CONFIG_FILE="$DEFAULT_CONFIG_FILE"
 DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
 LOG_FILE="$HOME/.config/aihub/install.log"
 
 HEADLESS_MODE=false
 INSTALL_TARGET=""
 GPU_MODE_OVERRIDE=""
+USER_CONFIG_FILE=""
 
 usage() {
   cat <<EOF
@@ -18,6 +20,7 @@ Usage: $0 [options]
 
 Options:
   --headless           Run without YAD prompts using config defaults.
+  --config <file>      Path to a JSON or env-style config file used in headless mode.
   --install <target>   Install a component directly (e.g. webui, kobold, sillytavern, loras, models).
   --gpu <mode>         Force GPU mode (nvidia|amd|intel|cpu) and skip GPU prompts.
   -h, --help           Show this help message.
@@ -37,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       GPU_MODE_OVERRIDE="$2"
       shift
       ;;
+    --config)
+      USER_CONFIG_FILE="$2"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -51,7 +58,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 export HEADLESS=$([[ "$HEADLESS_MODE" == true ]] && echo 1 || echo 0)
-export GPU_MODE_OVERRIDE
+
+if [[ "$HEADLESS_MODE" == true && -n "$USER_CONFIG_FILE" ]]; then
+  CONFIG_FILE="$USER_CONFIG_FILE"
+fi
 
 notify_prereq() {
   local message="$1"
@@ -93,9 +103,130 @@ log_msg() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
 }
 
+strip_quotes() {
+  local value="$1"
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+  echo "$value"
+}
+
+declare -A HEADLESS_CONFIG
+
+parse_env_config() {
+  local file="$1"
+  while IFS='=' read -r raw_key raw_value; do
+    [[ -z "$raw_key" || "$raw_key" =~ ^# ]] && continue
+    local key value
+    key="${raw_key// /}"
+    value="${raw_value# }"
+    value=$(strip_quotes "$value")
+    HEADLESS_CONFIG[$key]="$value"
+  done < "$file"
+}
+
+parse_json_config() {
+  local file="$1"
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 1
+  fi
+  local python_output
+  python_output=$(python3 - <<'PY' "$file" 2>/dev/null)
+import json, sys
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+for key, value in data.items():
+    if isinstance(value, (dict, list)):
+        continue
+    print(f"{key}={value}")
+PY
+)
+
+  if [[ $? -ne 0 || -z "$python_output" ]]; then
+    return 1
+  fi
+
+  while IFS='=' read -r key value; do
+    [[ -z "$key" ]] && continue
+    value=$(strip_quotes "$value")
+    HEADLESS_CONFIG[$key]="$value"
+  done <<< "$python_output"
+}
+
+apply_headless_config() {
+  [[ "$HEADLESS_MODE" != true ]] && return
+
+  local source_file="$CONFIG_FILE"
+  if [[ -n "$USER_CONFIG_FILE" ]]; then
+    log_msg "Headless config supplied via --config: $source_file"
+  else
+    log_msg "Headless mode using default config path: $source_file"
+  fi
+
+  if [[ ! -f "$source_file" ]]; then
+    log_msg "Headless config file not found; proceeding with built-in defaults."
+  else
+    if grep -q '{' "$source_file"; then
+      if parse_json_config "$source_file"; then
+        log_msg "Parsed JSON headless config successfully."
+      else
+        log_msg "Failed to parse JSON config; attempting env-style parsing instead."
+        parse_env_config "$source_file"
+      fi
+    else
+      parse_env_config "$source_file"
+      log_msg "Parsed env-style headless config successfully."
+    fi
+  fi
+
+  if [[ -z "$GPU_MODE_OVERRIDE" ]]; then
+    if [[ -n "${HEADLESS_CONFIG[gpu_mode]}" ]]; then
+      GPU_MODE_OVERRIDE="${HEADLESS_CONFIG[gpu_mode]}"
+      log_msg "Headless config applied GPU mode: ${GPU_MODE_OVERRIDE}"
+    else
+      log_msg "Headless config missing gpu_mode; relying on auto-detection/default CPU fallback."
+    fi
+  else
+    log_msg "GPU mode override provided via CLI; skipping config lookup."
+  fi
+
+  if [[ -z "$INSTALL_TARGET" ]]; then
+    if [[ -n "${HEADLESS_CONFIG[install_target]}" ]]; then
+      INSTALL_TARGET="${HEADLESS_CONFIG[install_target]}"
+      log_msg "Headless config requested install target: ${INSTALL_TARGET}"
+    elif [[ -n "${HEADLESS_CONFIG[install]}" ]]; then
+      INSTALL_TARGET="${HEADLESS_CONFIG[install]}"
+      log_msg "Headless config requested install target via 'install': ${INSTALL_TARGET}"
+    else
+      log_msg "Headless config did not specify an install target; launcher will be created without auto-install."
+    fi
+  else
+    log_msg "Install target provided via CLI; skipping config lookup."
+  fi
+
+  local hf_token_config="${HEADLESS_CONFIG[huggingface_token]:-${HEADLESS_CONFIG[HUGGINGFACE_TOKEN]:-}}"
+  if [[ -n "$hf_token_config" ]]; then
+    if [[ -z "$HUGGINGFACE_TOKEN" ]]; then
+      HUGGINGFACE_TOKEN="$hf_token_config"
+      export HUGGINGFACE_TOKEN
+      log_msg "Headless config supplied Hugging Face token for authenticated downloads."
+    else
+      log_msg "Hugging Face token already set via environment; keeping existing value."
+    fi
+    export huggingface_token="$hf_token_config"
+  else
+    log_msg "Headless config missing Hugging Face token; will use anonymous downloads when permitted."
+  fi
+}
+
 if [[ "$HEADLESS" -eq 1 ]]; then
   log_msg "Running installer in headless mode."
 fi
+
+apply_headless_config
+export GPU_MODE_OVERRIDE
 
 # ✅ Check for required dependencies
 HEADLESS=$HEADLESS bash "$MODULE_DIR/check_dependencies.sh"

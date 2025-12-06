@@ -1,0 +1,5 @@
+{
+  "gpu_mode": "nvidia",
+  "install_target": "models",
+  "huggingface_token": "hf_example_token_for_ci"
+}
