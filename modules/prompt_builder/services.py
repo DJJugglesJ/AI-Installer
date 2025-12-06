@@ -23,12 +23,7 @@ class PromptCompilerService:
 
     def compile_scene(self, scene: SceneDescription) -> PromptAssembly:
         scene_json = asdict(scene)
-        compiled = compiler.build_prompt_from_scene(scene_json)
-        return PromptAssembly(
-            positive_prompt=compiled.get("positive_prompt") or [],
-            negative_prompt=compiled.get("negative_prompt") or [],
-            lora_calls=compiled.get("lora_calls") or [],
-        )
+        return compiler.build_prompt_from_scene(scene_json)
 
 
 class UIIntegrationHooks:
@@ -54,15 +49,10 @@ class UIIntegrationHooks:
     def publish_prompt(self, assembly: PromptAssembly) -> Dict:
         """Persist compiled prompts for consumption by launchers and UIs."""
 
-        payload = {
-            "positive_prompt": assembly.positive_prompt,
-            "negative_prompt": assembly.negative_prompt,
-            "lora_calls": [asdict(lora) for lora in assembly.lora_calls],
-        }
-        self._write_bundle(payload)
-        return payload
+        payload = assembly.to_payload()
+        return self._write_bundle(payload)
 
-    def _write_bundle(self, payload: Dict) -> None:
+    def _write_bundle(self, payload: Dict) -> Dict:
         """Write the prompt bundle to disk for launcher consumption."""
 
         bundle_dir = self.bundle_path.parent
@@ -74,3 +64,4 @@ class UIIntegrationHooks:
             "bundle_path": str(self.bundle_path),
         }
         self.bundle_path.write_text(json.dumps(enriched_payload, indent=2), encoding="utf-8")
+        return enriched_payload

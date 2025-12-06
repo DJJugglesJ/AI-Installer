@@ -1,9 +1,7 @@
 """Data models for Prompt Builder."""
 
-from dataclasses import dataclass, field
-from typing import List, Optional
-
-# TODO: share CharacterCard import from character_studio registry once available.
+from dataclasses import asdict, dataclass, field
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -42,3 +40,23 @@ class PromptAssembly:
     positive_prompt: List[str] = field(default_factory=list)
     negative_prompt: List[str] = field(default_factory=list)
     lora_calls: List[LoRACall] = field(default_factory=list)
+
+    def to_payload(self) -> Dict[str, object]:
+        """Serialize the prompt assembly into a JSON-friendly payload.
+
+        The payload preserves the list-oriented schema for prompts and exposes
+        concatenated text variants so shell launchers can consume the bundle
+        without recomputing joins.
+        """
+
+        positive_parts = [part for part in self.positive_prompt if part]
+        negative_parts = [part for part in self.negative_prompt if part]
+        lora_payload = [asdict(call) for call in self.lora_calls]
+
+        return {
+            "positive_prompt": positive_parts,
+            "negative_prompt": negative_parts,
+            "lora_calls": lora_payload,
+            "positive_prompt_text": " | ".join(positive_parts),
+            "negative_prompt_text": " | ".join(negative_parts),
+        }

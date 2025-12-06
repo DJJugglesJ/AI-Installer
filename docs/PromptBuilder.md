@@ -23,9 +23,10 @@ Prompt Builder converts human-friendly scene descriptions into Stable Diffusion 
 ## Prompt Compiler Service API
 - **Input:** `SceneDescription` JSON plus optional global defaults.
 - **Output JSON:**
-  - `positive_prompt` (string)
-  - `negative_prompt` (string)
-  - `lora_calls` (array of strings like `"<lora:Name:0.8>"`)
+  - `positive_prompt` (array of prompt fragments)
+  - `negative_prompt` (array of prompt fragments)
+  - `positive_prompt_text` / `negative_prompt_text` (concatenated strings mirroring the arrays for CLI/launcher consumption)
+  - `lora_calls` (objects with `name`, `weight`, and `trigger` keys)
 
 ## Integration notes
 - The compiler should load Character Cards through a shared registry, not hard-coded data.

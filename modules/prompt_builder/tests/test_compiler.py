@@ -60,12 +60,12 @@ def test_prompt_assembly_with_character_card(tmp_path):
     }
 
     compiled = compiler.build_prompt_from_scene(scene_json)
-    assert any("world: fantasy" in part for part in compiled["positive_prompt"])
-    assert any("herotoken" in part for part in compiled["positive_prompt"])
-    assert any("cape" in part for part in compiled["positive_prompt"])
-    assert compiled["negative_prompt"][-1] == "nsfw"
-    assert compiled["lora_calls"][0].name == "hero.safetensors"
-    assert compiled["lora_calls"][0].weight == 0.75
+    assert any("world: fantasy" in part for part in compiled.positive_prompt)
+    assert any("herotoken" in part for part in compiled.positive_prompt)
+    assert any("cape" in part for part in compiled.positive_prompt)
+    assert compiled.negative_prompt[-1] == "nsfw"
+    assert compiled.lora_calls[0].name == "hero.safetensors"
+    assert compiled.lora_calls[0].weight == 0.75
 
 
 def test_apply_feedback_updates_scene_fields():
