@@ -2,7 +2,7 @@
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 LOG_FILE="$HOME/.config/aihub/install.log"
-MODEL_DIR="$HOME/AI/models"
+MODEL_DIR="$HOME/ai-hub/models"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
