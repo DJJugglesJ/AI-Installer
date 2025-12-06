@@ -17,6 +17,7 @@ INSTALL_TARGET=""
 GPU_MODE_OVERRIDE=""
 USER_CONFIG_FILE=""
 CONFIG_OVERRIDES=()
+RUN_ARTIFACT_MAINT=false
 
 usage() {
   cat <<EOF
@@ -27,6 +28,7 @@ Options:
   --config <file>      Path to a JSON or env-style config file used in headless mode.
   --install <target>   Install a component directly (e.g. webui, kobold, sillytavern, loras, models).
   --gpu <mode>         Force GPU mode (nvidia|amd|intel|cpu) and skip GPU prompts.
+  --cleanup            Run artifact maintenance (prune caches, rotate logs, verify links) and exit.
   -h, --help           Show this help message.
 EOF
 }
@@ -50,6 +52,9 @@ while [[ $# -gt 0 ]]; do
       USER_CONFIG_FILE="$2"
       shift
       ;;
+    --cleanup)
+      RUN_ARTIFACT_MAINT=true
+      ;;
     -h|--help)
       usage
       exit 0
@@ -72,6 +77,17 @@ fi
 if ! CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load "${CONFIG_OVERRIDES[@]}"; then
   echo "[!] Failed to load configuration from $CONFIG_STATE_FILE" >&2
   exit 1
+fi
+
+if [[ "$RUN_ARTIFACT_MAINT" == true ]]; then
+  ARTIFACT_MANAGER="$MODULE_DIR/artifact_manager.sh"
+  if [[ -x "$ARTIFACT_MANAGER" ]]; then
+    HEADLESS=1 bash "$ARTIFACT_MANAGER" --auto --headless
+  else
+    echo "Artifact manager is missing at $ARTIFACT_MANAGER" >&2
+    exit 1
+  fi
+  exit 0
 fi
 
 notify_prereq() {

@@ -570,6 +570,10 @@ sync_webui_models
 
 config_set "state.models_installed" "true"
 
+if [[ -x "$SCRIPT_DIR/artifact_manager.sh" ]]; then
+  HEADLESS=1 bash "$SCRIPT_DIR/artifact_manager.sh" --scan --verify-links --rotate-logs
+fi
+
 if command -v yad >/dev/null 2>&1 && [[ "$HEADLESS" -ne 1 ]]; then
   yad --info --text="✅ Model installed and config updated." --title="Install Complete"
 else

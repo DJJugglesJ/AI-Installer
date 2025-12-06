@@ -29,6 +29,7 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   FALSE "📥  Install or Update LoRAs" "Downloads curated/CivitAI LoRAs into the default ~/AI/LoRAs directory." \
   FALSE "📦  Install or Update Models (Hugging Face)" "Installs LLMs to the default ~/ai-hub/models directory (HEADLESS=$HEADLESS_FLAG)." \
   FALSE "📥  Download Models from CivitAI" "Fetches CivitAI models to the default ~/ai-hub/models directory with GUI prompts by default." \
+  FALSE "🧹  Artifact Maintenance" "Prune caches, rotate logs, and verify model/LoRA links." \
   FALSE "🆕  Update Installer" "Runs the built-in self-update to refresh installer scripts in this repository." \
   FALSE "🔁  Pull Updates" "Pulls the latest Git changes for AI-Hub into $(basename "$SCRIPT_DIR")." \
   FALSE "ℹ️  View Installer Status" "Opens the AI Hub launcher status panel from $LAUNCHER_DIR." \
@@ -61,6 +62,9 @@ case "$ACTION" in
     ;;
   *"📥  Download Models from CivitAI"*)
     MODEL_SOURCE="civitai" bash "$MODULE_DIR/install_models.sh"
+    ;;
+  *"🧹  Artifact Maintenance"*)
+    bash "$MODULE_DIR/artifact_manager.sh"
     ;;
   *"🆕  Update Installer"*)
     bash "$MODULE_DIR/self_update.sh"
