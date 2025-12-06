@@ -58,3 +58,61 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Smarter download scheduling (prioritize smaller assets first, queue background fetches).
 - Better LoRA pairing UX with recent-history shortcuts and conflict detection.
 - Hooks for custom storage locations (e.g., external drives) with free-space checks.
+
+## Prompt Builder Module
+
+### Phase 1 - Design + Skeleton
+- Add a design document describing the Prompt Builder user flow, JSON schema, and integration points.
+- Create a new module folder: `modules/prompt_builder/`.
+
+### Phase 2 - Prompt Compiler Service
+- Implement a service that accepts a structured `SceneDescription` JSON and returns:
+  - `positive_prompt`
+  - `negative_prompt`
+  - `lora_calls` (e.g. `["<lora:name:0.8>", ...]`)
+- The service should call an LLM (local or remote) via an abstraction layer.
+
+### Phase 3 - UI Integration
+- Add a Prompt Builder tab/panel to the AI Hub UI.
+- Modes:
+  - Quick Prompt: single text input plus model/style dropdowns.
+  - Guided Scene Builder: fields for world, setting, mood, style, nsfw_level, camera, and multiple characters.
+  - Character selection: each character slot can pick an existing Character Card or open Character Studio to create/edit one.
+
+### Phase 4 - Stable Diffusion WebUI Integration
+- Add configuration options for the Stable Diffusion WebUI API endpoint and defaults (model, steps, resolution).
+- Add a "Send to WebUI" action that posts the generated prompt and negative prompt to the WebUI txt2img API.
+
+### Phase 5 - Advanced
+- Prompt history and favorites.
+- Per model prompt presets.
+- Deeper integration with Character Studio for auto suggesting LoRAs and trigger tokens.
+
+## Character Studio Module
+
+### Phase 1 - Character Cards
+- Define a Character Card schema shared with Prompt Builder.
+- Provide UI to create/edit character metadata, anatomy tags, NSFW flags, trigger token, default prompt snippet, and reference images.
+
+### Phase 2 - Dataset Builder (SFW)
+- Use Stable Diffusion WebUI API to generate SFW reference images based on Character Card data.
+- Allow the user to select images that match the character and save them into a dataset folder.
+- Auto generate training captions using the character's `trigger_token` and anatomy tags plus generic tags like 1girl, pose, clothing, and scene.
+
+### Phase 3 - NSFW & Anatomy Checklist (opt in)
+- Respect an `nsfw_allowed` flag on each Character Card.
+- Provide an anatomy / coverage checklist (topless, nude, different poses, etc).
+- For each checklist item, generate batches, allow selection, and caption using:
+  - `trigger_token`
+  - anatomy tags (for stable traits like body, breasts, nipples, freckles, skin)
+  - state/pose/clothing tags (topless, nude, standing, lying_down, spread_legs, lingerie, etc).
+
+### Phase 4 - Tagging UI
+- Add a tagging interface to review and edit captions.
+- Support auto tagging using either the original prompt and/or an external tagger.
+- Allow bulk edits and corrections.
+
+### Phase 5 - Training Pack + Trainer Wrapper
+- Export a training dataset pack for the character, including images and caption files, plus a config file for an external LoRA trainer (e.g. kohya-ss).
+- Optionally add a wrapper to invoke the trainer and track its logs.
+- On successful training, copy the resulting LoRA file into the appropriate folder and update the Character Card with `lora_file` and `lora_default_strength`.
