@@ -3,16 +3,15 @@
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 LOG_FILE="$HOME/.config/aihub/install.log"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/logging.sh"
+metrics_record_start "kobold"
 
 GPU_LABEL=${gpu_mode:-"Unknown"}
-log_msg "Launching KoboldAI with GPU mode: $GPU_LABEL"
+log_event "info" app=kobold event=launch message="Launching KoboldAI" gpu_mode="$GPU_LABEL"
+if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+  HEADLESS=1 "$SCRIPT_DIR/health_kobold.sh" >/dev/null
+fi
 
 KOBOLD_DIR="$HOME/AI/KoboldAI"
 
@@ -28,6 +27,7 @@ notify_error() {
 
 if [ ! -d "$KOBOLD_DIR" ]; then
   notify_error "KoboldAI Not Found" "KoboldAI folder not found in ~/AI. Please install it first."
+  log_event "error" app=kobold event=missing_path path="$KOBOLD_DIR" message="KoboldAI folder not found"
   exit 1
 fi
 
@@ -46,5 +46,6 @@ elif [ -x "./play.sh" ]; then
   bash ./play.sh
 else
   notify_error "Environment Missing" "Unable to locate a Python environment for KoboldAI. Please reinstall KoboldAI."
+  log_event "error" app=kobold event=missing_env path="$KOBOLD_DIR" message="No Python environment found"
   exit 1
 fi

@@ -3,13 +3,9 @@
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 LOG_FILE="$HOME/.config/aihub/install.log"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/logging.sh"
+metrics_record_start "webui"
 
 normalize_bool() {
   local raw="$1"
@@ -25,11 +21,14 @@ normalize_bool() {
 
 WEBUI_DIR="$HOME/AI/WebUI"
 GPU_LABEL=${gpu_mode:-"Unknown"}
-log_msg "Launching Stable Diffusion WebUI with GPU mode: $GPU_LABEL"
+log_event "info" app=webui event=launch message="Launching Stable Diffusion WebUI" gpu_mode="$GPU_LABEL"
+if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+  HEADLESS_HEALTH=1 HEADLESS=1 "$SCRIPT_DIR/health_webui.sh" >/dev/null
+fi
 
 if [ ! -d "$WEBUI_DIR" ]; then
   if [[ "${HEADLESS:-0}" -eq 1 ]]; then
-    log_msg "WebUI folder not found at $WEBUI_DIR."
+    log_event "error" app=webui event=missing_path path="$WEBUI_DIR" message="WebUI folder not found"
   else
     yad --error --title="WebUI Not Found" --text="Stable Diffusion WebUI folder not found. Please install it first."
   fi
@@ -43,7 +42,7 @@ if [ -f "venv/bin/activate" ]; then
   source venv/bin/activate
 else
   if [[ "${HEADLESS:-0}" -eq 1 ]]; then
-    log_msg "Virtual environment missing for WebUI at $WEBUI_DIR."
+    log_event "error" app=webui event=missing_env path="$WEBUI_DIR/venv" message="Virtual environment missing"
   else
     yad --error --title="Environment Missing" --text="Virtual environment not found. Please reinstall WebUI."
   fi
@@ -75,10 +74,10 @@ esac
 if [[ "$enable_directml" == "true" ]]; then
   if [[ "$supports_directml" == "true" ]]; then
     append_flag --use-directml
-    log_msg "DirectML requested and supported; enabling --use-directml."
+    log_event "info" app=webui event=flag_applied flag="--use-directml" reason="Requested and supported"
     enable_xformers="false"
   else
-    log_msg "DirectML requested but not supported by detected hardware; skipping."
+    log_event "warn" app=webui event=flag_skipped flag="--use-directml" reason="Hardware unsupported"
     enable_directml="false"
   fi
 fi
@@ -86,29 +85,29 @@ fi
 if [[ "$enable_xformers" == "true" ]]; then
   if [[ "$supports_xformers" == "true" ]]; then
     append_flag --xformers
-    log_msg "xFormers acceleration enabled."
+    log_event "info" app=webui event=flag_applied flag="--xformers"
   else
-    log_msg "xFormers requested but not supported by current GPU/driver; skipping."
+    log_event "warn" app=webui event=flag_skipped flag="--xformers" reason="GPU/driver unsupported"
   fi
 fi
 
 if [[ "$enable_fp16" != "true" || "$supports_fp16" != "true" ]]; then
   append_flag --precision full --no-half
   if [[ "$supports_fp16" != "true" ]]; then
-    log_msg "FP16 disabled because GPU/driver does not advertise half-precision stability."
+    log_event "warn" app=webui event=flag_applied flag="--precision full --no-half" reason="GPU/driver lacks FP16 support"
   else
-    log_msg "FP16 toggle disabled by config; enforcing full precision."
+    log_event "info" app=webui event=flag_applied flag="--precision full --no-half" reason="Config disabled FP16"
   fi
 else
-  log_msg "FP16 enabled; half-precision will be used when supported by WebUI."
+  log_event "info" app=webui event=flag_applied flag="fp16" reason="Config enabled and hardware supports"
 fi
 
 if [[ "$enable_low_vram" == "true" ]]; then
   append_flag --medvram
-  log_msg "Low VRAM mode enabled via --medvram."
+  log_event "info" app=webui event=flag_applied flag="--medvram"
 fi
 
-log_msg "Computed WebUI launch flags: ${GPU_FLAGS[*]:-(none)}"
+log_event "info" app=webui event=launch_flags flags="${GPU_FLAGS[*]:-(none)}"
 
 # Launch WebUI with proper flags
 python launch.py "${GPU_FLAGS[@]}"
