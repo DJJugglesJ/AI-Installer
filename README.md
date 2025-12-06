@@ -58,6 +58,7 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 - Base models download to `$HOME/ai-hub/models/`. The Stable Diffusion v1.5 checkpoint is fetched by default.
 - Hugging Face tokens are optional but recommended for gated or rate-limited downloads; tokens are stored in `~/.config/aihub/installer.conf`.
 - LoRA utilities can install/update assets and pair them with supported frontends.
+- See the [model and LoRA quickstart](docs/quickstart_models.md) for a concise guide to installing SD1.5, knowing where assets live, and pairing LoRAs across WebUI, KoboldAI, and SillyTavern.
 
 ## Updates and self-update
 - Use **🆕 Update Installer** from the menu for a guided self-update (requires the repo to have a `.git` directory).
