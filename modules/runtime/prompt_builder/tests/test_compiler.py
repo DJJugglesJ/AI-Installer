@@ -8,9 +8,9 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from modules.character_studio import models as character_models
-from modules.character_studio.models import CharacterCard
-from modules.prompt_builder import compiler
+from modules.runtime.character_studio import models as character_models
+from modules.runtime.character_studio.models import CharacterCard
+from modules.runtime.prompt_builder import compiler
 
 
 @pytest.fixture(autouse=True)

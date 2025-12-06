@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Dict
 
-from modules.character_studio.registry import CharacterCardRegistry
+from modules.runtime.character_studio.registry import CharacterCardRegistry
 
 from .llm import SceneLLMAdapter
 from .models import CharacterRef, PromptAssembly, SceneDescription
