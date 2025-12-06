@@ -7,9 +7,32 @@ OOBA_MODELS="$OOBA_DIR/models"
 KOBOLD_MODELS="$KOBOLD_DIR/models"
 PAIR_FILE="/tmp/st_llm_pair.txt"
 CONFIG_FILE="$SILLY_DIR/config.json"
+PROMPT_BUNDLE_PATH="${PROMPT_BUNDLE_PATH:-$HOME/.cache/aihub/prompt_builder/prompt_bundle.json}"
+
+load_prompt_bundle() {
+  local path="$PROMPT_BUNDLE_PATH"
+  if [ ! -f "$path" ]; then
+    return 1
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Prompt bundle found at $path but jq is missing; skipping injection." >&2
+    return 1
+  fi
+
+  POSITIVE_PROMPT=$(jq -r '(.positive_prompt // []) | join(" | ")' "$path")
+  NEGATIVE_PROMPT=$(jq -r '(.negative_prompt // []) | join(" | ")' "$path")
+  LORA_FLAGS=$(jq -r '(.lora_calls // []) | map(.name + (if (.weight // null) != null then ":" + (.weight|tostring) else "" end) + (if (.trigger // null) != null then ":" + .trigger else "" end)) | join(",")' "$path")
+
+  export PROMPT_BUILDER_POSITIVE="$POSITIVE_PROMPT"
+  export PROMPT_BUILDER_NEGATIVE="$NEGATIVE_PROMPT"
+  export PROMPT_BUILDER_LORAS="$LORA_FLAGS"
+  export PROMPT_BUILDER_BUNDLE_PATH="$path"
+}
 
 [ -d "$OOBA_MODELS" ] || mkdir -p "$OOBA_MODELS"
 [ -d "$KOBOLD_MODELS" ] || mkdir -p "$KOBOLD_MODELS"
+
+load_prompt_bundle
 
 BACKENDS=()
 MODEL_LIST=()
@@ -77,6 +100,12 @@ case "$ACTION" in
     OUTFILE="/tmp/st_llm_launch.sh"
     {
       echo "#!/bin/bash"
+      if [[ -n "${PROMPT_BUILDER_POSITIVE:-}" ]]; then
+        echo "export PROMPT_BUILDER_POSITIVE=\"$PROMPT_BUILDER_POSITIVE\""
+        echo "export PROMPT_BUILDER_NEGATIVE=\"$PROMPT_BUILDER_NEGATIVE\""
+        echo "export PROMPT_BUILDER_LORAS=\"$PROMPT_BUILDER_LORAS\""
+        echo "export PROMPT_BUILDER_BUNDLE_PATH=\"$PROMPT_BUNDLE_PATH\""
+      fi
       if [[ "$SELECTED_BACKEND" == "oobabooga" ]]; then
         echo "cd \"$OOBA_DIR\""
         echo "python server.py --model-dir models --model \"$SELECTED_MODEL\""
