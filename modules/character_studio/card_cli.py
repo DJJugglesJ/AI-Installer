@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Iterable, List
 
+from . import dataset, tagging, trainer
 from .models import CARD_STORAGE_ROOT, CharacterCard
 
 
@@ -120,6 +121,60 @@ def list_cards(_: argparse.Namespace) -> None:
             print(f"{card.id}: {card.name} (NSFW: {card.nsfw_allowed})")
 
 
+def create_dataset(args: argparse.Namespace) -> None:
+    dataset.create_dataset_structure(args.id)
+
+
+def add_dataset_images(args: argparse.Namespace) -> None:
+    stored = dataset.add_images_to_dataset(args.id, args.images, args.subset)
+    print("Added images:\n" + "\n".join(stored))
+
+
+def caption_dataset(args: argparse.Namespace) -> None:
+    captions = dataset.generate_captions_for_dataset(args.id, args.subset)
+    if not captions:
+        print("No images found to caption.")
+        return
+    print("Generated captions:\n" + "\n".join(captions))
+
+
+def auto_tag_dataset(args: argparse.Namespace) -> None:
+    extra_tags = _parse_tags(args.extra_tags)
+    captions = tagging.auto_tag_images(args.id, args.subset, tagger_cmd=args.tagger, extra_tags=extra_tags)
+    if not captions:
+        print("No images tagged.")
+        return
+    print("Tagged images:\n" + "\n".join(captions))
+
+
+def bulk_edit_dataset_tags(args: argparse.Namespace) -> None:
+    targets: List[str] = []
+    if args.images:
+        targets = list(args.images)
+    else:
+        targets = [str(p) for p in dataset.list_subset_images(args.id, args.subset)]
+
+    if not targets:
+        print("No images found for tag editing.")
+        return
+
+    updated = tagging.bulk_edit_tags(targets, append_tags=_parse_tags(args.append), replace_with=_parse_tags(args.replace))
+    print("Updated tags for:\n" + "\n".join(updated))
+
+
+def export_training(args: argparse.Namespace) -> None:
+    archive = trainer.export_training_pack(args.id)
+    print(f"Exported training pack to {archive}")
+
+
+def run_training(args: argparse.Namespace) -> None:
+    output = trainer.run_lora_training(args.id)
+    if output:
+        print(f"Trainer produced LoRA: {output}")
+    else:
+        print("Trainer not invoked or no output was produced.")
+
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage Character Cards for Character Studio")
@@ -162,6 +217,44 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_cmd = subparsers.add_parser("list", help="List saved Character Cards")
     list_cmd.set_defaults(func=list_cards)
+
+    dataset_create = subparsers.add_parser("init-dataset", help="Create dataset folders for a Character Card")
+    dataset_create.add_argument("id", help="Unique character id")
+    dataset_create.set_defaults(func=create_dataset)
+
+    dataset_add = subparsers.add_parser("add-dataset-images", help="Copy images into a dataset subset")
+    dataset_add.add_argument("id", help="Unique character id")
+    dataset_add.add_argument("subset", help="Subset name (e.g., base, nsfw/variant_a)")
+    dataset_add.add_argument("images", nargs="+", help="Image paths to copy")
+    dataset_add.set_defaults(func=add_dataset_images)
+
+    dataset_caption = subparsers.add_parser("generate-captions", help="Create caption files for a subset")
+    dataset_caption.add_argument("id", help="Unique character id")
+    dataset_caption.add_argument("subset", help="Subset name (e.g., base or nsfw)")
+    dataset_caption.set_defaults(func=caption_dataset)
+
+    dataset_tag = subparsers.add_parser("auto-tag", help="Auto-tag a dataset subset")
+    dataset_tag.add_argument("id", help="Unique character id")
+    dataset_tag.add_argument("subset", help="Subset name")
+    dataset_tag.add_argument("--tagger", help="External tagger command overriding CHAR_STUDIO_TAGGER_CMD")
+    dataset_tag.add_argument("--extra-tags", help="Comma separated tags to append to each caption")
+    dataset_tag.set_defaults(func=auto_tag_dataset)
+
+    dataset_tag_edit = subparsers.add_parser("edit-tags", help="Manually edit or bulk-append tags")
+    dataset_tag_edit.add_argument("id", help="Unique character id")
+    dataset_tag_edit.add_argument("subset", help="Subset name")
+    dataset_tag_edit.add_argument("--images", nargs="*", help="Specific image paths to edit; defaults to all in subset")
+    dataset_tag_edit.add_argument("--append", help="Comma separated tags to append")
+    dataset_tag_edit.add_argument("--replace", help="Comma separated tags to replace existing captions")
+    dataset_tag_edit.set_defaults(func=bulk_edit_dataset_tags)
+
+    export_pack = subparsers.add_parser("export-training", help="Create a portable training pack")
+    export_pack.add_argument("id", help="Unique character id")
+    export_pack.set_defaults(func=export_training)
+
+    train_cmd = subparsers.add_parser("train", help="Invoke configured trainer for a character")
+    train_cmd.add_argument("id", help="Unique character id")
+    train_cmd.set_defaults(func=run_training)
 
     return parser
 
