@@ -2,6 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
 TMP_FILTERED="/tmp/civitai_loras.json"
 TMP_SELECTED_TAGS="/tmp/lora_selected_tags.txt"
@@ -10,6 +11,9 @@ TMP_SOURCE_INFO="/tmp/civitai_lora_source.txt"
 INSTALL_DIR="$HOME/AI/LoRAs"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 LORA_MANIFEST="$MANIFEST_DIR/loras.json"
+
+source "$SCRIPT_DIR/config_service/config_helpers.sh"
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 
 notify()
 {
@@ -286,11 +290,7 @@ if [ "$SOURCE" = "curated" ]; then
     echo "Curated manifest browsing requires YAD. Falling back to live CivitAI browser." >&2
     SOURCE="civitai"
   elif choose_curated_loras; then
-    if grep -q "^loras_installed=" "$CONFIG_FILE"; then
-      sed -i 's/^loras_installed=.*/loras_installed=true/' "$CONFIG_FILE"
-    else
-      echo "loras_installed=true" >> "$CONFIG_FILE"
-    fi
+    config_set "state.loras_installed" "true"
     echo "$(date): Curated LoRA download completed." >> "$LOG_FILE"
     notify info "LoRA Download Complete" "✅ Selected curated LoRAs downloaded to $INSTALL_DIR"
     exit 0
@@ -412,11 +412,7 @@ for NAME in "${NAMES[@]}"; do
 done
 
 # Update config
-if grep -q "^loras_installed=" "$CONFIG_FILE"; then
-  sed -i 's/^loras_installed=.*/loras_installed=true/' "$CONFIG_FILE"
-else
-  echo "loras_installed=true" >> "$CONFIG_FILE"
-fi
+config_set "state.loras_installed" "true"
 
 echo "$(date): LoRA selection and download completed." >> "$LOG_FILE"
 notify info "LoRA Download Complete" "✅ Selected LoRAs downloaded to $INSTALL_DIR"

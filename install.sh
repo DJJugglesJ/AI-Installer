@@ -6,22 +6,17 @@ INSTALL_PATH="$SCRIPT_DIR"
 MODULE_DIR="$INSTALL_PATH/modules"
 DEFAULT_CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_FILE="$DEFAULT_CONFIG_FILE"
+CONFIG_STATE_FILE="$HOME/.config/aihub/config.yaml"
 DESKTOP_ENTRY="$HOME/Desktop/AI-Workstation-Launcher.desktop"
 LOG_FILE="$HOME/.config/aihub/install.log"
+
+source "$MODULE_DIR/config_service/config_helpers.sh"
 
 HEADLESS_MODE=false
 INSTALL_TARGET=""
 GPU_MODE_OVERRIDE=""
 USER_CONFIG_FILE=""
-
-set_config_value() {
-  local key="$1" value="$2"
-  if grep -q "^${key}=" "$CONFIG_FILE" 2>/dev/null; then
-    sed -i "s/^${key}=.*/${key}=${value}/" "$CONFIG_FILE"
-  else
-    echo "${key}=${value}" >> "$CONFIG_FILE"
-  fi
-}
+CONFIG_OVERRIDES=()
 
 usage() {
   cat <<EOF
@@ -43,10 +38,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --install)
       INSTALL_TARGET="$2"
+      CONFIG_OVERRIDES+=("--set" "installer.install_target=$2")
       shift
       ;;
     --gpu)
       GPU_MODE_OVERRIDE="$2"
+      CONFIG_OVERRIDES+=("--set" "gpu.mode=$2")
       shift
       ;;
     --config)
@@ -70,6 +67,11 @@ export HEADLESS=$([[ "$HEADLESS_MODE" == true ]] && echo 1 || echo 0)
 
 if [[ "$HEADLESS_MODE" == true && -n "$USER_CONFIG_FILE" ]]; then
   CONFIG_FILE="$USER_CONFIG_FILE"
+fi
+
+if ! CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load "${CONFIG_OVERRIDES[@]}"; then
+  echo "[!] Failed to load configuration from $CONFIG_STATE_FILE" >&2
+  exit 1
 fi
 
 notify_prereq() {
@@ -247,7 +249,7 @@ apply_headless_config() {
     [[ -z "$raw_value" ]] && return
     local normalized
     normalized=$(normalize_bool "$raw_value")
-    set_config_value "$key" "$normalized"
+    config_set "$key" "$normalized"
     log_msg "Headless config set ${description} to ${normalized}."
   }
 

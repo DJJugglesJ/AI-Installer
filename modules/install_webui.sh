@@ -1,14 +1,17 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
 INSTALL_DIR="$HOME/AI/WebUI"
 LORA_SOURCE="$HOME/AI/LoRAs"
 LORA_TARGET="$INSTALL_DIR/models/Lora"
 
-mkdir -p "$(dirname "$CONFIG_FILE")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/config_service/config_helpers.sh"
+
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 mkdir -p "$(dirname "$LOG_FILE")"
-touch "$CONFIG_FILE"
 touch "$LOG_FILE"
 
 log_msg() {
@@ -64,11 +67,7 @@ ln -s "$LORA_SOURCE" "$LORA_TARGET"
 echo "$(date): Linked LoRA directory ($LORA_SOURCE → $LORA_TARGET)" >> "$LOG_FILE"
 
 # Update config
-if grep -q "^webui_installed=" "$CONFIG_FILE"; then
-  sed -i 's/^webui_installed=.*/webui_installed=true/' "$CONFIG_FILE"
-else
-  echo "webui_installed=true" >> "$CONFIG_FILE"
-fi
+config_set "state.webui_installed" "true"
 
 if [[ "${HEADLESS:-0}" -eq 1 ]]; then
   log_msg "WebUI installed and LoRA link created."

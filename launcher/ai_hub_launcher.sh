@@ -1,12 +1,15 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
+CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="$HOME/.config/aihub/install.log"
 
-mkdir -p "$(dirname "$CONFIG_FILE")" "$(dirname "$LOG_FILE")"
-touch "$CONFIG_FILE" "$LOG_FILE"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../modules/config_service/config_helpers.sh"
 
-[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
+CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
 
 copy_to_clipboard() {
   local payload="$1"
