@@ -1,29 +1,74 @@
-"""Minimal entry point to verify Prompt Builder imports without side effects."""
+"""Entry point for Prompt Builder CLI."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Iterable
 
 from dataclasses import asdict
 
+from . import compiler
 from .models import CharacterRef, SceneDescription
 from .services import PromptCompilerService, UIIntegrationHooks
 
 
-def main() -> None:
-    sample_scene = SceneDescription(
-        world="demo world",
-        setting="studio",
-        characters=[CharacterRef(slot_id="hero", character_id="char_001", role="protagonist")],
-        extra_elements=["soft lighting"],
+def _load_scene(path: Path) -> SceneDescription:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    characters = [CharacterRef(**character) for character in payload.get("characters", [])]
+    return SceneDescription(
+        world=payload.get("world"),
+        setting=payload.get("setting"),
+        mood=payload.get("mood"),
+        style=payload.get("style"),
+        nsfw_level=payload.get("nsfw_level"),
+        camera=payload.get("camera"),
+        characters=characters,
+        extra_elements=payload.get("extra_elements", []),
     )
 
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Compile SceneDescription JSON into prompts")
+    parser.add_argument("--scene", type=Path, required=True, help="Path to a SceneDescription JSON file")
+    parser.add_argument("--feedback", help="Natural language feedback to refine the scene before compilation")
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> None:
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    scene = _load_scene(args.scene)
+    scene_json = asdict(scene)
+    if args.feedback:
+        scene_json = compiler.apply_feedback_to_scene(scene_json, args.feedback)
+        scene = _load_scene_from_json(scene_json)
+
     hooks = UIIntegrationHooks()
-    preflight_error = hooks.preflight_scene(sample_scene)
+    preflight_error = hooks.preflight_scene(scene)
     if preflight_error:
         raise SystemExit(preflight_error)
 
-    compiler = PromptCompilerService()
-    assembly = compiler.compile_scene(sample_scene)
+    compiler_service = PromptCompilerService()
+    assembly = compiler_service.compile_scene(scene)
     payload = hooks.publish_prompt(assembly)
-    print("Prompt Builder module loaded successfully. Sample payload:\n", payload)
-    print("SceneDescription schema preview:\n", asdict(sample_scene))
+    print(json.dumps(payload, indent=2))
+
+
+def _load_scene_from_json(scene_json: dict) -> SceneDescription:
+    characters = [CharacterRef(**character) for character in scene_json.get("characters", [])]
+    return SceneDescription(
+        world=scene_json.get("world"),
+        setting=scene_json.get("setting"),
+        mood=scene_json.get("mood"),
+        style=scene_json.get("style"),
+        nsfw_level=scene_json.get("nsfw_level"),
+        camera=scene_json.get("camera"),
+        characters=characters,
+        extra_elements=scene_json.get("extra_elements", []),
+    )
 
 
 if __name__ == "__main__":
