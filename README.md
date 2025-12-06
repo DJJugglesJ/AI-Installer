@@ -42,7 +42,12 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 
 ## GPU considerations
 - NVIDIA cards trigger an optional driver install via `ubuntu-drivers autoinstall`.
-- AMD and Intel GPUs fall back to CPU unless you configure vendor-specific acceleration separately.
+- **AMD:** The installer can install `mesa-vulkan-drivers` for the open-source stack and will record the detected AMD GPU. For
+  hardware acceleration beyond the default Vulkan/OpenCL stack, plan to configure ROCm following the [AMD ROCm installation
+  guide](https://rocm.docs.amd.com/en/latest/deploy/linux/install.html). Expect workloads to fall back to CPU if ROCm/AMDGPU
+  acceleration is unavailable.
+- **Intel:** Intel GPUs are detected, but the installer defaults to CPU mode for AI workloads. To enable Intel acceleration,
+  configure oneAPI/OpenVINO as described in Intel's [OpenVINO toolkit overview](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html). Until that is configured, assume CPU-only performance.
 - If no supported GPU is found, the installer can continue in CPU mode (slower inference).
 
 ## Windows / WSL2 notes

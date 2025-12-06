@@ -102,6 +102,14 @@ HEADLESS=$HEADLESS bash "$MODULE_DIR/check_dependencies.sh"
 
 # 🔍 GPU detection
 CONFIG_FILE="$CONFIG_FILE" HEADLESS=$HEADLESS GPU_MODE_OVERRIDE="$GPU_MODE_OVERRIDE" bash "$MODULE_DIR/detect_gpu.sh"
+DETECTED_GPU=$(grep '^detected_gpu=' "$CONFIG_FILE" | cut -d'=' -f2)
+GPU_MODE_SELECTED=$(grep '^gpu_mode=' "$CONFIG_FILE" | cut -d'=' -f2)
+GPU_SUMMARY_MSG="GPU summary: detected=${DETECTED_GPU:-unknown}, mode=${GPU_MODE_SELECTED:-unknown}"
+echo "[✔] $GPU_SUMMARY_MSG"
+log_msg "$GPU_SUMMARY_MSG"
+if [[ "$HEADLESS" -eq 1 ]]; then
+  log_msg "Headless GPU summary recorded for troubleshooting."
+fi
 
 # ✅ Create the unified desktop launcher
 LAUNCH_CMD="$INSTALL_PATH/aihub_menu.sh"
