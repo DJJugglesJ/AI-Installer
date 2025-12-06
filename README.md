@@ -1,6 +1,6 @@
 # AI Installer
 
-AI Installer sets up a modular AI workstation on Ubuntu 22.04. It presents AI-Hub as a general-purpose orchestration layer for image and text workflows (e.g., Stable Diffusion, KoboldAI, SillyTavern), model/LoRA management, and pairing routines, while handling GPU detection and prerequisite checks for you. Examples are written in a neutral style so they can be reused across setups, and AI-Hub can optionally support adult content workflows depending on your configuration and local policies.
+AI Installer sets up a modular AI workstation on Ubuntu 22.04 (including Windows via WSL2 + Ubuntu). It presents AI-Hub as a general-purpose orchestration layer for image and text workflows (e.g., Stable Diffusion, KoboldAI, SillyTavern), model/LoRA management, and pairing routines, while handling GPU detection and prerequisite checks for you. Examples are written in a neutral style so they can be reused across setups, and AI-Hub can optionally support adult content workflows depending on your configuration and local policies.
 
 See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the feature wishlist.
 
@@ -10,7 +10,7 @@ See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the
 - **Permissions:** Ability to run `sudo apt update` and `sudo apt install` when prompted.
 
 ## Installation
-1. Clone or download this repository on Ubuntu 22.04.
+1. Clone or download this repository on Ubuntu 22.04. On Windows, enable WSL2 and install the Ubuntu distribution first, then launch the installer from the WSL shell.
 2. From the repo root, run:
    ```bash
    chmod +x install.sh
@@ -44,6 +44,10 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 - NVIDIA cards trigger an optional driver install via `ubuntu-drivers autoinstall`.
 - AMD and Intel GPUs fall back to CPU unless you configure vendor-specific acceleration separately.
 - If no supported GPU is found, the installer can continue in CPU mode (slower inference).
+
+## Windows / WSL2 notes
+- AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell.
+- The installer expects to manage Linux packages and create launchers inside the WSL distribution; Windows-native paths or shells are not supported.
 
 ## Models and LoRAs
 - Base models download to `$HOME/ai-hub/models/`. The Stable Diffusion v1.5 checkpoint is fetched by default.

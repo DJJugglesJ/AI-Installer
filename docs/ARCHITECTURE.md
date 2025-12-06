@@ -18,6 +18,7 @@ AI Hub is designed to unify tools and services such as:
 ### A. Installer Layer (Shell-Based)
 The installer layer is implemented primarily in shell scripts (for example, `install.sh` and `aihub_menu.sh`). It is responsible for:
 - Detecting operating system details, GPU/driver compatibility, Python environment, and package dependencies
+- Ensuring the target environment is ready (native Ubuntu 22.04 or Windows with WSL2 + Ubuntu enabled) before continuing
 - Installing or updating AI tools such as Stable Diffusion WebUI, ComfyUI, and local text LLM backends
 - Creating desktop launchers and quick-access menus
 - Storing manifests for model downloads and tool configuration
