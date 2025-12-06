@@ -24,6 +24,7 @@ See the [roadmap](docs/ROADMAP.md) for current capabilities, milestones, and the
 
 ## Command-line options
 - `--headless`: Run without YAD dialogs, using config defaults and logging headless decisions to `~/.config/aihub/install.log`.
+- `--config <file>`: Provide a JSON or env-style config file for headless runs (see [`docs/headless_config.md`](docs/headless_config.md)).
 - `--gpu <mode>`: Force a GPU mode (`nvidia`, `amd`, `intel`, or `cpu`) and skip the GPU prompt.
 - `--install <target>`: Trigger a direct install for `webui`, `kobold`, `sillytavern`, `loras`, or `models` immediately after setup.
 
