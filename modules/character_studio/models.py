@@ -19,3 +19,13 @@ class CharacterCard:
     lora_file: Optional[str] = None
     lora_default_strength: Optional[float] = None
     reference_images: List[str] = field(default_factory=list)
+
+
+def apply_feedback_to_character(character_card: CharacterCard, feedback_text: str) -> CharacterCard:
+    """Refine a Character Card using natural language feedback.
+
+    TODO: Call the shared LLM abstraction to adjust description, default prompt snippet,
+    and anatomy_tags based on feedback, then persist the updated Character Card.
+    """
+
+    raise NotImplementedError

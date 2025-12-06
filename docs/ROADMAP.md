@@ -78,6 +78,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
   - Quick Prompt: single text input plus model/style dropdowns.
   - Guided Scene Builder: fields for world, setting, mood, style, nsfw_level, camera, and multiple characters.
   - Character selection: each character slot can pick an existing Character Card or open Character Studio to create/edit one.
+- Refine with feedback: add `apply_feedback_to_scene(scene_json, feedback_text)` that uses the LLM abstraction to adjust the `SceneDescription` JSON, recompile prompts, and re-send them to Stable Diffusion WebUI for another generation.
 
 ### Phase 4 - Stable Diffusion WebUI Integration
 - Add configuration options for the Stable Diffusion WebUI API endpoint and defaults (model, steps, resolution).
@@ -93,6 +94,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 ### Phase 1 - Character Cards
 - Define a Character Card schema shared with Prompt Builder.
 - Provide UI to create/edit character metadata, anatomy tags, NSFW flags, trigger token, default prompt snippet, and reference images.
+- Refine character via feedback: add `apply_feedback_to_character(character_card, feedback_text)` using the LLM abstraction to adjust description, default prompt snippet, and anatomy tags, with a UI option to apply scene-level feedback permanently to the character.
 
 ### Phase 2 - Dataset Builder (SFW)
 - Use Stable Diffusion WebUI API to generate SFW reference images based on Character Card data.

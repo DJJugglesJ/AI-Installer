@@ -32,3 +32,11 @@ Character Studio manages the character lifecycle for prompting and LoRA training
 - It injects `trigger_token` and `default_prompt_snippet` into the positive prompt.
 - If `lora_file` is present, it prepends a LoRA call like `"<lora:Baileen_v1:0.9>"`.
 - Both modules should load Character Cards via a shared registry, not hard-coded files, to stay in sync.
+
+## Character Feedback Refinement
+- Users can give persistent feedback to refine a character's definition (e.g., change height, body type, or species).
+- `apply_feedback_to_character(character_card, feedback_text)`:
+  - **Inputs:** current Character Card JSON and a feedback string.
+  - **Output:** updated Character Card JSON.
+  - **Behavior:** uses the LLM abstraction to adjust `description`, `default_prompt_snippet`, and `anatomy_tags` so the character better matches the feedback.
+- Scene-level feedback can optionally be applied permanently to the Character Card through this pathway.

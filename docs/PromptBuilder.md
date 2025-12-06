@@ -31,3 +31,11 @@ Prompt Builder converts human-friendly scene descriptions into Stable Diffusion 
 - The compiler should load Character Cards through a shared registry, not hard-coded data.
 - Prompt Builder and Character Studio must rely on the same Character Card definition to avoid schema drift.
 - The service should call an LLM (local or remote) via a pluggable abstraction layer to convert `SceneDescription` into prompts.
+
+## Scene Feedback Refinement
+- Users can enter natural language feedback after a generation (e.g., "make the character shorter and more petite").
+- `apply_feedback_to_scene(scene_json, feedback_text)`:
+  - **Inputs:** current `SceneDescription` JSON and a feedback string.
+  - **Output:** updated `SceneDescription` JSON.
+  - **Behavior:** calls the same LLM abstraction to adjust fields (character traits, style, mood, etc.), then passes the updated JSON back to the prompt compiler for regeneration.
+- Refinement is per scene by default and does not automatically change Character Cards.

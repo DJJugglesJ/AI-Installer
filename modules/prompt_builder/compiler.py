@@ -21,3 +21,14 @@ def build_prompt_from_scene(scene_json: Dict) -> Dict[str, Optional[List[str]]]:
         "negative_prompt": None,
         "lora_calls": None,
     }
+
+
+def apply_feedback_to_scene(scene_json: Dict, feedback_text: str) -> Dict:
+    """Use natural language feedback to refine a SceneDescription payload.
+
+    TODO: Use the LLM abstraction to apply natural language feedback to the SceneDescription
+    and return an updated SceneDescription JSON. This should adjust fields like character traits,
+    style, mood, etc., based on the feedback, without implementing the full logic yet.
+    """
+
+    raise NotImplementedError
