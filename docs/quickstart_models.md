@@ -14,6 +14,7 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
   - Use `--gpu amd`, `--gpu intel`, or `--gpu cpu` to force a mode when detection is undesirable.
 - The installer stores checkpoints at `~/ai-hub/models/` and links them into the Stable Diffusion WebUI folder at `~/AI/WebUI/models/Stable-diffusion/` when present.
 - YAD installs can browse curated manifests; headless runs fall back to Hugging Face and download `sd-v1-5.ckpt` by default. Provide a token via the prompt or set `HUGGINGFACE_TOKEN` if the file is gated or rate limited.
+- The curated manifests now include SDXL base/refiner/turbo options, SD1.5 fallbacks, and community favorites so you can browse a wider set of checkpoints without hunting for links.
 
 ## LoRA installation
 - Run the LoRA helper directly or from the launcher menu to pull curated or CivitAI LoRAs into `~/AI/LoRAs/`:
