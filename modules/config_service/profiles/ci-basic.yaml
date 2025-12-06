@@ -1,0 +1,6 @@
+{
+  "gpu_mode": "cpu",
+  "install_target": "webui",
+  "enable_fp16": false,
+  "enable_low_vram": true
+}

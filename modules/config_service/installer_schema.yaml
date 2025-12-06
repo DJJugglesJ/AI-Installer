@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Hub Installer Profile",
+  "type": "object",
+  "properties": {
+    "gpu_mode": {"type": "string", "enum": ["auto", "nvidia", "amd", "intel", "cpu"]},
+    "install_target": {"type": "string", "enum": ["", "webui", "kobold", "sillytavern", "loras", "models"]},
+    "huggingface_token": {"type": "string"},
+    "enable_fp16": {"type": "boolean"},
+    "enable_xformers": {"type": "boolean"},
+    "enable_directml": {"type": "boolean"},
+    "enable_low_vram": {"type": "boolean"},
+    "profile": {"type": "string"},
+    "config_overrides": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "number", "boolean"]}
+    }
+  },
+  "additionalProperties": false
+}
