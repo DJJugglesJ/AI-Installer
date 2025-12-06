@@ -50,6 +50,11 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 - **Intel:** Intel GPUs are detected, but the installer defaults to CPU mode for AI workloads. To enable Intel acceleration,
   configure oneAPI/OpenVINO as described in Intel's [OpenVINO toolkit overview](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html). Until that is configured, assume CPU-only performance.
 - If no supported GPU is found, the installer can continue in CPU mode (slower inference).
+- **Performance flags:**
+  - FP16 defaults to **enabled on NVIDIA** and **disabled elsewhere**; the installer will force full precision when FP16 is unstable/unsupported.
+  - xFormers is exposed for NVIDIA GPUs with working drivers. DirectML is offered for AMD/Intel GPUs under Windows/WSL and disables xFormers when enabled.
+  - Low VRAM mode adds `--medvram` for WebUI. It is recommended automatically when <8GB VRAM is detected (NVIDIA) and can be toggled in the launcher or headless config.
+  - See [`docs/performance_flags.md`](docs/performance_flags.md) for defaults and trade-offs by GPU family.
 
 ## Windows / WSL2 notes
 - AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell.

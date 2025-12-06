@@ -23,6 +23,7 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   --list --radiolist \
   --column="Select":R --column="Action" --column="Description" \
   TRUE "🖼️  Run Stable Diffusion WebUI" "Starts the WebUI from ~/AI/WebUI with models in Stable-diffusion/; uses current GPU setup." \
+  FALSE "⚙️  Performance Flags" "Toggle FP16, xFormers/DirectML, and low VRAM behavior recorded in ~/.config/aihub/installer.conf." \
   FALSE "🤖  Launch KoboldAI" "Launches KoboldAI from ~/AI/KoboldAI using your downloaded models." \
   FALSE "🧠  Launch SillyTavern" "Opens SillyTavern in ~/AI/SillyTavern with existing API/backends." \
   FALSE "📥  Install or Update LoRAs" "Downloads curated/CivitAI LoRAs into the default ~/AI/LoRAs directory." \
@@ -42,6 +43,9 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
 case "$ACTION" in
   *"🖼️  Run Stable Diffusion WebUI"*)
     bash "$MODULE_DIR/run_webui.sh"
+    ;;
+  *"⚙️  Performance Flags"*)
+    bash "$MODULE_DIR/performance_flags.sh"
     ;;
   *"🤖  Launch KoboldAI"*)
     bash "$MODULE_DIR/run_kobold.sh"

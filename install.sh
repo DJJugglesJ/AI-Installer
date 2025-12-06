@@ -14,6 +14,15 @@ INSTALL_TARGET=""
 GPU_MODE_OVERRIDE=""
 USER_CONFIG_FILE=""
 
+set_config_value() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" "$CONFIG_FILE" 2>/dev/null; then
+    sed -i "s/^${key}=.*/${key}=${value}/" "$CONFIG_FILE"
+  else
+    echo "${key}=${value}" >> "$CONFIG_FILE"
+  fi
+}
+
 usage() {
   cat <<EOF
 Usage: $0 [options]
@@ -110,6 +119,18 @@ strip_quotes() {
   value="${value%\'}"
   value="${value#\'}"
   echo "$value"
+}
+
+normalize_bool() {
+  local raw="$1"
+  case "${raw,,}" in
+    true|1|yes|y|on)
+      echo "true"
+      ;;
+    *)
+      echo "false"
+      ;;
+  esac
 }
 
 declare -A HEADLESS_CONFIG
@@ -219,6 +240,21 @@ apply_headless_config() {
   else
     log_msg "Headless config missing Hugging Face token; will use anonymous downloads when permitted."
   fi
+
+  apply_boolean_flag() {
+    local key="$1" description="$2"
+    local raw_value="${HEADLESS_CONFIG[$key]:-}"
+    [[ -z "$raw_value" ]] && return
+    local normalized
+    normalized=$(normalize_bool "$raw_value")
+    set_config_value "$key" "$normalized"
+    log_msg "Headless config set ${description} to ${normalized}."
+  }
+
+  apply_boolean_flag "enable_fp16" "FP16 preference"
+  apply_boolean_flag "enable_xformers" "xFormers acceleration"
+  apply_boolean_flag "enable_directml" "DirectML acceleration"
+  apply_boolean_flag "enable_low_vram" "low VRAM mode"
 }
 
 if [[ "$HEADLESS" -eq 1 ]]; then

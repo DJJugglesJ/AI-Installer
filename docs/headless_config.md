@@ -9,6 +9,10 @@ Headless runs can load a configuration file when you pass `--headless` (optional
 | `gpu_mode`        | Force GPU mode selection (`nvidia`, `amd`, `intel`, or `cpu`).            | CLI `--gpu` takes precedence. Defaults to hardware detection/CPU fallback when absent. |
 | `install_target`  | Automatically run a specific installer (`webui`, `kobold`, `sillytavern`, `loras`, or `models`). | CLI `--install` takes precedence. Leaving this blank creates the launcher without auto-installing. |
 | `huggingface_token` | Token used by model installers for authenticated Hugging Face downloads. | `HUGGINGFACE_TOKEN` environment variables take precedence. Anonymous downloads are used when the token is missing. |
+| `enable_fp16` | Prefer half-precision math when supported. | Defaults to `true` on NVIDIA; forced to `false` when the detected GPU/driver does not advertise FP16 support. |
+| `enable_xformers` | Toggle xFormers acceleration for WebUI. | Only honored when NVIDIA drivers are detected. Disabled automatically when unsupported or when DirectML is enabled. |
+| `enable_directml` | Enable DirectML mode. | Offered for AMD/Intel GPUs detected under Windows/WSL. Mutually exclusive with xFormers. |
+| `enable_low_vram` | Apply `--medvram` when launching WebUI. | Auto-enabled when <8GB of VRAM is detected on NVIDIA cards; can be forced on/off explicitly. |
 
 Additional scalar fields in JSON files are ignored by the loader to keep parsing predictable.
 
