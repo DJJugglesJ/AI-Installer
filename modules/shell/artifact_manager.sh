@@ -17,7 +17,7 @@ ARTIFACT_RECORD_TYPE=""
 ARTIFACT_RECORD_PATH=""
 SCHEDULE_DAYS=""
 
-source "$SCRIPT_DIR/config_service/config_helpers.sh"
+source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_ENV_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load 2>/dev/null
 
 mkdir -p "$CONFIG_DIR"

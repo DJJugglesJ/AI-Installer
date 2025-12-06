@@ -6,8 +6,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from modules.character_studio import card_cli, models
-from modules.character_studio.models import CHARACTER_CARD_SCHEMA, CharacterCard, apply_feedback_to_character
+from modules.runtime.character_studio import card_cli, models
+from modules.runtime.character_studio.models import CHARACTER_CARD_SCHEMA, CharacterCard, apply_feedback_to_character
 
 
 @pytest.fixture(autouse=True)

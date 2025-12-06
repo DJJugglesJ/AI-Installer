@@ -1,5 +1,5 @@
 {
-  "source": "CivitAI curated checkpoints",
+  "source": "AI Hub curated checkpoints and bases",
   "items": [
     {
       "name": "Pony Diffusion V6 XL",
@@ -33,6 +33,50 @@
       "license": "Unknown (refer to CivitAI listing)",
       "tags": ["base model", "asian", "realistic", "photorealistic"],
       "notes": "Realistic checkpoint with photorealistic tuning"
+    },
+    {
+      "name": "Stable Diffusion XL Base",
+      "version": "1.0",
+      "filename": "sd_xl_base_1.0.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors?download=1",
+      "size_bytes": 6927680000,
+      "checksum": null,
+      "license": "CreativeML OpenRAIL-M",
+      "tags": ["sdxl", "base model", "official"],
+      "notes": "Official SDXL base checkpoint from Stability AI"
+    },
+    {
+      "name": "Stable Diffusion XL Refiner",
+      "version": "1.0",
+      "filename": "sd_xl_refiner_1.0.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors?download=1",
+      "size_bytes": 6950000000,
+      "checksum": null,
+      "license": "CreativeML OpenRAIL-M",
+      "tags": ["sdxl", "refiner", "official"],
+      "notes": "Refiner pair for SDXL pipelines"
+    },
+    {
+      "name": "Stable Diffusion XL Turbo (FP16)",
+      "version": "1.0",
+      "filename": "sd_xl_turbo_1.0_fp16.safetensors",
+      "url": "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors?download=1",
+      "size_bytes": 2970000000,
+      "checksum": null,
+      "license": "Stability AI Research License",
+      "tags": ["sdxl", "turbo", "fast", "official"],
+      "notes": "SDXL Turbo for real-time or low-latency image generation"
+    },
+    {
+      "name": "Stable Diffusion 1.5 (EMA-Only)",
+      "version": "1.5",
+      "filename": "v1-5-pruned-emaonly.ckpt",
+      "url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt?download=1",
+      "size_bytes": 4265380000,
+      "checksum": null,
+      "license": "CreativeML OpenRAIL-M",
+      "tags": ["sd1.5", "base model", "official"],
+      "notes": "Canonical SD1.5 checkpoint for broad LoRA compatibility"
     }
   ]
 }

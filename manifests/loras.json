@@ -1,5 +1,5 @@
 {
-  "source": "CivitAI curated LoRAs",
+  "source": "AI Hub curated LoRAs",
   "items": [
     {
       "name": "Not Artists Styles for Pony Diffusion V6 XL",
@@ -33,6 +33,50 @@
       "license": "Unknown (refer to CivitAI listing)",
       "tags": ["portraits", "landscape", "detail", "enhancer", "tool", "backgrounds"],
       "notes": "Lightweight detail enhancer LoRA for portraits and landscapes"
+    },
+    {
+      "name": "Analog Film Photo Enhancer (SD1.5)",
+      "version": "v2.0",
+      "filename": "analog-film-photo-enhancer.safetensors",
+      "url": "https://civitai.com/api/download/models/122050",
+      "size_bytes": 68789024,
+      "checksum": null,
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["photography", "film", "grain", "sd1.5"],
+      "notes": "Adds cinematic film grain and color toning to SD1.5 renders"
+    },
+    {
+      "name": "Character Studio: Expressive Faces (SDXL)",
+      "version": "v1.0",
+      "filename": "expressive-faces-sdxl.safetensors",
+      "url": "https://civitai.com/api/download/models/1983567",
+      "size_bytes": 51200000,
+      "checksum": null,
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["sdxl", "portraits", "expression"],
+      "notes": "Boosts facial expression fidelity for SDXL portraits"
+    },
+    {
+      "name": "RealVis Style Adapter (SDXL)",
+      "version": "v4.0",
+      "filename": "realvis-style-adapter-sdxl.safetensors",
+      "url": "https://civitai.com/api/download/models/1314005",
+      "size_bytes": 43800000,
+      "checksum": null,
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["sdxl", "realistic", "style"],
+      "notes": "Applies RealVis-inspired realism styling to SDXL outputs"
+    },
+    {
+      "name": "Edge-of-Reality Lighting",
+      "version": "v1.0",
+      "filename": "edge-of-reality-lighting.safetensors",
+      "url": "https://civitai.com/api/download/models/1584732",
+      "size_bytes": 28400000,
+      "checksum": null,
+      "license": "Unknown (refer to CivitAI listing)",
+      "tags": ["lighting", "contrast", "cinematic", "sd1.5"],
+      "notes": "Cinematic lighting LoRA for dramatic key/fill setups"
     }
   ]
 }

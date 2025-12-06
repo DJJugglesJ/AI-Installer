@@ -14,27 +14,28 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
   - Use `--gpu amd`, `--gpu intel`, or `--gpu cpu` to force a mode when detection is undesirable.
 - The installer stores checkpoints at `~/ai-hub/models/` and links them into the Stable Diffusion WebUI folder at `~/AI/WebUI/models/Stable-diffusion/` when present.
 - YAD installs can browse curated manifests; headless runs fall back to Hugging Face and download `sd-v1-5.ckpt` by default. Provide a token via the prompt or set `HUGGINGFACE_TOKEN` if the file is gated or rate limited.
+- The curated manifests now include SDXL base/refiner/turbo options, SD1.5 fallbacks, and community favorites so you can browse a wider set of checkpoints without hunting for links.
 
 ## LoRA installation
 - Run the LoRA helper directly or from the launcher menu to pull curated or CivitAI LoRAs into `~/AI/LoRAs/`:
   ```bash
   ./install.sh --install loras
   # or
-  bash modules/install_loras.sh
+  bash modules/shell/install_loras.sh
   ```
 - The WebUI installer creates a symlink from `~/AI/LoRAs/` to `~/AI/WebUI/models/Lora/`, so any downloaded LoRA is immediately available to Stable Diffusion WebUI.
 
 ## Pairing flows
 ### Stable Diffusion WebUI
 1. Ensure models exist in `~/ai-hub/models/` (see above) and LoRAs in `~/AI/LoRAs/`.
-2. Launch WebUI (`aihub_menu.sh` ➜ **Run Stable Diffusion WebUI** or `bash modules/run_webui.sh`).
+2. Launch WebUI (`aihub_menu.sh` ➜ **Run Stable Diffusion WebUI** or `bash modules/shell/run_webui.sh`).
 3. Pick the SD1.5 checkpoint (e.g., `sd-v1-5.ckpt`) from the model dropdown and select a LoRA from the `Lora` selector. The symlinked LoRA folder makes downloads immediately visible.
 
 ### KoboldAI (LLM backends)
 1. Place models in `~/AI/KoboldAI/models/` or install them via the KoboldAI UI.
 2. If you prefer an oobabooga-style launch script that injects a LoRA, run:
    ```bash
-   bash modules/pair_oobabooga.sh
+   bash modules/shell/pair_oobabooga.sh
    ```
    - Choose an LLM from `~/AI/oobabooga/models/` and, optionally, a LoRA from `~/AI/oobabooga/lora/`.
    - The script writes `/tmp/oobabooga_launch.sh` and can launch it directly; use this when you want to start a LoRA-enabled backend for KoboldAI-compatible clients.
@@ -42,11 +43,11 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 ### SillyTavern
 1. To point SillyTavern at a local API backend (oobabooga or KoboldAI), run:
    ```bash
-   bash modules/pair_sillytavern.sh
+   bash modules/shell/pair_sillytavern.sh
    ```
    - Select the backend (`oobabooga` or `KoboldAI`) and choose a model from that runtime's `models` folder.
    - Choose **Inject to SillyTavern** or **Both** to set `apiUrl` in `~/AI/SillyTavern/config.json` (defaults: oobabooga on port 5000, KoboldAI on port 5001).
-2. When using oobabooga as the backend and you need a LoRA, run `bash modules/pair_oobabooga.sh` first to generate the launch script with the desired LoRA, then start SillyTavern after the backend is running.
+2. When using oobabooga as the backend and you need a LoRA, run `bash modules/shell/pair_oobabooga.sh` first to generate the launch script with the desired LoRA, then start SillyTavern after the backend is running.
 
 ## Defaults at a glance
 - Models: `~/ai-hub/models/` (symlinked into WebUI when available)
