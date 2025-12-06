@@ -13,7 +13,7 @@ ensure_config_paths() {
 
 config_export() {
   ensure_config_paths
-  python3 "$CONFIG_SERVICE_SCRIPT" export --config "$CONFIG_STATE_FILE" --env-prefix "$CONFIG_ENV_PREFIX" --write-env "$CONFIG_ENV_FILE" "$@"
+  python3 "$CONFIG_SERVICE_SCRIPT" --config "$CONFIG_STATE_FILE" export --env-prefix "$CONFIG_ENV_PREFIX" --write-env "$CONFIG_ENV_FILE" "$@"
 }
 
 config_load() {
@@ -24,7 +24,7 @@ config_load() {
 
 config_save() {
   ensure_config_paths
-  python3 "$CONFIG_SERVICE_SCRIPT" save --config "$CONFIG_STATE_FILE" --write-env "$CONFIG_ENV_FILE" "$@"
+  python3 "$CONFIG_SERVICE_SCRIPT" --config "$CONFIG_STATE_FILE" save --write-env "$CONFIG_ENV_FILE" "$@"
 }
 
 config_set() {

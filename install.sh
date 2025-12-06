@@ -171,7 +171,7 @@ parse_json_config() {
     return 1
   fi
   local python_output
-  python_output=$(python3 - <<'PY' "$file" 2>/dev/null)
+  python_output=$(python3 - "$file" <<'PY' 2>/dev/null
 import json, sys
 path = sys.argv[1]
 with open(path, "r", encoding="utf-8") as f:
