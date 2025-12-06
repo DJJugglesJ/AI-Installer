@@ -1,0 +1,6 @@
+Script started on 2025-12-06 17:55:51+00:00 [COMMAND="./install.sh --headless --gpu cpu --install webui" TERM="xterm" COLUMNS="128" LINES="-1"]
+usage: config_service.py [-h] [--config CONFIG] {export,save,migrate} ...
+config_service.py: error: unrecognized arguments: --config /root/.config/aihub/config.yaml
+[!] Failed to load configuration from /root/.config/aihub/config.yaml
+
+Script done on 2025-12-06 17:55:51+00:00 [COMMAND_EXIT_CODE="1"]
