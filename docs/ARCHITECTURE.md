@@ -115,6 +115,23 @@ AI Hub avoids hardcoded dependencies by relying on abstraction layers:
 - Avoid embedding user-specific examples or explicit content in repository documentation
 - Keep example prompts neutral (e.g., "example character", "fantasy setting")
 
-## 7. Summary
+## 7. Web UI Front End
+
+### Hosting model
+- The web UI is a static, compiled frontend (e.g., React/Vite or similar) that is served by a lightweight HTTP layer inside the runtime stack so it can run headless on servers, WSL, or desktop Linux without requiring a local browser process to be installed by the installer scripts.
+- Static assets live under a dedicated `modules/runtime/webui_frontend/` build output, with the Python runtime exposing them through the same process that serves JSON APIs. This keeps the UI deployable via `python -m modules.runtime.<service>` and compatible with launcher scripts that already start runtime daemons.
+- A reverse-proxy-friendly binding (127.0.0.1 by default, configurable host/port) allows the UI to be tunneled over SSH or proxied behind Caddy/NGINX for remote access.
+
+### Runtime integration
+- UI panels communicate with runtime modules via JSON APIs that wrap existing entrypoints rather than duplicating logic. Prompt Builder views call the Prompt Builder service to compile scenes, fetch presets, and send prompts to Stable Diffusion WebUI; Character Studio views call the Character Studio APIs for card CRUD, dataset helpers, and LoRA metadata.
+- Launcher/install actions are exposed as API endpoints that shell out to the same `modules/shell` scripts the YAD/menu flows invoke, ensuring identical side effects and logs while enabling non-desktop execution.
+- Shared schemas (SceneDescription, Character Card) are versioned in `modules/runtime` and imported by both the backend handlers and the frontend TypeScript types to keep compatibility across releases.
+
+### Relationship to existing menus
+- The YAD/menu flows remain available as a compatibility layer but are gradually replaced by the web UI for cross-platform consistency (Linux desktop, WSL, headless servers). Both surfaces call the same runtime APIs so feature delivery remains unified.
+- Desktop launchers can open the local web UI in the default browser instead of YAD, while command-line users can access the same actions via HTTP or CLI wrappers.
+- The web UI adds new affordances such as remote access, responsive layouts, and deeper module integrations (Prompt Builder + Character Studio) without forcing users to install desktop widget toolkits.
+
+## 8. Summary
 
 The installer layer prepares and launches the environment, while runtime modules deliver AI Hub functionality. Prompt Builder and Character Studio form the core runtime capabilities, interacting with shared data and configuration layers. The architecture emphasizes abstraction, multi-backend support, and modular expansion so the project can grow without being tied to specific hardware, users, or content types.
