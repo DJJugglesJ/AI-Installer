@@ -3,16 +3,16 @@
 This roadmap outlines current capabilities and planned milestones for AI Installer across short-, mid-, and long-term horizons. It also highlights reliability/UX efforts, GPU/performance goals, automation/configuration targets, and model/content management expansions.
 
 ## Current capabilities
-- Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation.
+- Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation, split between `modules/runtime` (shared helpers) and `modules/shell` (menu/launcher glue).
 - GPU detection with NVIDIA driver prompt and CPU fallback for AMD/Intel.
 - Desktop launcher and YAD-based menu for launching Stable Diffusion WebUI, KoboldAI, SillyTavern, and update routines.
-- Model and LoRA download utilities with optional Hugging Face token support and pairing workflows.
+- Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded manifests covering more Stable Diffusion checkpoints and LoRA presets.
 
 ## Short-term milestones (1–2 releases)
 - Harden install flow: clearer prompts, better error messaging, and safer retries for canceled package installs.
 - Improve GPU detection logs and expose guidance for AMD/Intel acceleration options.
-- Streamline menu UX: clarify wording on update options, default paths, and pairing flows.
-- Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads.
+- Streamline menu and launcher UX to consume the new `modules/runtime`/`modules/shell` layout and clarify wording on update options, default paths, and pairing flows.
+- Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads; keep manifests current with new model/LoRA entries and mirrors.
 - Publish a quickstart for common model presets (e.g., SD1.5) and LoRA pairing examples.
 
 ## Mid-term milestones (quarterly)
