@@ -18,6 +18,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
   including WSL-aware fallbacks for GPU checks and shared logging semantics.
 - Deliver a web UI front end MVP that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes and WSL without desktop dependencies.
 - Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with the runtime modules and calling the same APIs currently invoked by YAD/menu flows.
+- Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks.
 
 ## Mid-term milestones (quarterly)
 - Expand automation: configurable non-interactive install profile for headless setups.
