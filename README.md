@@ -37,7 +37,7 @@ AI-Hub provides a unified installer and launcher for creative and conversational
 3. The installer will:
    - Run a cross-distro bootstrap to install or verify required packages (skipping tools that are already present and logging versions). On unsupported distributions, install dependencies manually with your package manager.
    - Detect your GPU and suggest a driver (NVIDIA) or continue with CPU/Intel/AMD fallbacks.
-   - Create a desktop entry pointing to `aihub_menu.sh` so you can launch the menu from your Desktop.
+   - Create OS-appropriate shortcuts for `aihub_menu.sh` (Linux `.desktop`, Windows `.lnk`/`.bat`/`.ps1`, or macOS `.app`/`.command`) and record their paths in `~/.config/aihub/install.log`.
 
 ## Command-line options
 - `--headless`: Run without YAD dialogs, using config defaults and logging headless decisions to `~/.config/aihub/install.log`.
@@ -58,6 +58,12 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 - **🎨 Select LoRA for Preset / 💾 Save Current Pairing / 📂 Load Saved Pairing:** Manage pairing presets.
 - **❌ Exit:** Close the menu.
 
+### Shortcut locations
+- **Linux:** `~/Desktop/AI-Workstation-Launcher.desktop` (path respects `xdg-user-dir` when available).
+- **Windows / WSL:** Windows Desktop shortcut (`AI Hub Launcher.lnk`) plus helper `AI-Hub-Launcher.bat` and `AI-Hub-Launcher.ps1` saved alongside it.
+- **macOS:** `~/Desktop/AI-Hub-Launcher.command` and a user-level app bundle at `~/Applications/AI Hub Launcher.app`.
+Shortcut creation attempts and the detected desktop environment are logged to `~/.config/aihub/install.log` for troubleshooting.
+
 ## GPU considerations
 - NVIDIA cards trigger an optional driver install via `ubuntu-drivers autoinstall`.
 - **AMD:** The installer can install `mesa-vulkan-drivers` for the open-source stack and will record the detected AMD GPU. For hardware acceleration beyond the default Vulkan/OpenCL stack, plan to configure ROCm following the [AMD ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/install.html). Expect workloads to fall back to CPU if ROCm/AMDGPU acceleration is unavailable.
@@ -71,7 +77,7 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 
 ## Windows / WSL2 notes
 - AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell.
-- The installer expects to manage Linux packages and create launchers inside the WSL distribution; Windows-native paths or shells are not supported.
+- The installer expects to manage Linux packages and create launchers inside the WSL distribution; Windows-native paths or shells are not supported. Windows Desktop shortcuts are generated via WSL tooling when available.
 
 ## Models and LoRAs
 - Base models download to `$HOME/ai-hub/models/`. The Stable Diffusion v1.5 checkpoint is fetched by default.
