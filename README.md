@@ -1,6 +1,6 @@
 # AI Installer
 
-AI-Hub provides a unified installer and launcher for creative and conversational AI tools on Linux (including Windows via WSL2). The goal is to give newcomers a dependable, repeatable setup that handles GPUs, dependencies, and launch workflows so you can focus on using the apps rather than wiring them together. See the [roadmap](docs/ROADMAP.md) for current capabilities and upcoming milestones.
+AI-Hub provides a unified installer and launcher for creative and conversational AI tools on Linux (including Windows via WSL2). The goal is to give newcomers a dependable, repeatable setup that handles GPUs, dependencies, and launch workflows so you can focus on using the apps rather than wiring them together. The installer and launcher are powered by easy-to-read shell helpers in [`modules/shell`](modules/shell) and use ready-to-run runtime packages stored in [`modules/runtime`](modules/runtime), so you can peek at what's included without digging into code. See the [roadmap](docs/ROADMAP.md) for current capabilities and upcoming milestones.
 
 ## Why it matters
 - **Reliable setup:** Cross-distro bootstrapper installs prerequisites, validates GPU drivers, and records configuration so you avoid guesswork.
@@ -17,9 +17,11 @@ AI-Hub provides a unified installer and launcher for creative and conversational
 - **Installation modes:**
   - **Interactive:** `./install.sh` with guided YAD dialogs for GPU selection, package installation, and feature toggles.
   - **Headless/automated:** `./install.sh --headless` with optional config file (`--config <file>`) for unattended deployments. See [`docs/headless_config.md`](docs/headless_config.md).
+  - Both options lean on the same small shell helpers in [`modules/shell`](modules/shell) and the prepared runtime bundles in [`modules/runtime`](modules/runtime), so the steps stay predictable whether you click through or run headless.
 - **Launcher capabilities:**
   - Launch apps, update assets, manage pairings, and self-update the installer via `aihub_menu.sh` or the desktop shortcut it creates.
   - Direct install targets with `--install <target>` for `webui`, `kobold`, `sillytavern`, `loras`, or `models` when you want to skip the menu.
+  - Curious how it works? The menu buttons simply call the same friendly shell helpers in [`modules/shell`](modules/shell) and rely on the bundled runtimes kept in [`modules/runtime`](modules/runtime), so nothing is hidden behind complex tools.
 
 ## Prerequisites
 - **Operating system:** Tested on Ubuntu/Debian, Arch, and Fedora/RHEL-based distributions (including WSL2 with Ubuntu). Other distributions may work with manual dependency installation.
