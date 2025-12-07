@@ -3,7 +3,7 @@
 This roadmap outlines current capabilities and planned milestones for AI Installer across short-, mid-, and long-term horizons. It also highlights reliability/UX efforts, GPU/performance goals, automation/configuration targets, and model/content management expansions.
 
 ## Current capabilities
-- Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation, split between `modules/runtime` (shared helpers) and `modules/shell` (menu/launcher glue).
+- Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation, split between `modules/runtime` (shared helpers, including `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) and `modules/shell` (menu/launcher glue).
 - GPU detection with NVIDIA driver prompt and CPU fallback for AMD/Intel.
 - Desktop launcher and YAD-based menu for launching Stable Diffusion WebUI, KoboldAI, SillyTavern, and update routines.
 - Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded manifests covering more Stable Diffusion checkpoints and LoRA presets.
@@ -17,7 +17,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`,
   including WSL-aware fallbacks for GPU checks and shared logging semantics.
 - Deliver a web UI front end MVP that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes and WSL without desktop dependencies.
-- Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with the runtime modules and calling the same APIs currently invoked by YAD/menu flows.
+- Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio` and calling the same APIs currently invoked by YAD/menu flows.
 - Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks.
 
 ## Mid-term milestones (quarterly)
@@ -71,7 +71,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 
 ### Phase 1 - Design + Skeleton
 - Add a design document describing the Prompt Builder user flow, JSON schema, and integration points.
-- Create a new module folder: `modules/prompt_builder/`.
+- Create a new module folder: `modules/runtime/prompt_builder/`.
 
 ### Phase 2 - Prompt Compiler Service
 - Implement a service that accepts a structured `SceneDescription` JSON and returns:
@@ -101,6 +101,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 
 ### Phase 1 - Character Cards
 - Define a Character Card schema shared with Prompt Builder.
+- Create or migrate runtime helpers under `modules/runtime/character_studio/` to align with the Prompt Builder module layout.
 - Provide UI to create/edit character metadata, anatomy tags, NSFW flags, trigger token, default prompt snippet, and reference images.
 - Refine character via feedback: add `apply_feedback_to_character(character_card, feedback_text)` using the LLM abstraction to adjust description, default prompt snippet, and anatomy tags, with a UI option to apply scene-level feedback permanently to the character.
 
