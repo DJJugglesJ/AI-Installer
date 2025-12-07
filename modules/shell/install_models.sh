@@ -9,6 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 HEADLESS="${HEADLESS:-0}"
+FORCE_CURATED_SELECTION=0
+
+if [ -n "${CURATED_MODEL_NAMES:-}" ]; then
+  FORCE_CURATED_SELECTION=1
+fi
 
 log_msg() {
   echo "$(date): $1" >> "$LOG_FILE"
@@ -221,6 +226,54 @@ download_with_retries() {
 
   notify error "Download failed" "Unable to download $(basename "$dest") after trying mirrors and downloaders.\nCheck connectivity or replace the URL."
   log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest"
+  return 1
+}
+
+download_manifest_model() {
+  local item="$1"
+  local name url filename checksum size mirrors
+  name=$(echo "$item" | jq -r '.name')
+  url=$(echo "$item" | jq -r '.url')
+  filename=$(echo "$item" | jq -r '.filename')
+  checksum=$(echo "$item" | jq -r '.checksum')
+  mirrors=$(echo "$item" | jq -r '.mirrors[]?')
+  size=$(echo "$item" | jq -r '.size_bytes // 0')
+
+  if [ -z "$url" ] || [ -z "$filename" ]; then
+    log_msg "Skipping $name due to missing URL or filename"
+    return 1
+  fi
+
+  notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
+  local dest="$MODEL_DIR/$filename"
+  if download_with_retries "$url" "$dest" "" "$checksum" "$mirrors"; then
+    log_msg "Downloaded curated model $filename"
+    return 0
+  fi
+
+  log_msg "Failed to download curated model $filename"
+  return 1
+}
+
+install_curated_models_by_name() {
+  local names_raw="$1"
+  local download_success=false
+
+  while IFS= read -r name; do
+    [ -z "$name" ] && continue
+    local item
+    item=$(jq -c --arg name "$name" '.items[] | select(.name == $name)' "$MODEL_MANIFEST")
+    if [ -z "$item" ]; then
+      log_msg "No curated model named $name found in manifest"
+      continue
+    fi
+
+    if download_manifest_model "$item"; then
+      download_success=true
+    fi
+  done <<< "$names_raw"
+
+  $download_success && return 0
   return 1
 }
 
@@ -469,23 +522,8 @@ choose_curated_model() {
   while IFS='|' read -r name _rest; do
     [ -z "$name" ] && continue
     local item="${ENTRY_DATA[$name]}"
-    local url filename checksum size mirrors
-    url=$(echo "$item" | jq -r '.url')
-    filename=$(echo "$item" | jq -r '.filename')
-    checksum=$(echo "$item" | jq -r '.checksum')
-    mirrors=$(echo "$item" | jq -r '.mirrors[]?')
-    size=$(echo "$item" | jq -r '.size_bytes // 0')
-    if [ -z "$url" ] || [ -z "$filename" ]; then
-      log_msg "Skipping $name due to missing URL or filename"
-      continue
-    fi
-    notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
-    local dest="$MODEL_DIR/$filename"
-    if download_with_retries "$url" "$dest" "" "$checksum" "$mirrors"; then
-      log_msg "Downloaded curated model $filename"
+    if download_manifest_model "$item"; then
       download_success=true
-    else
-      log_msg "Failed to download curated model $filename"
     fi
   done <<< "$selection"
 
@@ -513,7 +551,11 @@ download_huggingface_model() {
 SOURCE="${MODEL_SOURCE:-$(prompt_model_source)}"
 SOURCE=$(echo "$SOURCE" | tr '[:upper:]' '[:lower:]')
 
-if [[ "$HEADLESS" -eq 1 ]]; then
+if [ "$FORCE_CURATED_SELECTION" -eq 1 ]; then
+  SOURCE="curated"
+fi
+
+if [[ "$HEADLESS" -eq 1 && "$FORCE_CURATED_SELECTION" -ne 1 ]]; then
   case "$SOURCE" in
     civitai|curated)
       log_msg "[headless] Forcing model source to Hugging Face to avoid interactive prompts"
@@ -538,7 +580,15 @@ if [ "$SOURCE" = "civitai" ] && ! command -v yad >/dev/null 2>&1; then
 fi
 
 if [ "$SOURCE" = "curated" ]; then
-  if ! command -v yad >/dev/null 2>&1; then
+  if [ "$FORCE_CURATED_SELECTION" -eq 1 ]; then
+    if install_curated_models_by_name "$(echo "$CURATED_MODEL_NAMES" | tr ',' '\n')"; then
+      notify info "Model Download Complete" "✅ Selected curated models downloaded to $MODEL_DIR"
+      exit 0
+    else
+      log_msg "Curated model selection failed; falling back to Hugging Face"
+      SOURCE="huggingface"
+    fi
+  elif ! command -v yad >/dev/null 2>&1; then
     echo "Curated manifest browsing requires YAD. Falling back to Hugging Face." >&2
     SOURCE="huggingface"
   elif ! choose_curated_model; then

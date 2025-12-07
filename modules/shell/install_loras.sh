@@ -11,6 +11,9 @@ TMP_SOURCE_INFO="/tmp/civitai_lora_source.txt"
 INSTALL_DIR="$HOME/AI/LoRAs"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 LORA_MANIFEST="$MANIFEST_DIR/loras.json"
+FORCE_CURATED_SELECTION=0
+
+[ -n "${CURATED_LORA_NAMES:-}" ] && FORCE_CURATED_SELECTION=1
 
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
@@ -216,6 +219,54 @@ download_with_retries() {
   return 1
 }
 
+download_manifest_lora() {
+  local item="$1"
+  local name url filename checksum size mirrors
+  name=$(echo "$item" | jq -r '.name')
+  url=$(echo "$item" | jq -r '.url')
+  filename=$(echo "$item" | jq -r '.filename')
+  checksum=$(echo "$item" | jq -r '.checksum')
+  mirrors=$(echo "$item" | jq -r '.mirrors[]?')
+  size=$(echo "$item" | jq -r '.size_bytes // 0')
+
+  if [ -z "$url" ] || [ -z "$filename" ]; then
+    log_msg "Skipping $name due to missing URL or filename"
+    return 1
+  fi
+
+  notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
+  local dest="$INSTALL_DIR/$filename"
+  if download_with_retries "$url" "$dest" "$checksum" "$mirrors"; then
+    log_msg "Downloaded curated LoRA $filename"
+    return 0
+  fi
+
+  log_msg "Failed to download curated LoRA $filename"
+  return 1
+}
+
+install_curated_loras_by_name() {
+  local names_raw="$1"
+  local download_success=false
+
+  while IFS= read -r name; do
+    [ -z "$name" ] && continue
+    local item
+    item=$(jq -c --arg name "$name" '.items[] | select(.name == $name)' "$LORA_MANIFEST")
+    if [ -z "$item" ]; then
+      log_msg "No curated LoRA named $name found in manifest"
+      continue
+    fi
+
+    if download_manifest_lora "$item"; then
+      download_success=true
+    fi
+  done <<< "$names_raw"
+
+  $download_success && return 0
+  return 1
+}
+
 prompt_lora_source() {
   local default_source="curated"
   if command -v yad >/dev/null 2>&1; then
@@ -276,25 +327,8 @@ choose_curated_loras() {
   while IFS='|' read -r name _rest; do
     [ -z "$name" ] && continue
     local item="${ENTRY_DATA[$name]}"
-    local url filename checksum size mirrors
-    url=$(echo "$item" | jq -r '.url')
-    filename=$(echo "$item" | jq -r '.filename')
-    checksum=$(echo "$item" | jq -r '.checksum')
-    mirrors=$(echo "$item" | jq -r '.mirrors[]?')
-    size=$(echo "$item" | jq -r '.size_bytes // 0')
-
-    if [ -z "$url" ] || [ -z "$filename" ]; then
-      log_msg "Skipping $name due to missing URL or filename"
-      continue
-    fi
-
-    notify info "Downloading $name" "Version: $(echo "$item" | jq -r '.version')\nSize: $(human_size "$size")\nLicense: $(echo "$item" | jq -r '.license')"
-    local dest="$INSTALL_DIR/$filename"
-    if download_with_retries "$url" "$dest" "$checksum" "$mirrors"; then
-      log_msg "Downloaded curated LoRA $filename"
+    if download_manifest_lora "$item"; then
       download_success=true
-    else
-      log_msg "Failed to download curated LoRA $filename"
     fi
   done <<< "$selection"
 
@@ -309,8 +343,22 @@ offer_backup
 SOURCE="${LORA_SOURCE:-$(prompt_lora_source)}"
 SOURCE=$(echo "$SOURCE" | tr '[:upper:]' '[:lower:]')
 
+if [ "$FORCE_CURATED_SELECTION" -eq 1 ]; then
+  SOURCE="curated"
+fi
+
 if [ "$SOURCE" = "curated" ]; then
-  if ! command -v yad >/dev/null 2>&1; then
+  if [ "$FORCE_CURATED_SELECTION" -eq 1 ]; then
+    if install_curated_loras_by_name "$(echo "$CURATED_LORA_NAMES" | tr ',' '\n')"; then
+      config_set "state.loras_installed" "true"
+      echo "$(date): Curated LoRA download completed." >> "$LOG_FILE"
+      notify info "LoRA Download Complete" "✅ Selected curated LoRAs downloaded to $INSTALL_DIR"
+      exit 0
+    else
+      log_msg "Curated LoRA selection failed; reverting to CivitAI browser"
+      SOURCE="civitai"
+    fi
+  elif ! command -v yad >/dev/null 2>&1; then
     echo "Curated manifest browsing requires YAD. Falling back to live CivitAI browser." >&2
     SOURCE="civitai"
   elif choose_curated_loras; then
