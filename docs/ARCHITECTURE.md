@@ -141,6 +141,13 @@ AI Hub avoids hardcoded dependencies by relying on abstraction layers:
 - Desktop launchers can open the local web UI in the default browser instead of YAD, while command-line users can access the same actions via HTTP or CLI wrappers.
 - The web UI adds new affordances such as remote access, responsive layouts, and deeper module integrations (Prompt Builder + Character Studio) without forcing users to install desktop widget toolkits.
 
+### Web launcher and manifest surface
+- A dedicated web-based launcher surface runs off the same lightweight HTTP server that serves compiled frontend assets, keeping all flows available on systems without desktop widget toolkits (including macOS/Windows) and WSL/headless Linux.
+- Launcher controls call existing shell helpers for install/update/launch actions through backend API handlers so logs, exit codes, and side effects remain identical to YAD dialogs.
+- Manifest browsing uses the same runtime metadata readers that power CLI flows, exposing search/filter/download triggers from the web UI while reusing checksum validation and hooks for runtime module updates.
+- OS integration favors opening the local browser pointing at the server host/port instead of spawning YAD; on Linux the YAD dialogs can be retained as a fallback, while non-Linux platforms rely exclusively on the web surface to deliver equivalent flows.
+- Backend handlers stay platform-aware: they leverage `modules/shell` scripts where available, provide WSL-aware bridges on Windows, and keep schema parity with runtime modules so new hooks (e.g., prompt tools) can be exposed without diverging UX between web and desktop dialogs.
+
 ## 8. Summary
 
 The installer layer prepares and launches the environment, while runtime modules deliver AI Hub functionality. Prompt Builder and Character Studio form the core runtime capabilities, interacting with shared data and configuration layers. The architecture emphasizes abstraction, multi-backend support, and modular expansion so the project can grow without being tied to specific hardware, users, or content types.

@@ -17,6 +17,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`,
   including WSL-aware fallbacks for GPU checks and shared logging semantics.
 - Deliver a web UI front end MVP that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes and WSL without desktop dependencies.
+- Add a web-based launcher and manifest browser that wraps existing YAD/menu flows, reuses runtime hooks, and exposes the same install/update/launch actions plus manifest browsing from a local HTTP server for Linux, WSL, and non-Linux desktops.
 - Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio` and calling the same APIs currently invoked by YAD/menu flows.
 - Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks; expose manifest status (last refreshed, mirror health, checksum warnings) inside launcher and web UI flows.
 
