@@ -14,6 +14,8 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Streamline menu and launcher UX to consume the new `modules/runtime`/`modules/shell` layout and clarify wording on update options, default paths, and pairing flows.
 - Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads; keep manifests current with new model/LoRA entries and mirrors.
 - Publish a quickstart for common model presets (e.g., SD1.5) and LoRA pairing examples.
+- Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`,
+  including WSL-aware fallbacks for GPU checks and shared logging semantics.
 
 ## Mid-term milestones (quarterly)
 - Expand automation: configurable non-interactive install profile for headless setups.

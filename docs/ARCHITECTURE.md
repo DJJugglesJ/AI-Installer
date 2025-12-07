@@ -32,6 +32,12 @@ The installer layer is implemented primarily in shell scripts (for example, `ins
 
 Installer scripts should call into Python by executing module entrypoints (e.g., `python -m modules.runtime.<package>`) rather than importing files directly, and should refer to sibling assets through relative paths rooted at the repository (e.g., `"$(dirname "$0")/../modules/runtime"`). The installer prepares the system and launches tools but does not execute core AI Hub runtime logic.
 
+#### Windows counterparts for launchers and hardware checks
+- Provide `.bat` wrappers plus `.ps1` scripts that mirror the naming and entrypoints of the existing shell helpers (for example, `run_webui.ps1` alongside `modules/shell/run_webui.sh`).
+- Place Windows helpers under `modules/shell/windows/` to keep parity with the Linux layout while isolating platform-specific logic; keep logging format consistent with `modules/shell/logging.sh` so downstream tooling can parse either platform.
+- For GPU probing, prefer PowerShell implementations that call `Get-WmiObject`/`Get-CimInstance` and detect NVIDIA/AMD/Intel adapters; fall back to WSL detection when available to reuse `modules/shell/detect_gpu.sh` for parity.
+- Use PowerShell Core when present and default to Windows PowerShell if unavailable; `.bat` files act as thin shims that invoke the `.ps1` scripts with execution policy bypassed and propagate exit codes.
+
 ### B. Runtime Layer (Python Modules)
 The runtime lives under `modules/runtime/` and contains all domain logic for AI Hub. It is responsible for:
 - Prompt Builder: compiling structured scenes into prompts
