@@ -30,6 +30,7 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   FALSE "🧠  Launch SillyTavern" "Opens SillyTavern in ~/AI/SillyTavern with existing API/backends." \
   FALSE "📥  Install or Update LoRAs" "Downloads curated/CivitAI LoRAs into the default ~/AI/LoRAs directory." \
   FALSE "📦  Install or Update Models (Hugging Face)" "Installs LLMs to the default ~/ai-hub/models directory (HEADLESS=$HEADLESS_FLAG)." \
+  FALSE "🗂️  Browse Curated Models & LoRAs" "Open the manifest browser to select curated downloads without visiting external sites." \
   FALSE "📥  Download Models from CivitAI" "Fetches CivitAI models to the default ~/ai-hub/models directory with GUI prompts by default." \
   FALSE "🧹  Artifact Maintenance" "Prune caches, rotate logs, and verify model/LoRA links." \
   FALSE "🆕  Update Installer" "Runs the built-in self-update to refresh installer scripts in this repository." \
@@ -62,6 +63,9 @@ case "$ACTION" in
     ;;
   *"📦  Install or Update Models (Hugging Face)"*)
     bash "$MODULE_DIR/shell/install_models.sh"
+    ;;
+  *"🗂️  Browse Curated Models & LoRAs"*)
+    bash "$MODULE_DIR/shell/manifest_browser.sh"
     ;;
   *"📥  Download Models from CivitAI"*)
     MODEL_SOURCE="civitai" bash "$MODULE_DIR/shell/install_models.sh"
