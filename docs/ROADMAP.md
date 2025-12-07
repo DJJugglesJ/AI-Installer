@@ -16,6 +16,8 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Publish a quickstart for common model presets (e.g., SD1.5) and LoRA pairing examples.
 - Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`,
   including WSL-aware fallbacks for GPU checks and shared logging semantics.
+- Deliver a web UI front end MVP that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes and WSL without desktop dependencies.
+- Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with the runtime modules and calling the same APIs currently invoked by YAD/menu flows.
 
 ## Mid-term milestones (quarterly)
 - Expand automation: configurable non-interactive install profile for headless setups.
@@ -23,6 +25,8 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Add GPU performance toggles (e.g., half-precision, xformers/DirectML flags when available) with safety checks.
 - Broaden model management: curated model lists, optional gated content prompts, and per-frontend defaults.
 - Improve logging and telemetry hooks (opt-in) to surface install/launch errors.
+- Replace legacy YAD/menu-only experiences with the web UI by default, keeping CLI parity; add remote access mode so the UI can be proxied or tunneled from another machine.
+- Add offline-capable bundles for the web UI (pre-built JS/CSS + cached API schemas) to keep feature parity on air-gapped systems.
 
 ## Long-term milestones (6+ months)
 - Unified configuration schema for installer, launchers, and content management with export/import support.
@@ -30,6 +34,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Automated dependency tuning per GPU family (NVIDIA/AMD/Intel) with adaptive defaults for performance vs. stability.
 - Optional cloud/offline bundles for constrained environments.
 - GUI polish and accessibility updates for the launcher experience.
+- Consolidated web UI workspace that subsumes most menu/YAD flows while exposing extension hooks for third-party panels (e.g., ComfyUI graph browser, telemetry dashboards) and mobile-friendly layouts for tablets/Steam Deck.
 
 ## Feature wishlist
 - One-click GPU benchmark and diagnostics page from the launcher.
