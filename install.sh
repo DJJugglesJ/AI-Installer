@@ -10,8 +10,10 @@ MODULE_DIR="$INSTALL_PATH/modules"
 DEFAULT_CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_FILE="${CONFIG_FILE:-$DEFAULT_CONFIG_FILE}"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-DESKTOP_ENTRY="${DESKTOP_ENTRY:-$HOME/Desktop/AI-Workstation-Launcher.desktop}"
 LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
+
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
 
 source "$MODULE_DIR/config_service/config_helpers.sh"
 
@@ -32,6 +34,181 @@ log_msg() {
 log_error() {
   local message="$1"
   echo "[!] $message" | tee -a "$LOG_FILE" >&2
+}
+
+PLATFORM_KIND=""
+DESKTOP_ENVIRONMENT=""
+WINDOWS_DESKTOP_LINUX_PATH=""
+WINDOWS_DESKTOP_WIN_PATH=""
+
+detect_platform() {
+  local uname_s
+  uname_s=$(uname -s 2>/dev/null || echo "")
+
+  case "$uname_s" in
+    Linux)
+      if grep -qi microsoft /proc/version 2>/dev/null; then
+        PLATFORM_KIND="wsl"
+      else
+        PLATFORM_KIND="linux"
+      fi
+      ;;
+    Darwin)
+      PLATFORM_KIND="macos"
+      ;;
+    MINGW*|MSYS*|CYGWIN*)
+      PLATFORM_KIND="windows"
+      ;;
+    *)
+      PLATFORM_KIND="linux"
+      ;;
+  esac
+
+  DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-Unknown}}"
+  log_msg "Platform detected: ${PLATFORM_KIND} (desktop=${DESKTOP_ENVIRONMENT})"
+}
+
+determine_linux_desktop_dir() {
+  local desktop_dir
+  if command -v xdg-user-dir >/dev/null 2>&1; then
+    desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null)
+  fi
+
+  desktop_dir="${desktop_dir:-$HOME/Desktop}"
+  echo "$desktop_dir"
+}
+
+determine_windows_desktop_paths() {
+  WINDOWS_DESKTOP_LINUX_PATH=""
+  WINDOWS_DESKTOP_WIN_PATH=""
+
+  local win_path=""
+  if command -v powershell.exe >/dev/null 2>&1; then
+    win_path=$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('Desktop')" 2>/dev/null | tr -d '\\r')
+  fi
+
+  if [[ -z "$win_path" ]]; then
+    local guess="/mnt/c/Users/$USER/Desktop"
+    if [[ -d "$guess" ]]; then
+      win_path="C:\\Users\\$USER\\Desktop"
+      WINDOWS_DESKTOP_LINUX_PATH="$guess"
+    fi
+  fi
+
+  if [[ -n "$win_path" ]]; then
+    WINDOWS_DESKTOP_WIN_PATH="$win_path"
+    if command -v wslpath >/dev/null 2>&1; then
+      WINDOWS_DESKTOP_LINUX_PATH=$(wslpath -u "$win_path" 2>/dev/null)
+    elif [[ -z "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+      local converted
+      converted=$(printf '%s' "$win_path" | sed -E 's|^([A-Za-z]):|/mnt/\1|;s|\\\\|/|g')
+      WINDOWS_DESKTOP_LINUX_PATH="$converted"
+    fi
+  fi
+}
+
+create_linux_desktop_entry() {
+  local desktop_entry_path="$1"
+  local launch_cmd="$2"
+
+  mkdir -p "$(dirname "$desktop_entry_path")"
+  cat > "$desktop_entry_path" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AI Workstation Launcher
+Comment=Launch the AI Workstation Menu
+Exec=/bin/bash -lc '"$launch_cmd"'
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;
+EOF
+
+  chmod +x "$desktop_entry_path"
+  log_msg "Desktop launcher created at $desktop_entry_path"
+}
+
+create_windows_launchers() {
+  local launch_cmd="$1"
+
+  determine_windows_desktop_paths
+  if [[ -z "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+    log_error "Unable to resolve Windows Desktop path; skipping Windows shortcut creation."
+    return 1
+  fi
+
+  mkdir -p "$WINDOWS_DESKTOP_LINUX_PATH"
+  local bat_path="$WINDOWS_DESKTOP_LINUX_PATH/AI-Hub-Launcher.bat"
+  cat > "$bat_path" <<EOF
+@echo off
+wsl.exe -e bash -lc "cd '${launch_cmd%/*}' && '${launch_cmd}'"
+EOF
+  chmod +x "$bat_path"
+  log_msg "Windows batch launcher created at $bat_path"
+
+  local ps_path="$WINDOWS_DESKTOP_LINUX_PATH/AI-Hub-Launcher.ps1"
+  cat > "$ps_path" <<EOF
+Param()
+$ErrorActionPreference = "Stop"
+$repoPathWSL = "${launch_cmd%/*}"
+wsl.exe -e bash -lc "cd \"$repoPathWSL\" && '${launch_cmd}'"
+EOF
+  log_msg "Windows PowerShell launcher created at $ps_path"
+
+  if [[ -n "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
+    local repo_win_path=""
+    if command -v wslpath >/dev/null 2>&1; then
+      repo_win_path=$(wslpath -w "${launch_cmd%/*}" 2>/dev/null)
+    fi
+
+    powershell.exe -NoProfile -Command "try { $ws = New-Object -ComObject WScript.Shell; $shortcut = $ws.CreateShortcut('${WINDOWS_DESKTOP_WIN_PATH}\\AI Hub Launcher.lnk'); $shortcut.TargetPath = 'wsl.exe'; $shortcut.Arguments = '-e bash -lc ''cd ""${launch_cmd%/*}"" && ""${launch_cmd}""'''; $shortcut.WorkingDirectory = '${repo_win_path:-.}'; $shortcut.IconLocation = 'shell32.dll,217'; $shortcut.Save(); exit 0 } catch { exit 1 }" >/dev/null 2>&1
+    if [[ $? -eq 0 ]]; then
+      log_msg "Windows .lnk shortcut created at ${WINDOWS_DESKTOP_WIN_PATH}\\AI Hub Launcher.lnk"
+    else
+      log_error "Failed to create .lnk shortcut; PowerShell COM automation unavailable."
+    fi
+  fi
+}
+
+create_macos_launchers() {
+  local launch_cmd="$1"
+  local desktop_dir="$HOME/Desktop"
+  local command_path="$desktop_dir/AI-Hub-Launcher.command"
+
+  mkdir -p "$desktop_dir"
+  cat > "$command_path" <<EOF
+#!/bin/bash
+cd "${launch_cmd%/*}" && /bin/bash "${launch_cmd}"
+EOF
+  chmod +x "$command_path"
+  log_msg "macOS .command launcher created at $command_path"
+
+  local app_dir="$HOME/Applications/AI Hub Launcher.app"
+  mkdir -p "$app_dir/Contents/MacOS"
+  cat > "$app_dir/Contents/MacOS/aihub_launcher" <<EOF
+#!/bin/bash
+cd "${launch_cmd%/*}" && /bin/bash "${launch_cmd}"
+EOF
+  chmod +x "$app_dir/Contents/MacOS/aihub_launcher"
+
+  cat > "$app_dir/Contents/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>AI Hub Launcher</string>
+  <key>CFBundleExecutable</key>
+  <string>aihub_launcher</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.aihub.launcher</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+</dict>
+</plist>
+EOF
+
+  log_msg "macOS app bundle created at $app_dir"
 }
 
 
@@ -385,6 +562,8 @@ apply_headless_config() {
 apply_headless_config
 export GPU_MODE_OVERRIDE
 
+detect_platform
+
 if [[ "$AIHUB_SKIP_INSTALL_STEPS" == "1" ]]; then
   log_msg "AIHUB_SKIP_INSTALL_STEPS set; stopping after configuration validation."
   exit 0
@@ -415,21 +594,30 @@ fi
 
 # ✅ Create the unified desktop launcher
 LAUNCH_CMD="$INSTALL_PATH/aihub_menu.sh"
-cat > "$DESKTOP_ENTRY" <<EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=AI Workstation Launcher
-Comment=Launch the AI Workstation Menu
-Exec=/bin/bash -lc '"$LAUNCH_CMD"'
-Icon=utilities-terminal
-Terminal=false
-Categories=Utility;
-EOF
+launcher_note="Launcher creation skipped."
 
-chmod +x "$DESKTOP_ENTRY"
-echo "[✔] Desktop launcher created at $DESKTOP_ENTRY"
-log_msg "Installer launched and launcher created."
+case "$PLATFORM_KIND" in
+  linux)
+    linux_desktop_dir=$(determine_linux_desktop_dir)
+    desktop_entry_path="${DESKTOP_ENTRY:-$linux_desktop_dir/AI-Workstation-Launcher.desktop}"
+    create_linux_desktop_entry "$desktop_entry_path" "$LAUNCH_CMD"
+    echo "[✔] Desktop launcher created at $desktop_entry_path"
+    launcher_note="Linux desktop entry created at $desktop_entry_path (desktop=${DESKTOP_ENVIRONMENT})"
+    ;;
+  wsl|windows)
+    create_windows_launchers "$LAUNCH_CMD"
+    launcher_note="Windows shortcuts created in ${WINDOWS_DESKTOP_LINUX_PATH:-<unknown>} (desktop env=${DESKTOP_ENVIRONMENT})"
+    ;;
+  macos)
+    create_macos_launchers "$LAUNCH_CMD"
+    launcher_note="macOS launchers created at $HOME/Desktop/AI-Hub-Launcher.command and $HOME/Applications/AI Hub Launcher.app"
+    ;;
+  *)
+    log_error "Unsupported platform ${PLATFORM_KIND}; launcher creation skipped."
+    ;;
+esac
+
+log_msg "$launcher_note"
 
 if [[ -n "$INSTALL_TARGET" ]]; then
   case "$INSTALL_TARGET" in
