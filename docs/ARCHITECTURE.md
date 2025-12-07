@@ -7,8 +7,17 @@ AI Hub is a modular AI workstation that orchestrates local and remote AI systems
 2. **Runtime Layer** – Python modules that deliver higher-level logic, prompt tooling, model workflows, and data management.
 
 Directory layout after the recent reorganization:
-- `modules/runtime/` – all Python packages and shared runtime utilities.
-- `modules/shell/` – installer and launcher scripts that orchestrate downloads, env setup, and entrypoints.
+- `modules/runtime/` – the Python package root (`modules/runtime/__init__.py`) that exposes all runtime namespaces. Each
+  subpackage can be invoked via `python -m modules.runtime.<subpackage>` so installers and launchers stay decoupled from
+  file layout changes.
+- `modules/shell/` – shell helpers (plus Windows counterparts) for installers and launchers. Scripts here wrap
+  environment detection, dependency installs, and runtime entrypoints without embedding business logic.
+
+Common handoffs after the reorg:
+- Installers and update flows call Python modules via `python -m modules.runtime.install.entrypoint --arg value`, avoiding
+  direct paths like `python modules/runtime/install/entrypoint.py`.
+- Launchers call shell helpers such as `modules/shell/run_webui.sh` or `modules/shell/run_comfyui.sh`, which then invoke
+  runtime services through module-qualified commands (for example, `python -m modules.runtime.webui.service`).
 
 The runtime and installer layers share only well-defined interfaces: shell scripts invoke Python entrypoints via module paths under `modules/runtime`, while Python code must reference shell assets using relative paths through `modules/shell` (e.g., `Path(__file__).parents[2] / "modules" / "shell" / "install.sh"`). Avoid hardcoded absolute paths so the project remains relocatable.
 
