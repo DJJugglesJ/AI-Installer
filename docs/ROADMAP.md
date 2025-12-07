@@ -6,25 +6,25 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation, split between `modules/runtime` (shared helpers, including `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) and `modules/shell` (menu/launcher glue).
 - GPU detection with NVIDIA driver prompt and CPU fallback for AMD/Intel.
 - Desktop launcher and YAD-based menu for launching Stable Diffusion WebUI, KoboldAI, SillyTavern, and update routines.
-- Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded manifests covering more Stable Diffusion checkpoints and LoRA presets.
+- Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded manifests covering more Stable Diffusion checkpoints and LoRA presets; manifests now track per-asset metadata (hashes, size, tags, suggested frontends) for faster validation and filtering.
 
 ## Short-term milestones (1–2 releases)
 - Harden install flow: clearer prompts, better error messaging, and safer retries for canceled package installs.
 - Improve GPU detection logs and expose guidance for AMD/Intel acceleration options.
 - Streamline menu and launcher UX to consume the new `modules/runtime`/`modules/shell` layout and clarify wording on update options, default paths, and pairing flows.
-- Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads; keep manifests current with new model/LoRA entries and mirrors.
+- Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads; keep manifests current with new model/LoRA entries and mirrors, including a weekly refresh job and checksum diffs to catch stale links.
 - Publish a quickstart for common model presets (e.g., SD1.5) and LoRA pairing examples.
 - Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`,
   including WSL-aware fallbacks for GPU checks and shared logging semantics.
 - Deliver a web UI front end MVP that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes and WSL without desktop dependencies.
 - Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio` and calling the same APIs currently invoked by YAD/menu flows.
-- Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks.
+- Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks; expose manifest status (last refreshed, mirror health, checksum warnings) inside launcher and web UI flows.
 
 ## Mid-term milestones (quarterly)
 - Expand automation: configurable non-interactive install profile for headless setups.
 - Enhance update/self-update reliability with checksum verification and clearer rollbacks.
 - Add GPU performance toggles (e.g., half-precision, xformers/DirectML flags when available) with safety checks.
-- Broaden model management: curated model lists, optional gated content prompts, and per-frontend defaults.
+- Broaden model management: curated model lists, optional gated content prompts, and per-frontend defaults; publish quarterly manifest updates with changelog notes and deprecation warnings for removed assets.
 - Improve logging and telemetry hooks (opt-in) to surface install/launch errors.
 - Replace legacy YAD/menu-only experiences with the web UI by default, keeping CLI parity; add remote access mode so the UI can be proxied or tunneled from another machine.
 - Add offline-capable bundles for the web UI (pre-built JS/CSS + cached API schemas) to keep feature parity on air-gapped systems.
