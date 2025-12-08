@@ -65,10 +65,10 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 - **❌ Exit:** Close the menu.
 
 ### Shortcut locations
-- **Linux:** `~/Desktop/AI-Workstation-Launcher.desktop` (path respects `xdg-user-dir` when available).
-- **Windows / WSL:** Windows Desktop shortcut (`AI Hub Launcher.lnk`) plus helper `AI-Hub-Launcher.bat` and `AI-Hub-Launcher.ps1` saved alongside it.
-- **macOS:** `~/Desktop/AI-Hub-Launcher.command` and a user-level app bundle at `~/Applications/AI Hub Launcher.app`.
-Shortcut creation attempts and the detected desktop environment are logged to `~/.config/aihub/install.log` for troubleshooting.
+- **Linux:** The primary `.desktop` entry lives at `${XDG_DATA_HOME:-$HOME/.local/share}/applications/ai-hub-launcher.desktop` with a convenience copy on the Desktop when available.
+- **Windows / WSL:** Desktop helpers (`AI-Hub-Launcher.bat`/`AI-Hub-Launcher.ps1`) and `.lnk` shortcuts on the Desktop and Start Menu (`%PROGRAMS%`). All shortcuts call the same launcher script via `wsl.exe`.
+- **macOS:** `~/Desktop/AI-Hub-Launcher.command` plus a user-level app bundle at `~/Applications/AI Hub Launcher.app` that wraps the selected launcher target.
+See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and environment detection details. Shortcut creation attempts and the detected desktop environment are logged to `~/.config/aihub/install.log` for troubleshooting.
 
 ## GPU considerations
 - NVIDIA cards trigger an optional driver install via `ubuntu-drivers autoinstall`.
@@ -99,7 +99,7 @@ Shortcut creation attempts and the detected desktop environment are logged to `~
 
 ## Troubleshooting / FAQ
 - **Missing packages:** The installer will prompt to install them. Re-run `./install.sh` if a run was canceled.
-- **Desktop icon not appearing:** Ensure the desktop entry was created at `~/Desktop/AI-Workstation-Launcher.desktop` and that your desktop environment allows launching local desktop files.
+  - **Desktop icon not appearing:** Ensure the `.desktop` entry exists under `${XDG_DATA_HOME:-$HOME/.local/share}/applications` and that your desktop environment allows launching local desktop files placed on `~/Desktop`.
 - **Slow downloads or failures:** Provide a Hugging Face token when prompted and ensure `aria2c` or `wget` can reach the internet.
 - **No GPU detected:** Continue with CPU mode; expect slower performance.
 - **Permission errors:** Make sure your user can run `sudo` commands.
