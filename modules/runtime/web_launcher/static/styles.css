@@ -183,7 +183,7 @@ button.secondary {
 
 .manifest-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1rem;
 }
 
@@ -207,6 +207,120 @@ button.secondary {
 
 .tagline {
   color: var(--muted);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filter-buttons label {
+  margin-right: 10px;
+  font-size: 0.9rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  border: 1px solid #334155;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: #0b1220;
+  cursor: pointer;
+}
+
+.tag.active {
+  background: #1e293b;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.manifest-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.manifest-table th,
+.manifest-table td {
+  border: 1px solid var(--border);
+  padding: 8px;
+  vertical-align: top;
+}
+
+.manifest-table th {
+  background: #0b1220;
+  text-align: left;
+}
+
+.manifest-table td.wrap {
+  white-space: normal;
+}
+
+.job-card,
+.history-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #0b1220;
+  margin-bottom: 10px;
+}
+
+.job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pill {
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: #111827;
+  background: #e5e7eb;
+  text-transform: capitalize;
+}
+
+.pill.running {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pill.succeeded {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pill.failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.job-card pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 8px;
+  border-radius: 6px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
 }
 
 @media (max-width: 720px) {

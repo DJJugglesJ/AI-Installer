@@ -15,7 +15,8 @@ import json
 import os
 import subprocess
 import threading
-from dataclasses import asdict, dataclass
+import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -38,6 +39,45 @@ class ActionSpec:
     command: List[str]
 
 
+@dataclass
+class InstallJob:
+    """Track a running or finished installer invocation."""
+
+    id: str
+    models: List[str] = field(default_factory=list)
+    loras: List[str] = field(default_factory=list)
+    command: List[str] = field(default_factory=list)
+    log_path: Path = Path()
+    started_at: str = ""
+    completed_at: Optional[str] = None
+    returncode: Optional[int] = None
+    process: Optional[subprocess.Popen] = None
+
+    @property
+    def status(self) -> str:
+        if self.returncode is None and self.process and self.process.poll() is None:
+            return "running"
+        if self.returncode == 0:
+            return "succeeded"
+        if self.returncode is not None:
+            return "failed"
+        return "unknown"
+
+    def to_dict(self, log_tail: str = "") -> Dict[str, object]:
+        return {
+            "id": self.id,
+            "models": self.models,
+            "loras": self.loras,
+            "command": self.command,
+            "log_path": str(self.log_path),
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "status": self.status,
+            "returncode": self.returncode,
+            "log_tail": log_tail,
+        }
+
+
 class WebLauncherAPI:
     """Backend helpers for the web launcher HTTP surface."""
 
@@ -50,7 +90,11 @@ class WebLauncherAPI:
         self._card_registry = CharacterCardRegistry()
         self._action_map: Dict[str, ActionSpec] = self._build_action_map()
         self._log_dir = Path.home() / ".cache/aihub/web_launcher/logs"
+        self._history_path = Path.home() / ".cache/aihub/web_launcher/selection_history.json"
         self._log_dir.mkdir(parents=True, exist_ok=True)
+        self._history_path.parent.mkdir(parents=True, exist_ok=True)
+        self._install_jobs: Dict[str, InstallJob] = {}
+        self._lock = threading.Lock()
 
     def _build_action_map(self) -> Dict[str, ActionSpec]:
         actions: Iterable[Tuple[str, str, str, str]] = (
@@ -111,6 +155,120 @@ class WebLauncherAPI:
 
     def get_manifests(self) -> Dict[str, object]:
         return {"models": self._load_manifest("models"), "loras": self._load_manifest("loras")}
+
+    def _tail_log(self, log_path: Path, lines: int = 20) -> str:
+        if not log_path.exists():
+            return ""
+        with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+            content = handle.readlines()
+        if len(content) <= lines:
+            return "".join(content)
+        return "".join(content[-lines:])
+
+    def _load_history(self) -> List[Dict[str, object]]:
+        if not self._history_path.exists():
+            return []
+        try:
+            return json.loads(self._history_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return []
+
+    def _write_history(self, history: List[Dict[str, object]]) -> None:
+        self._history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
+
+    def _record_history(self, job: InstallJob) -> None:
+        history = self._load_history()
+        history.insert(
+            0,
+            {
+                "id": job.id,
+                "models": job.models,
+                "loras": job.loras,
+                "status": job.status,
+                "log_path": str(job.log_path),
+                "started_at": job.started_at,
+                "completed_at": job.completed_at,
+            },
+        )
+        self._write_history(history[:20])
+
+    def _monitor_job(self, job: InstallJob) -> None:
+        if not job.process:
+            return
+        job.returncode = job.process.wait()
+        job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        with self._lock:
+            self._install_jobs[job.id] = job
+        self._record_history(job)
+
+    def _start_job(self, *, models: List[str], loras: List[str], script_name: str) -> InstallJob:
+        job_id = f"{Path(script_name).stem}-{uuid.uuid4().hex[:8]}"
+        log_path = self._log_dir / f"{job_id}.log"
+        env = {
+            **os.environ,
+            "HEADLESS": "1",
+        }
+
+        if models:
+            env["CURATED_MODEL_NAMES"] = "\n".join(models)
+        if loras:
+            env["CURATED_LORA_NAMES"] = "\n".join(loras)
+
+        process = subprocess.Popen(
+            ["bash", str(self.shell_dir / script_name)],
+            cwd=self.project_root,
+            stdout=log_path.open("w", encoding="utf-8"),
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+
+        job = InstallJob(
+            id=job_id,
+            models=models,
+            loras=loras,
+            command=["bash", str(self.shell_dir / script_name)],
+            log_path=log_path,
+            started_at=datetime.utcnow().strftime("%Y%m%dT%H%M%SZ"),
+            process=process,
+        )
+
+        monitor = threading.Thread(target=self._monitor_job, args=(job,), daemon=True)
+        monitor.start()
+        with self._lock:
+            self._install_jobs[job.id] = job
+        return job
+
+    def start_installation(self, models: Optional[List[str]] = None, loras: Optional[List[str]] = None) -> List[Dict[str, object]]:
+        models = models or []
+        loras = loras or []
+        if not models and not loras:
+            raise ValueError("At least one model or LoRA name must be provided")
+
+        jobs: List[InstallJob] = []
+        if models:
+            jobs.append(self._start_job(models=models, loras=[], script_name="install_models.sh"))
+        if loras:
+            jobs.append(self._start_job(models=[], loras=loras, script_name="install_loras.sh"))
+
+        return [job.to_dict() for job in jobs]
+
+    def list_installations(self) -> Dict[str, object]:
+        with self._lock:
+            jobs = list(self._install_jobs.values())
+
+        rendered_jobs: List[Dict[str, object]] = []
+        for job in jobs:
+            if job.process and job.returncode is None:
+                job.returncode = job.process.poll()
+                if job.returncode is not None and job.completed_at is None:
+                    job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                    self._record_history(job)
+            rendered_jobs.append(job.to_dict(log_tail=self._tail_log(job.log_path)))
+
+        return {
+            "jobs": rendered_jobs,
+            "history": self._load_history(),
+        }
 
     def list_characters(self) -> List[Dict[str, object]]:
         cards: List[Dict[str, object]] = []
@@ -185,6 +343,8 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"items": self.api.list_characters()})
             elif path == "/api/actions":
                 self._send_json({"items": self.api.list_actions()})
+            elif path == "/api/installations":
+                self._send_json(self.api.list_installations())
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except Exception as exc:  # pragma: no cover - defensive routing guard
@@ -202,6 +362,12 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 scene_payload = payload.get("scene", payload)
                 result = self.api.compile_prompt(scene_payload)
                 self._send_json(result)
+            elif path == "/api/installations":
+                payload = self._read_json_body()
+                models = payload.get("models", [])
+                loras = payload.get("loras", [])
+                jobs = self.api.start_installation(models=models, loras=loras)
+                self._send_json({"jobs": jobs}, status=HTTPStatus.ACCEPTED)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except ValueError as exc:
@@ -237,10 +403,53 @@ def run_server(host: str = "127.0.0.1", port: int = 3939) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI Hub web launcher")
-    parser.add_argument("--host", default=os.environ.get("AIHUB_WEB_HOST", "127.0.0.1"), help="Bind host")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("AIHUB_WEB_PORT", "3939")), help="Bind port")
+    subparsers = parser.add_subparsers(dest="command")
+
+    serve_parser = subparsers.add_parser("serve", help="Run the web launcher server")
+    serve_parser.add_argument("--host", default=os.environ.get("AIHUB_WEB_HOST", "127.0.0.1"), help="Bind host")
+    serve_parser.add_argument("--port", type=int, default=int(os.environ.get("AIHUB_WEB_PORT", "3939")), help="Bind port")
+
+    install_parser = subparsers.add_parser("install", help="Trigger curated installs without the UI")
+    install_parser.add_argument("--models", nargs="*", default=[], help="Curated model names to install")
+    install_parser.add_argument("--loras", nargs="*", default=[], help="Curated LoRA names to install")
+    install_parser.add_argument("--wait", action="store_true", help="Block until installers complete")
+
     args = parser.parse_args()
-    run_server(host=args.host, port=args.port)
+    command = args.command or "serve"
+
+    project_root = Path(__file__).resolve().parents[3]
+
+    if command == "serve":
+        run_server(host=getattr(args, "host", "127.0.0.1"), port=getattr(args, "port", 3939))
+        return
+
+    if command == "install":
+        api = WebLauncherAPI(project_root=project_root)
+        jobs = api.start_installation(models=args.models, loras=args.loras)
+        print(json.dumps({"jobs": jobs}, indent=2))
+        if not args.wait:
+            return
+
+        # Simple progress loop while blocking
+        job_ids = {job["id"] for job in jobs}
+        while True:
+            current = api.list_installations()
+            active = []
+            for job in current.get("jobs", []):
+                if job["id"] not in job_ids:
+                    continue
+                print(
+                    f"[{job['status']}] {job['id']} models={job.get('models', [])} loras={job.get('loras', [])}\n"
+                    f"Log tail:\n{job.get('log_tail', '').strip()}\n---"
+                )
+                if job["status"] == "running":
+                    active.append(job)
+            if not active:
+                break
+            threading.Event().wait(3)
+        return
+
+    parser.print_help()
 
 
 if __name__ == "__main__":
