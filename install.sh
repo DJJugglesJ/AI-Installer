@@ -40,6 +40,10 @@ PLATFORM_KIND=""
 DESKTOP_ENVIRONMENT=""
 WINDOWS_DESKTOP_LINUX_PATH=""
 WINDOWS_DESKTOP_WIN_PATH=""
+WINDOWS_START_MENU_WIN_PATH=""
+LAUNCH_CMD=""
+LAUNCHER_MODE="${AIHUB_LAUNCHER_MODE:-web}"
+LAUNCHER_LABEL="AI Hub Launcher"
 
 detect_platform() {
   local uname_s
@@ -66,6 +70,35 @@ detect_platform() {
 
   DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-Unknown}}"
   log_msg "Platform detected: ${PLATFORM_KIND} (desktop=${DESKTOP_ENVIRONMENT})"
+}
+
+select_launcher_command() {
+  local web_launcher="$INSTALL_PATH/launcher/start_web_launcher.sh"
+  local menu_launcher="$INSTALL_PATH/aihub_menu.sh"
+  local requested_mode="${LAUNCHER_MODE,,}"
+
+  if [[ "$requested_mode" == "menu" ]]; then
+    LAUNCH_CMD="$menu_launcher"
+    LAUNCHER_LABEL="AI Hub Menu"
+  else
+    if [[ -x "$web_launcher" ]]; then
+      LAUNCH_CMD="$web_launcher"
+      LAUNCHER_LABEL="AI Hub Web UI"
+    else
+      log_error "Web launcher script missing; falling back to menu launcher."
+    fi
+  fi
+
+  if [[ -z "$LAUNCH_CMD" ]]; then
+    if [[ -x "$menu_launcher" ]]; then
+      LAUNCH_CMD="$menu_launcher"
+      LAUNCHER_LABEL="AI Hub Menu"
+    else
+      log_error "No launcher scripts found. Expected $web_launcher or $menu_launcher."
+    fi
+  fi
+
+  log_msg "Launcher selection: ${LAUNCHER_LABEL} -> ${LAUNCH_CMD}"
 }
 
 determine_linux_desktop_dir() {
@@ -107,17 +140,50 @@ determine_windows_desktop_paths() {
   fi
 }
 
+determine_windows_start_menu_path() {
+  WINDOWS_START_MENU_WIN_PATH=""
+  local start_menu
+  if command -v powershell.exe >/dev/null 2>&1; then
+    start_menu=$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('Programs')" 2>/dev/null | tr -d '\r')
+  fi
+
+  if [[ -n "$start_menu" ]]; then
+    WINDOWS_START_MENU_WIN_PATH="$start_menu"
+  fi
+}
+
+create_windows_shortcut() {
+  local dest_path="$1" launch_dir="$2" launch_cmd="$3" repo_win_path="$4"
+  powershell.exe -NoProfile -Command "try { $ws = New-Object -ComObject WScript.Shell; $shortcut = $ws.CreateShortcut('${dest_path}'); $shortcut.TargetPath = 'wsl.exe'; $shortcut.Arguments = '-e bash -lc ''cd ""${launch_dir}"" && ""${launch_cmd}""'''; $shortcut.WorkingDirectory = '${repo_win_path:-.}'; $shortcut.IconLocation = 'shell32.dll,217'; $shortcut.Save(); exit 0 } catch { exit 1 }" >/dev/null 2>&1
+  if [[ $? -eq 0 ]]; then
+    log_msg "Windows .lnk shortcut created at ${dest_path}"
+  else
+    log_error "Failed to create .lnk shortcut at ${dest_path}; PowerShell COM automation unavailable."
+  fi
+}
+
+cleanup_old_launchers() {
+  local legacy_desktop="$HOME/Desktop/AI-Workstation-Launcher.desktop"
+  local legacy_batch="$HOME/Desktop/AI-Hub-Launcher.bat"
+  local legacy_ps="$HOME/Desktop/AI-Hub-Launcher.ps1"
+  [[ -f "$legacy_desktop" ]] && rm -f "$legacy_desktop" && log_msg "Removed legacy launcher $legacy_desktop"
+  [[ -f "$legacy_batch" ]] && rm -f "$legacy_batch" && log_msg "Removed legacy launcher $legacy_batch"
+  [[ -f "$legacy_ps" ]] && rm -f "$legacy_ps" && log_msg "Removed legacy launcher $legacy_ps"
+}
+
 create_linux_desktop_entry() {
   local desktop_entry_path="$1"
   local launch_cmd="$2"
+  local name="$3"
+  local comment="$4"
 
   mkdir -p "$(dirname "$desktop_entry_path")"
   cat > "$desktop_entry_path" <<EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=AI Workstation Launcher
-Comment=Launch the AI Workstation Menu
+Name=$name
+Comment=$comment
 Exec=/bin/bash -lc '"$launch_cmd"'
 Icon=utilities-terminal
 Terminal=false
@@ -130,50 +196,56 @@ EOF
 
 create_windows_launchers() {
   local launch_cmd="$1"
+  local shortcut_label="$2"
 
   determine_windows_desktop_paths
-  if [[ -z "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+  determine_windows_start_menu_path
+
+  if [[ -z "$WINDOWS_DESKTOP_LINUX_PATH" && -z "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
     log_error "Unable to resolve Windows Desktop path; skipping Windows shortcut creation."
     return 1
   fi
 
-  mkdir -p "$WINDOWS_DESKTOP_LINUX_PATH"
-  local bat_path="$WINDOWS_DESKTOP_LINUX_PATH/AI-Hub-Launcher.bat"
-  cat > "$bat_path" <<EOF
+  local launch_dir="${launch_cmd%/*}"
+  if [[ -n "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+    mkdir -p "$WINDOWS_DESKTOP_LINUX_PATH"
+    local bat_path="$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.bat"
+    cat > "$bat_path" <<EOF
 @echo off
-wsl.exe -e bash -lc "cd '${launch_cmd%/*}' && '${launch_cmd}'"
+wsl.exe -e bash -lc "cd '${launch_dir}' && '${launch_cmd}'"
 EOF
-  chmod +x "$bat_path"
-  log_msg "Windows batch launcher created at $bat_path"
+    chmod +x "$bat_path"
+    log_msg "Windows batch launcher created at $bat_path"
 
-  local ps_path="$WINDOWS_DESKTOP_LINUX_PATH/AI-Hub-Launcher.ps1"
-  cat > "$ps_path" <<EOF
+    local ps_path="$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.ps1"
+    cat > "$ps_path" <<EOF
 Param()
 $ErrorActionPreference = "Stop"
-$repoPathWSL = "${launch_cmd%/*}"
+$repoPathWSL = "${launch_dir}"
 wsl.exe -e bash -lc "cd \"$repoPathWSL\" && '${launch_cmd}'"
 EOF
-  log_msg "Windows PowerShell launcher created at $ps_path"
+    log_msg "Windows PowerShell launcher created at $ps_path"
+  fi
+
+  local repo_win_path=""
+  if command -v wslpath >/dev/null 2>&1; then
+    repo_win_path=$(wslpath -w "$launch_dir" 2>/dev/null)
+  fi
 
   if [[ -n "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
-    local repo_win_path=""
-    if command -v wslpath >/dev/null 2>&1; then
-      repo_win_path=$(wslpath -w "${launch_cmd%/*}" 2>/dev/null)
-    fi
+    create_windows_shortcut "${WINDOWS_DESKTOP_WIN_PATH}\\${shortcut_label}.lnk" "$launch_dir" "$launch_cmd" "$repo_win_path"
+  fi
 
-    powershell.exe -NoProfile -Command "try { $ws = New-Object -ComObject WScript.Shell; $shortcut = $ws.CreateShortcut('${WINDOWS_DESKTOP_WIN_PATH}\\AI Hub Launcher.lnk'); $shortcut.TargetPath = 'wsl.exe'; $shortcut.Arguments = '-e bash -lc ''cd ""${launch_cmd%/*}"" && ""${launch_cmd}""'''; $shortcut.WorkingDirectory = '${repo_win_path:-.}'; $shortcut.IconLocation = 'shell32.dll,217'; $shortcut.Save(); exit 0 } catch { exit 1 }" >/dev/null 2>&1
-    if [[ $? -eq 0 ]]; then
-      log_msg "Windows .lnk shortcut created at ${WINDOWS_DESKTOP_WIN_PATH}\\AI Hub Launcher.lnk"
-    else
-      log_error "Failed to create .lnk shortcut; PowerShell COM automation unavailable."
-    fi
+  if [[ -n "$WINDOWS_START_MENU_WIN_PATH" ]]; then
+    create_windows_shortcut "${WINDOWS_START_MENU_WIN_PATH}\\${shortcut_label}.lnk" "$launch_dir" "$launch_cmd" "$repo_win_path"
   fi
 }
 
 create_macos_launchers() {
   local launch_cmd="$1"
+  local shortcut_label="$2"
   local desktop_dir="$HOME/Desktop"
-  local command_path="$desktop_dir/AI-Hub-Launcher.command"
+  local command_path="$desktop_dir/${shortcut_label// /-}.command"
 
   mkdir -p "$desktop_dir"
   cat > "$command_path" <<EOF
@@ -183,7 +255,7 @@ EOF
   chmod +x "$command_path"
   log_msg "macOS .command launcher created at $command_path"
 
-  local app_dir="$HOME/Applications/AI Hub Launcher.app"
+  local app_dir="$HOME/Applications/${shortcut_label}.app"
   mkdir -p "$app_dir/Contents/MacOS"
   cat > "$app_dir/Contents/MacOS/aihub_launcher" <<EOF
 #!/bin/bash
@@ -191,13 +263,13 @@ cd "${launch_cmd%/*}" && /bin/bash "${launch_cmd}"
 EOF
   chmod +x "$app_dir/Contents/MacOS/aihub_launcher"
 
-  cat > "$app_dir/Contents/Info.plist" <<'EOF'
+  cat > "$app_dir/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>AI Hub Launcher</string>
+  <string>${shortcut_label}</string>
   <key>CFBundleExecutable</key>
   <string>aihub_launcher</string>
   <key>CFBundleIdentifier</key>
@@ -593,29 +665,40 @@ if [[ "$HEADLESS" -eq 1 ]]; then
 fi
 
 # ✅ Create the unified desktop launcher
-LAUNCH_CMD="$INSTALL_PATH/aihub_menu.sh"
+select_launcher_command
+cleanup_old_launchers
 launcher_note="Launcher creation skipped."
 
-case "$PLATFORM_KIND" in
-  linux)
-    linux_desktop_dir=$(determine_linux_desktop_dir)
-    desktop_entry_path="${DESKTOP_ENTRY:-$linux_desktop_dir/AI-Workstation-Launcher.desktop}"
-    create_linux_desktop_entry "$desktop_entry_path" "$LAUNCH_CMD"
-    echo "[✔] Desktop launcher created at $desktop_entry_path"
-    launcher_note="Linux desktop entry created at $desktop_entry_path (desktop=${DESKTOP_ENVIRONMENT})"
-    ;;
-  wsl|windows)
-    create_windows_launchers "$LAUNCH_CMD"
-    launcher_note="Windows shortcuts created in ${WINDOWS_DESKTOP_LINUX_PATH:-<unknown>} (desktop env=${DESKTOP_ENVIRONMENT})"
-    ;;
-  macos)
-    create_macos_launchers "$LAUNCH_CMD"
-    launcher_note="macOS launchers created at $HOME/Desktop/AI-Hub-Launcher.command and $HOME/Applications/AI Hub Launcher.app"
-    ;;
-  *)
-    log_error "Unsupported platform ${PLATFORM_KIND}; launcher creation skipped."
-    ;;
-esac
+if [[ -z "$LAUNCH_CMD" ]]; then
+  log_error "No launcher command resolved; skipping shortcut creation."
+else
+  case "$PLATFORM_KIND" in
+    linux)
+      linux_desktop_dir=$(determine_linux_desktop_dir)
+      applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+      desktop_entry_path="${DESKTOP_ENTRY:-$applications_dir/ai-hub-launcher.desktop}"
+      mkdir -p "$applications_dir"
+      create_linux_desktop_entry "$desktop_entry_path" "$LAUNCH_CMD" "$LAUNCHER_LABEL" "Launch the ${LAUNCHER_LABEL}"
+      if [[ -d "$linux_desktop_dir" ]]; then
+        cp "$desktop_entry_path" "$linux_desktop_dir/AI Hub Launcher.desktop"
+        chmod +x "$linux_desktop_dir/AI Hub Launcher.desktop"
+      fi
+      echo "[✔] Desktop launcher created at $desktop_entry_path"
+      launcher_note="Linux desktop entry created at $desktop_entry_path and copied to $linux_desktop_dir (desktop=${DESKTOP_ENVIRONMENT})"
+      ;;
+    wsl|windows)
+      create_windows_launchers "$LAUNCH_CMD" "$LAUNCHER_LABEL"
+      launcher_note="Windows shortcuts created in ${WINDOWS_DESKTOP_LINUX_PATH:-<unknown>} and Start Menu (${WINDOWS_START_MENU_WIN_PATH:-n/a}) (desktop env=${DESKTOP_ENVIRONMENT})"
+      ;;
+    macos)
+      create_macos_launchers "$LAUNCH_CMD" "$LAUNCHER_LABEL"
+      launcher_note="macOS launchers created at $HOME/Desktop/${LAUNCHER_LABEL// /-}.command and $HOME/Applications/${LAUNCHER_LABEL}.app"
+      ;;
+    *)
+      log_error "Unsupported platform ${PLATFORM_KIND}; launcher creation skipped."
+      ;;
+  esac
+fi
 
 log_msg "$launcher_note"
 
