@@ -72,7 +72,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 
 ### Phase 1 - Design + Skeleton
 - Add a design document describing the Prompt Builder user flow, JSON schema, and integration points.
-- Create a new module folder: `modules/runtime/prompt_builder/`.
+- Formalize the runtime layout under `modules/runtime/prompt_builder/` so shared schemas and helpers live alongside other runtime utilities.
 
 ### Phase 2 - Prompt Compiler Service
 - Implement a service that accepts a structured `SceneDescription` JSON and returns:
