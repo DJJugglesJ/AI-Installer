@@ -239,6 +239,46 @@ cleanup_old_launchers() {
   [[ -f "$legacy_desktop" ]] && rm -f "$legacy_desktop" && log_msg "Removed legacy launcher $legacy_desktop"
   [[ -f "$legacy_batch" ]] && rm -f "$legacy_batch" && log_msg "Removed legacy launcher $legacy_batch"
   [[ -f "$legacy_ps" ]] && rm -f "$legacy_ps" && log_msg "Removed legacy launcher $legacy_ps"
+
+  case "$PLATFORM_KIND" in
+    linux)
+      local linux_desktop_dir
+      linux_desktop_dir=$(determine_linux_desktop_dir)
+      local applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+      local desktop_entry_path="${DESKTOP_ENTRY:-$applications_dir/ai-hub-launcher.desktop}"
+      [[ -f "$desktop_entry_path" ]] && rm -f "$desktop_entry_path" && log_msg "Removed prior launcher $desktop_entry_path"
+      [[ -d "$linux_desktop_dir" && -f "$linux_desktop_dir/AI Hub Launcher.desktop" ]] && rm -f "$linux_desktop_dir/AI Hub Launcher.desktop" && log_msg "Removed desktop copy $linux_desktop_dir/AI Hub Launcher.desktop"
+      ;;
+    wsl|windows)
+      determine_windows_desktop_paths
+      determine_windows_start_menu_path
+
+      local desktop_label="${LAUNCHER_LABEL// /-}"
+      if [[ -n "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+        [[ -f "$WINDOWS_DESKTOP_LINUX_PATH/${desktop_label}.bat" ]] && rm -f "$WINDOWS_DESKTOP_LINUX_PATH/${desktop_label}.bat" && log_msg "Removed Windows desktop BAT launcher ${WINDOWS_DESKTOP_LINUX_PATH}/${desktop_label}.bat"
+        [[ -f "$WINDOWS_DESKTOP_LINUX_PATH/${desktop_label}.ps1" ]] && rm -f "$WINDOWS_DESKTOP_LINUX_PATH/${desktop_label}.ps1" && log_msg "Removed Windows desktop PowerShell launcher ${WINDOWS_DESKTOP_LINUX_PATH}/${desktop_label}.ps1"
+      fi
+
+      if [[ -n "$WINDOWS_START_MENU_LINUX_PATH" ]]; then
+        [[ -f "$WINDOWS_START_MENU_LINUX_PATH/${desktop_label}.bat" ]] && rm -f "$WINDOWS_START_MENU_LINUX_PATH/${desktop_label}.bat" && log_msg "Removed Windows Start Menu BAT launcher ${WINDOWS_START_MENU_LINUX_PATH}/${desktop_label}.bat"
+        [[ -f "$WINDOWS_START_MENU_LINUX_PATH/${desktop_label}.ps1" ]] && rm -f "$WINDOWS_START_MENU_LINUX_PATH/${desktop_label}.ps1" && log_msg "Removed Windows Start Menu PowerShell launcher ${WINDOWS_START_MENU_LINUX_PATH}/${desktop_label}.ps1"
+      fi
+
+      if [[ -n "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
+        [[ -f "${WINDOWS_DESKTOP_WIN_PATH}\${LAUNCHER_LABEL}.lnk" ]] && rm -f "${WINDOWS_DESKTOP_WIN_PATH}\${LAUNCHER_LABEL}.lnk" && log_msg "Removed Windows desktop shortcut ${WINDOWS_DESKTOP_WIN_PATH}\\${LAUNCHER_LABEL}.lnk"
+      fi
+
+      if [[ -n "$WINDOWS_START_MENU_WIN_PATH" ]]; then
+        [[ -f "${WINDOWS_START_MENU_WIN_PATH}\${LAUNCHER_LABEL}.lnk" ]] && rm -f "${WINDOWS_START_MENU_WIN_PATH}\${LAUNCHER_LABEL}.lnk" && log_msg "Removed Windows Start Menu shortcut ${WINDOWS_START_MENU_WIN_PATH}\\${LAUNCHER_LABEL}.lnk"
+      fi
+      ;;
+    macos)
+      local desktop_cmd="$HOME/Desktop/${LAUNCHER_LABEL// /-}.command"
+      local app_bundle="$HOME/Applications/${LAUNCHER_LABEL}.app"
+      [[ -f "$desktop_cmd" ]] && rm -f "$desktop_cmd" && log_msg "Removed macOS command shortcut $desktop_cmd"
+      [[ -d "$app_bundle" ]] && rm -rf "$app_bundle" && log_msg "Removed macOS app bundle $app_bundle"
+      ;;
+  esac
 }
 
 create_linux_desktop_entry() {
