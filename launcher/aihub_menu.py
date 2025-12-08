@@ -36,6 +36,10 @@ def _default_log_path() -> Path:
     override = os.environ.get("AIHUB_LOG_PATH")
     if override:
         return Path(override).expanduser()
+    if platform.system().lower().startswith("windows"):
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            return Path(local_appdata) / "AIHub" / "logs" / "install.log"
     return Path.home() / ".config" / "aihub" / "install.log"
 
 
@@ -124,6 +128,7 @@ def detect_gpu() -> Dict[str, object]:
     label = "Unknown"
     details: List[str] = []
     vram_gb: Optional[int] = None
+    driver_hint: Optional[str] = None
 
     try:
         output = _check_output(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
@@ -139,6 +144,7 @@ def detect_gpu() -> Dict[str, object]:
                 mem = first_row.split()[-1]
             if mem.isdigit():
                 vram_gb = max(1, int(mem) // 1024)
+            driver_hint = "NVIDIA drivers detected via nvidia-smi"
     except Exception:
         pass
 
@@ -164,6 +170,7 @@ def detect_gpu() -> Dict[str, object]:
                         label = "AMD"
                     elif "intel" in lowered:
                         label = "INTEL"
+                    driver_hint = "Vendor detected via WMI/CIM"
                     break
             except Exception:
                 continue
@@ -177,12 +184,20 @@ def detect_gpu() -> Dict[str, object]:
 
     directml_supported = platform.system().lower().startswith("windows") or wsl_signature
 
+    if label == "Unknown" and wsl_signature:
+        driver_hint = "Fallback to WSL2 GPU passthrough; verify drivers on the Windows host"
+    elif label != "Unknown" and wsl_signature:
+        driver_hint = driver_hint or "Detected under WSL2; GPU features depend on host drivers"
+    elif label != "Unknown" and not driver_hint:
+        driver_hint = "Detected via platform defaults"
+
     return {
         "label": label,
         "details": details,
         "vram_gb": vram_gb,
         "directml": directml_supported,
         "wsl": wsl_signature,
+        "driver_hint": driver_hint,
     }
 
 
@@ -263,6 +278,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-headless", action="store_true", help="Do not force HEADLESS=1 for shell actions"
     )
+    parser.add_argument(
+        "--detect-gpu", action="store_true", help="Print GPU detection details and exit"
+    )
     return parser
 
 
@@ -273,8 +291,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     gpu_info = detect_gpu()
     log_line(
         f"Environment summary — GPU: {gpu_info['label']}, DirectML: {gpu_info['directml']}, "
-        f"WSL: {gpu_info['wsl']}, VRAM(GB): {gpu_info['vram_gb'] or 'unknown'}"
+        f"WSL: {gpu_info['wsl']}, VRAM(GB): {gpu_info['vram_gb'] or 'unknown'}, "
+        f"Hint: {gpu_info.get('driver_hint') or 'n/a'}"
     )
+
+    if args.detect_gpu:
+        print("GPU detection summary:")
+        for key, value in gpu_info.items():
+            print(f"- {key}: {value}")
+        if not gpu_info.get("wsl") and platform.system().lower().startswith("windows"):
+            print("Tip: To reuse Linux launchers, run inside WSL2 (Ubuntu recommended) and re-run this probe.")
+        return 0
 
     if args.manifests:
         manifests = load_manifests()
