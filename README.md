@@ -84,6 +84,8 @@ Shortcut creation attempts and the detected desktop environment are logged to `~
 ## Windows / WSL2 notes
 - AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell.
 - The installer expects to manage Linux packages and create launchers inside the WSL distribution; Windows-native paths or shells are not supported. Windows Desktop shortcuts are generated via WSL tooling when available.
+- **Windows entry points:** `launcher/aihub_menu.bat` and `launcher/aihub_menu.ps1` call the Python helper `launcher/aihub_menu.py`, which mirrors `aihub_menu.sh` actions, performs lightweight GPU detection (including DirectML hints), and logs to `%USERPROFILE%\.config\aihub\install.log` (or `~/.config/aihub/install.log` under WSL). Use these when creating `.lnk` shortcuts on Windows.
+- **Running inside WSL:** Launch `aihub_menu.sh` directly or run `python launcher/aihub_menu.py --list-actions` for a headless-friendly menu. Actions that depend on the shell helpers still require a WSL bash environment; the Windows `.bat`/`.ps1` wrappers will emit a log message if bash is unavailable.
 
 ## Models and LoRAs
 - Base models download to `$HOME/ai-hub/models/`. The Stable Diffusion v1.5 checkpoint is fetched by default.
