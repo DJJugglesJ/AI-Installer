@@ -60,18 +60,29 @@
       <section id="manifests" class="card">
         <div class="card-header">
           <h2>Curated Manifests</h2>
-          <p>Browse bundled model and LoRA manifests without invoking the desktop UI.</p>
+          <p>Browse bundled model and LoRA manifests, select entries, and trigger installs.</p>
         </div>
-        <div class="manifest-grid">
-          <div>
-            <h3>Models</h3>
-            <ul id="model-list" class="manifest-list"></ul>
+        <div class="filters">
+          <input id="manifest-search" type="search" placeholder="Search name, tag, or license" />
+          <div class="filter-buttons">
+            <label><input type="checkbox" id="filter-models" checked /> Models</label>
+            <label><input type="checkbox" id="filter-loras" checked /> LoRAs</label>
           </div>
-          <div>
-            <h3>LoRAs</h3>
-            <ul id="lora-list" class="manifest-list"></ul>
-          </div>
+          <div class="tags" id="tag-filters"></div>
         </div>
+        <div id="manifest-table" class="manifest-table"></div>
+        <div class="actions-row">
+          <button id="install-selected" type="button">Install Selected</button>
+          <div id="install-result" class="result"></div>
+        </div>
+      </section>
+
+      <section id="installs" class="card">
+        <div class="card-header">
+          <h2>Install Progress & History</h2>
+          <p>Track running installers and quickly reuse past selections.</p>
+        </div>
+        <div id="install-progress" class="manifest-grid"></div>
       </section>
 
       <section id="characters" class="card">

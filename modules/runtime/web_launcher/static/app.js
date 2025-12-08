@@ -1,11 +1,22 @@
 const actionsList = document.getElementById("actions-list");
 const actionResult = document.getElementById("action-result");
 const statusPill = document.getElementById("status-pill");
-const modelList = document.getElementById("model-list");
-const loraList = document.getElementById("lora-list");
+const manifestTable = document.getElementById("manifest-table");
+const manifestSearch = document.getElementById("manifest-search");
+const filterModels = document.getElementById("filter-models");
+const filterLoras = document.getElementById("filter-loras");
+const tagFilters = document.getElementById("tag-filters");
+const installButton = document.getElementById("install-selected");
+const installResult = document.getElementById("install-result");
+const installProgress = document.getElementById("install-progress");
 const characterList = document.getElementById("character-list");
 const characterTableBody = document.querySelector("#character-table tbody");
 const promptResult = document.getElementById("prompt-result");
+
+let manifestItems = [];
+const selectedModels = new Set();
+const selectedLoras = new Set();
+const activeTags = new Set();
 
 function formatBytes(value) {
   if (!value && value !== 0) return "";
@@ -51,15 +62,6 @@ async function triggerAction(actionId) {
   } catch (err) {
     actionResult.textContent = `Failed to run action: ${err.message}`;
   }
-}
-
-function renderManifestList(element, manifest) {
-  element.innerHTML = "";
-  manifest.items.forEach((item) => {
-    const li = document.createElement("li");
-    li.innerHTML = `<strong>${item.name}</strong><span>${item.version || ""}</span><span>${formatBytes(item.size_bytes)}</span><span class="tagline">${item.tags ? item.tags.join(", ") : ""}</span>`;
-    element.appendChild(li);
-  });
 }
 
 function renderCharacters(characters) {
@@ -125,14 +127,210 @@ async function bootstrap() {
     renderActions(status.actions);
 
     const manifests = await fetchJson("/api/manifests");
-    renderManifestList(modelList, manifests.models);
-    renderManifestList(loraList, manifests.loras);
+    hydrateManifests(manifests);
 
     const characters = await fetchJson("/api/characters");
     renderCharacters(characters.items || []);
+
+    await refreshInstallations();
   } catch (err) {
     statusPill.textContent = `API error`; // surface details below
     actionResult.textContent = `Failed to load status: ${err.message}`;
+  }
+}
+
+function hydrateManifests(manifests) {
+  manifestItems = [
+    ...(manifests.models.items || []).map((item) => ({ ...item, type: "Model" })),
+    ...(manifests.loras.items || []).map((item) => ({ ...item, type: "LoRA" })),
+  ];
+  renderTagFilters();
+  renderManifestTable();
+}
+
+function renderTagFilters() {
+  const tags = new Set();
+  manifestItems.forEach((item) => (item.tags || []).forEach((tag) => tags.add(tag)));
+  tagFilters.innerHTML = "";
+  Array.from(tags)
+    .sort()
+    .forEach((tag) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = activeTags.has(tag) ? "tag active" : "tag";
+      button.textContent = tag;
+      button.addEventListener("click", () => {
+        activeTags.has(tag) ? activeTags.delete(tag) : activeTags.add(tag);
+        renderTagFilters();
+        renderManifestTable();
+      });
+      tagFilters.appendChild(button);
+    });
+}
+
+function matchesFilters(item) {
+  const search = manifestSearch.value.toLowerCase();
+  const typeAllowed = (item.type === "Model" && filterModels.checked) || (item.type === "LoRA" && filterLoras.checked);
+  const matchesTag = activeTags.size === 0 || (item.tags || []).some((tag) => activeTags.has(tag));
+  const haystack = [item.name, item.version, item.license, ...(item.tags || [])]
+    .join(" ")
+    .toLowerCase();
+  const matchesSearch = !search || haystack.includes(search);
+  return typeAllowed && matchesTag && matchesSearch;
+}
+
+function renderManifestTable() {
+  const filtered = manifestItems.filter((item) => matchesFilters(item));
+  if (!filtered.length) {
+    manifestTable.innerHTML = '<p class="muted">No manifest entries match the current filters.</p>';
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.innerHTML = `
+    <thead>
+      <tr><th>Select</th><th>Type</th><th>Name</th><th>Version</th><th>Size</th><th>License</th><th>Tags</th><th>Notes</th></tr>
+    </thead>
+    <tbody></tbody>
+  `;
+
+  const tbody = table.querySelector("tbody");
+  filtered.forEach((item) => {
+    const row = document.createElement("tr");
+    const selected = item.type === "Model" ? selectedModels.has(item.name) : selectedLoras.has(item.name);
+    row.innerHTML = `
+      <td><input type="checkbox" ${selected ? "checked" : ""} /></td>
+      <td>${item.type}</td>
+      <td><strong>${item.name}</strong></td>
+      <td>${item.version || ""}</td>
+      <td>${formatBytes(item.size_bytes)}</td>
+      <td>${item.license || ""}</td>
+      <td>${(item.tags || []).join(", ")}</td>
+      <td class="wrap">${item.notes || ""}</td>
+    `;
+
+    row.querySelector("input").addEventListener("change", (event) => {
+      const bucket = item.type === "Model" ? selectedModels : selectedLoras;
+      event.target.checked ? bucket.add(item.name) : bucket.delete(item.name);
+      renderManifestTable();
+    });
+
+    tbody.appendChild(row);
+  });
+
+  manifestTable.innerHTML = "";
+  manifestTable.appendChild(table);
+}
+
+function buildPayloadFromSelection() {
+  return {
+    models: Array.from(selectedModels),
+    loras: Array.from(selectedLoras),
+  };
+}
+
+async function installSelected() {
+  const payload = buildPayloadFromSelection();
+  if (!payload.models.length && !payload.loras.length) {
+    installResult.textContent = "Pick at least one manifest entry to install.";
+    return;
+  }
+
+  installResult.textContent = "Submitting installers…";
+  try {
+    const response = await fetchJson("/api/installations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    installResult.textContent = `Installers started (${response.jobs.map((j) => j.id).join(", ")}).`;
+    refreshInstallations();
+  } catch (err) {
+    installResult.textContent = `Failed to start installers: ${err.message}`;
+  }
+}
+
+function renderHistory(history) {
+  if (!history.length) {
+    return '<p class="muted">No selections recorded yet.</p>';
+  }
+
+  return `
+    <h3>History</h3>
+    <div class="history-list">
+      ${history
+        .map(
+          (entry) => `
+            <div class="history-card">
+              <div>
+                <strong>${entry.started_at}</strong>
+                <p class="muted">${entry.status}</p>
+                <p>Models: ${(entry.models || []).join(", ") || "—"}</p>
+                <p>LoRAs: ${(entry.loras || []).join(", ") || "—"}</p>
+              </div>
+              <div class="history-actions">
+                <button type="button" data-models='${JSON.stringify(entry.models || [])}' data-loras='${JSON.stringify(entry.loras || [])}'>Reuse</button>
+                <a href="file://${entry.log_path}" target="_blank" rel="noreferrer">Log</a>
+              </div>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderJobs(jobs) {
+  if (!jobs.length) {
+    return '<p class="muted">No running installers.</p>';
+  }
+
+  return jobs
+    .map(
+      (job) => `
+        <div class="job-card">
+          <div class="job-header">
+            <div>
+              <strong>${job.id}</strong>
+              <p class="muted">${job.status}${job.returncode !== null ? ` (code ${job.returncode})` : ""}</p>
+            </div>
+            <span class="pill ${job.status}">${job.status}</span>
+          </div>
+          <p class="muted">${job.started_at}${job.completed_at ? ` → ${job.completed_at}` : ""}</p>
+          <p>Models: ${(job.models || []).join(", ") || "—"}</p>
+          <p>LoRAs: ${(job.loras || []).join(", ") || "—"}</p>
+          <pre>${(job.log_tail || "").trim() || "(no log output yet)"}</pre>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+async function refreshInstallations() {
+  try {
+    const installs = await fetchJson("/api/installations");
+    installProgress.innerHTML = `
+      <div>
+        <h3>Running</h3>
+        ${renderJobs((installs.jobs || []).filter((j) => j.status === "running"))}
+      </div>
+      <div>
+        ${renderHistory(installs.history || [])}
+      </div>
+    `;
+
+    installProgress.querySelectorAll("button[data-models]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedModels.clear();
+        selectedLoras.clear();
+        JSON.parse(btn.dataset.models || "[]").forEach((name) => selectedModels.add(name));
+        JSON.parse(btn.dataset.loras || "[]").forEach((name) => selectedLoras.add(name));
+        installResult.textContent = "Loaded selection from history.";
+        renderManifestTable();
+      });
+    });
+  } catch (err) {
+    installProgress.innerHTML = `<p class="muted">Failed to load installers: ${err.message}</p>`;
   }
 }
 
@@ -141,3 +339,8 @@ addCharacterRow();
 
 document.getElementById("add-character").addEventListener("click", () => addCharacterRow({ slot_id: `slot-${Date.now()}` }));
 document.getElementById("compile-prompt").addEventListener("click", compilePrompt);
+manifestSearch.addEventListener("input", renderManifestTable);
+filterModels.addEventListener("change", renderManifestTable);
+filterLoras.addEventListener("change", renderManifestTable);
+installButton.addEventListener("click", installSelected);
+setInterval(refreshInstallations, 5000);
