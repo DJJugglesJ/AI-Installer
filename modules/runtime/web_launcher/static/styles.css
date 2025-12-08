@@ -28,6 +28,32 @@ header {
   margin-bottom: 1rem;
 }
 
+.auth-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: #0b1220;
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.auth-form input {
+  background: #0b1220;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  min-width: 220px;
+}
+
 h1 {
   margin: 0;
 }
@@ -327,5 +353,14 @@ button.secondary {
   header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .auth-form {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .auth-form input {
+    width: 100%;
   }
 }

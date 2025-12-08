@@ -299,8 +299,9 @@ class WebLauncherAPI:
 class LauncherRequestHandler(SimpleHTTPRequestHandler):
     """Serve static assets and JSON APIs for the web launcher."""
 
-    def __init__(self, *args, api: WebLauncherAPI, static_dir: Path, **kwargs):
+    def __init__(self, *args, api: WebLauncherAPI, static_dir: Path, auth_token: Optional[str], **kwargs):
         self.api = api
+        self.auth_token = auth_token
         super().__init__(*args, directory=str(static_dir), **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802
@@ -316,6 +317,20 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
             self._handle_api_post(parsed.path)
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Unsupported POST path")
+
+    def _is_authorized(self) -> bool:
+        if not self.auth_token:
+            return True
+        expected = f"Bearer {self.auth_token}"
+        header = self.headers.get("Authorization", "")
+        alt_header = self.headers.get("X-AIHUB-TOKEN", "")
+        return header == expected or alt_header == self.auth_token
+
+    def _require_auth(self) -> bool:
+        if self._is_authorized():
+            return True
+        self._send_json({"error": "Unauthorized"}, status=HTTPStatus.UNAUTHORIZED)
+        return False
 
     def _read_json_body(self) -> Dict:
         length_header = self.headers.get("Content-Length", "0")
@@ -334,6 +349,8 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
         self.wfile.write(response)
 
     def _handle_api_get(self, path: str) -> None:
+        if not self._require_auth():
+            return
         try:
             if path == "/api/status":
                 self._send_json(self.api.status())
@@ -351,6 +368,8 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _handle_api_post(self, path: str) -> None:
+        if not self._require_auth():
+            return
         try:
             if path == "/api/actions":
                 payload = self._read_json_body()
@@ -380,7 +399,7 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
         return
 
 
-def run_server(host: str = "127.0.0.1", port: int = 3939) -> None:
+def run_server(host: str = "127.0.0.1", port: int = 3939, auth_token: Optional[str] = None) -> None:
     """Start the threaded HTTP server for the web launcher."""
 
     project_root = Path(__file__).resolve().parents[3]
@@ -388,12 +407,15 @@ def run_server(host: str = "127.0.0.1", port: int = 3939) -> None:
     api = WebLauncherAPI(project_root=project_root)
 
     def handler(*args, **kwargs):
-        return LauncherRequestHandler(*args, api=api, static_dir=static_dir, **kwargs)
+        return LauncherRequestHandler(
+            *args, api=api, static_dir=static_dir, auth_token=auth_token, **kwargs
+        )
 
     server = ThreadingHTTPServer((host, port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    print(f"AI Hub web launcher running on http://{host}:{port}")
+    token_note = " with bearer token auth" if auth_token else ""
+    print(f"AI Hub web launcher running on http://{host}:{port}{token_note}")
     try:
         thread.join()
     except KeyboardInterrupt:
@@ -408,6 +430,11 @@ def main() -> None:
     serve_parser = subparsers.add_parser("serve", help="Run the web launcher server")
     serve_parser.add_argument("--host", default=os.environ.get("AIHUB_WEB_HOST", "127.0.0.1"), help="Bind host")
     serve_parser.add_argument("--port", type=int, default=int(os.environ.get("AIHUB_WEB_PORT", "3939")), help="Bind port")
+    serve_parser.add_argument(
+        "--auth-token",
+        default=os.environ.get("AIHUB_WEB_TOKEN"),
+        help="Optional bearer token required for API requests",
+    )
 
     install_parser = subparsers.add_parser("install", help="Trigger curated installs without the UI")
     install_parser.add_argument("--models", nargs="*", default=[], help="Curated model names to install")
@@ -420,7 +447,11 @@ def main() -> None:
     project_root = Path(__file__).resolve().parents[3]
 
     if command == "serve":
-        run_server(host=getattr(args, "host", "127.0.0.1"), port=getattr(args, "port", 3939))
+        run_server(
+            host=getattr(args, "host", "127.0.0.1"),
+            port=getattr(args, "port", 3939),
+            auth_token=getattr(args, "auth_token", None),
+        )
         return
 
     if command == "install":
