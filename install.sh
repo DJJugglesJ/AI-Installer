@@ -41,6 +41,11 @@ DESKTOP_ENVIRONMENT=""
 WINDOWS_DESKTOP_LINUX_PATH=""
 WINDOWS_DESKTOP_WIN_PATH=""
 WINDOWS_START_MENU_WIN_PATH=""
+WINDOWS_START_MENU_LINUX_PATH=""
+WINDOWS_GPU_VENDOR=""
+WINDOWS_LAUNCH_STRATEGY="wsl"
+WINDOWS_NATIVE_LAUNCH_CMD=""
+WINDOWS_NATIVE_BATCH_CMD=""
 LAUNCH_CMD=""
 LAUNCHER_MODE="${AIHUB_LAUNCHER_MODE:-web}"
 LAUNCHER_LABEL="AI Hub Launcher"
@@ -77,13 +82,20 @@ select_launcher_command() {
   local menu_launcher="$INSTALL_PATH/aihub_menu.sh"
   local requested_mode="${LAUNCHER_MODE,,}"
 
+  WINDOWS_NATIVE_LAUNCH_CMD=""
+  WINDOWS_NATIVE_BATCH_CMD=""
+
   if [[ "$requested_mode" == "menu" ]]; then
     LAUNCH_CMD="$menu_launcher"
     LAUNCHER_LABEL="AI Hub Menu"
+    [[ -f "$INSTALL_PATH/launcher/aihub_menu.ps1" ]] && WINDOWS_NATIVE_LAUNCH_CMD="$INSTALL_PATH/launcher/aihub_menu.ps1"
+    [[ -f "$INSTALL_PATH/launcher/aihub_menu.bat" ]] && WINDOWS_NATIVE_BATCH_CMD="$INSTALL_PATH/launcher/aihub_menu.bat"
   else
     if [[ -x "$web_launcher" ]]; then
       LAUNCH_CMD="$web_launcher"
       LAUNCHER_LABEL="AI Hub Web UI"
+      [[ -f "$INSTALL_PATH/launcher/start_web_launcher.ps1" ]] && WINDOWS_NATIVE_LAUNCH_CMD="$INSTALL_PATH/launcher/start_web_launcher.ps1"
+      [[ -f "$INSTALL_PATH/launcher/start_web_launcher.bat" ]] && WINDOWS_NATIVE_BATCH_CMD="$INSTALL_PATH/launcher/start_web_launcher.bat"
     else
       log_error "Web launcher script missing; falling back to menu launcher."
     fi
@@ -142,6 +154,7 @@ determine_windows_desktop_paths() {
 
 determine_windows_start_menu_path() {
   WINDOWS_START_MENU_WIN_PATH=""
+  WINDOWS_START_MENU_LINUX_PATH=""
   local start_menu
   if command -v powershell.exe >/dev/null 2>&1; then
     start_menu=$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('Programs')" 2>/dev/null | tr -d '\r')
@@ -149,12 +162,69 @@ determine_windows_start_menu_path() {
 
   if [[ -n "$start_menu" ]]; then
     WINDOWS_START_MENU_WIN_PATH="$start_menu"
+    if command -v wslpath >/dev/null 2>&1; then
+      WINDOWS_START_MENU_LINUX_PATH=$(wslpath -u "$start_menu" 2>/dev/null)
+    fi
+  fi
+}
+
+detect_windows_gpu_vendor() {
+  WINDOWS_GPU_VENDOR=""
+  [[ "$PLATFORM_KIND" != "windows" && "$PLATFORM_KIND" != "wsl" ]] && return
+
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    log_msg "PowerShell not available; skipping Windows GPU vendor detection."
+    return
+  fi
+
+  local gpu_inventory
+  gpu_inventory=$(powershell.exe -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" 2>/dev/null | tr -d '\r')
+  if [[ -n "$gpu_inventory" ]]; then
+    log_msg "Windows GPU inventory: ${gpu_inventory//$'\n'/, }"
+  fi
+
+  if echo "$gpu_inventory" | grep -qi nvidia; then
+    WINDOWS_GPU_VENDOR="nvidia"
+  elif echo "$gpu_inventory" | grep -qi amd; then
+    WINDOWS_GPU_VENDOR="amd"
+  elif echo "$gpu_inventory" | grep -qi intel; then
+    WINDOWS_GPU_VENDOR="intel"
+  fi
+
+  [[ -z "$WINDOWS_GPU_VENDOR" ]] && log_msg "No recognizable Windows GPU vendor found from PowerShell inventory."
+}
+
+select_windows_launcher_strategy() {
+  WINDOWS_LAUNCH_STRATEGY="wsl"
+  [[ "$PLATFORM_KIND" != "windows" && "$PLATFORM_KIND" != "wsl" ]] && return
+
+  if [[ "$WINDOWS_GPU_VENDOR" == "nvidia" && -n "$WINDOWS_NATIVE_LAUNCH_CMD" ]]; then
+    WINDOWS_LAUNCH_STRATEGY="native"
+    log_msg "NVIDIA GPU detected on Windows; preferring native PowerShell/batch launchers."
+  elif [[ "$WINDOWS_GPU_VENDOR" == "amd" ]]; then
+    WINDOWS_LAUNCH_STRATEGY="wsl"
+    log_msg "AMD GPU detected on Windows; routing shortcuts to WSL/ROCm launchers."
+    if [[ "$PLATFORM_KIND" == "windows" ]]; then
+      if ! command -v wsl.exe >/dev/null 2>&1; then
+        log_error "AMD GPU detected but wsl.exe is unavailable; install WSL2 for ROCm-ready launchers."
+      fi
+    fi
+  else
+    log_msg "Defaulting to WSL shortcuts for Windows platform (${WINDOWS_GPU_VENDOR:-unknown vendor})."
   fi
 }
 
 create_windows_shortcut() {
-  local dest_path="$1" launch_dir="$2" launch_cmd="$3" repo_win_path="$4"
-  powershell.exe -NoProfile -Command "try { $ws = New-Object -ComObject WScript.Shell; $shortcut = $ws.CreateShortcut('${dest_path}'); $shortcut.TargetPath = 'wsl.exe'; $shortcut.Arguments = '-e bash -lc ''cd ""${launch_dir}"" && ""${launch_cmd}""'''; $shortcut.WorkingDirectory = '${repo_win_path:-.}'; $shortcut.IconLocation = 'shell32.dll,217'; $shortcut.Save(); exit 0 } catch { exit 1 }" >/dev/null 2>&1
+  local dest_path="$1" launch_dir="$2" launch_cmd="$3" repo_win_path="$4" shortcut_mode="$5"
+  local ps_cmd
+
+  if [[ "$shortcut_mode" == "native" ]]; then
+    ps_cmd="try { $ws = New-Object -ComObject WScript.Shell; $shortcut = $ws.CreateShortcut('${dest_path}'); $shortcut.TargetPath = 'powershell.exe'; $shortcut.Arguments = '-ExecutionPolicy Bypass -File \"${launch_cmd}\"'; $shortcut.WorkingDirectory = '${repo_win_path:-.}'; $shortcut.IconLocation = 'shell32.dll,220'; $shortcut.Save(); exit 0 } catch { exit 1 }"
+  else
+    ps_cmd="try { $ws = New-Object -ComObject WScript.Shell; $shortcut = $ws.CreateShortcut('${dest_path}'); $shortcut.TargetPath = 'wsl.exe'; $shortcut.Arguments = '-e bash -lc ''cd ""${launch_dir}"" && ""${launch_cmd}""'''; $shortcut.WorkingDirectory = '${repo_win_path:-.}'; $shortcut.IconLocation = 'shell32.dll,217'; $shortcut.Save(); exit 0 } catch { exit 1 }"
+  fi
+
+  powershell.exe -NoProfile -Command "$ps_cmd" >/dev/null 2>&1
   if [[ $? -eq 0 ]]; then
     log_msg "Windows .lnk shortcut created at ${dest_path}"
   else
@@ -197,6 +267,9 @@ EOF
 create_windows_launchers() {
   local launch_cmd="$1"
   local shortcut_label="$2"
+  local shortcut_mode="${3:-wsl}"
+  local native_ps="$4"
+  local native_bat="$5"
 
   determine_windows_desktop_paths
   determine_windows_start_menu_path
@@ -207,39 +280,73 @@ create_windows_launchers() {
   fi
 
   local launch_dir="${launch_cmd%/*}"
-  if [[ -n "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
-    mkdir -p "$WINDOWS_DESKTOP_LINUX_PATH"
-    local bat_path="$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.bat"
-    cat > "$bat_path" <<EOF
+
+  if [[ "$shortcut_mode" == "native" ]]; then
+    local native_target="$native_ps"
+    local repo_win_path=""
+    [[ -z "$native_target" || ! -f "$native_target" ]] && native_target="$native_bat"
+    [[ -z "$native_target" ]] && native_target="$launch_cmd"
+
+    if command -v wslpath >/dev/null 2>&1; then
+      repo_win_path=$(wslpath -w "$launch_dir" 2>/dev/null)
+      native_target=$(wslpath -w "$native_target" 2>/dev/null)
+    fi
+
+    if [[ -n "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+      mkdir -p "$WINDOWS_DESKTOP_LINUX_PATH"
+      [[ -n "$native_ps" && -f "$native_ps" ]] && cp "$native_ps" "$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.ps1"
+      [[ -n "$native_bat" && -f "$native_bat" ]] && cp "$native_bat" "$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.bat"
+    fi
+
+    if [[ -n "$WINDOWS_START_MENU_LINUX_PATH" ]]; then
+      mkdir -p "$WINDOWS_START_MENU_LINUX_PATH"
+      [[ -n "$native_ps" && -f "$native_ps" ]] && cp "$native_ps" "$WINDOWS_START_MENU_LINUX_PATH/${shortcut_label// /-}.ps1"
+      [[ -n "$native_bat" && -f "$native_bat" ]] && cp "$native_bat" "$WINDOWS_START_MENU_LINUX_PATH/${shortcut_label// /-}.bat"
+    fi
+
+    if [[ -n "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
+      create_windows_shortcut "${WINDOWS_DESKTOP_WIN_PATH}\${shortcut_label}.lnk" "$launch_dir" "$native_target" "$repo_win_path" "native"
+    fi
+
+    if [[ -n "$WINDOWS_START_MENU_WIN_PATH" ]]; then
+      create_windows_shortcut "${WINDOWS_START_MENU_WIN_PATH}\${shortcut_label}.lnk" "$launch_dir" "$native_target" "$repo_win_path" "native"
+    fi
+  else
+    if [[ -n "$WINDOWS_DESKTOP_LINUX_PATH" ]]; then
+      mkdir -p "$WINDOWS_DESKTOP_LINUX_PATH"
+      local bat_path="$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.bat"
+      cat > "$bat_path" <<EOF
 @echo off
 wsl.exe -e bash -lc "cd '${launch_dir}' && '${launch_cmd}'"
 EOF
-    chmod +x "$bat_path"
-    log_msg "Windows batch launcher created at $bat_path"
+      chmod +x "$bat_path"
+      log_msg "Windows batch launcher created at $bat_path"
 
-    local ps_path="$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.ps1"
-    cat > "$ps_path" <<EOF
+      local ps_path="$WINDOWS_DESKTOP_LINUX_PATH/${shortcut_label// /-}.ps1"
+      cat > "$ps_path" <<EOF
 Param()
 $ErrorActionPreference = "Stop"
 $repoPathWSL = "${launch_dir}"
 wsl.exe -e bash -lc "cd \"$repoPathWSL\" && '${launch_cmd}'"
 EOF
-    log_msg "Windows PowerShell launcher created at $ps_path"
-  fi
+      log_msg "Windows PowerShell launcher created at $ps_path"
+    fi
 
-  local repo_win_path=""
-  if command -v wslpath >/dev/null 2>&1; then
-    repo_win_path=$(wslpath -w "$launch_dir" 2>/dev/null)
-  fi
+    local repo_win_path=""
+    if command -v wslpath >/dev/null 2>&1; then
+      repo_win_path=$(wslpath -w "$launch_dir" 2>/dev/null)
+    fi
 
-  if [[ -n "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
-    create_windows_shortcut "${WINDOWS_DESKTOP_WIN_PATH}\\${shortcut_label}.lnk" "$launch_dir" "$launch_cmd" "$repo_win_path"
-  fi
+    if [[ -n "$WINDOWS_DESKTOP_WIN_PATH" ]]; then
+      create_windows_shortcut "${WINDOWS_DESKTOP_WIN_PATH}\${shortcut_label}.lnk" "$launch_dir" "$launch_cmd" "$repo_win_path"
+    fi
 
-  if [[ -n "$WINDOWS_START_MENU_WIN_PATH" ]]; then
-    create_windows_shortcut "${WINDOWS_START_MENU_WIN_PATH}\\${shortcut_label}.lnk" "$launch_dir" "$launch_cmd" "$repo_win_path"
+    if [[ -n "$WINDOWS_START_MENU_WIN_PATH" ]]; then
+      create_windows_shortcut "${WINDOWS_START_MENU_WIN_PATH}\${shortcut_label}.lnk" "$launch_dir" "$launch_cmd" "$repo_win_path"
+    fi
   fi
 }
+
 
 create_macos_launchers() {
   local launch_cmd="$1"
@@ -664,35 +771,40 @@ if [[ "$HEADLESS" -eq 1 ]]; then
   log_msg "Headless GPU summary recorded for troubleshooting."
 fi
 
+if [[ "$PLATFORM_KIND" == "windows" || "$PLATFORM_KIND" == "wsl" ]]; then
+  detect_windows_gpu_vendor
+fi
+
 # ✅ Create the unified desktop launcher
 select_launcher_command
+select_windows_launcher_strategy
 cleanup_old_launchers
 launcher_note="Launcher creation skipped."
 
 if [[ -z "$LAUNCH_CMD" ]]; then
   log_error "No launcher command resolved; skipping shortcut creation."
 else
-  case "$PLATFORM_KIND" in
-    linux)
-      linux_desktop_dir=$(determine_linux_desktop_dir)
-      applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-      desktop_entry_path="${DESKTOP_ENTRY:-$applications_dir/ai-hub-launcher.desktop}"
+    case "$PLATFORM_KIND" in
+      linux)
+        linux_desktop_dir=$(determine_linux_desktop_dir)
+        applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+        desktop_entry_path="${DESKTOP_ENTRY:-$applications_dir/ai-hub-launcher.desktop}"
       mkdir -p "$applications_dir"
       create_linux_desktop_entry "$desktop_entry_path" "$LAUNCH_CMD" "$LAUNCHER_LABEL" "Launch the ${LAUNCHER_LABEL}"
       if [[ -d "$linux_desktop_dir" ]]; then
         cp "$desktop_entry_path" "$linux_desktop_dir/AI Hub Launcher.desktop"
         chmod +x "$linux_desktop_dir/AI Hub Launcher.desktop"
       fi
-      echo "[✔] Desktop launcher created at $desktop_entry_path"
-      launcher_note="Linux desktop entry created at $desktop_entry_path and copied to $linux_desktop_dir (desktop=${DESKTOP_ENVIRONMENT})"
-      ;;
-    wsl|windows)
-      create_windows_launchers "$LAUNCH_CMD" "$LAUNCHER_LABEL"
-      launcher_note="Windows shortcuts created in ${WINDOWS_DESKTOP_LINUX_PATH:-<unknown>} and Start Menu (${WINDOWS_START_MENU_WIN_PATH:-n/a}) (desktop env=${DESKTOP_ENVIRONMENT})"
-      ;;
-    macos)
-      create_macos_launchers "$LAUNCH_CMD" "$LAUNCHER_LABEL"
-      launcher_note="macOS launchers created at $HOME/Desktop/${LAUNCHER_LABEL// /-}.command and $HOME/Applications/${LAUNCHER_LABEL}.app"
+        echo "[✔] Desktop launcher created at $desktop_entry_path"
+        launcher_note="Linux desktop entry created at $desktop_entry_path and copied to $linux_desktop_dir (desktop=${DESKTOP_ENVIRONMENT})"
+        ;;
+      wsl|windows)
+        create_windows_launchers "$LAUNCH_CMD" "$LAUNCHER_LABEL" "$WINDOWS_LAUNCH_STRATEGY" "$WINDOWS_NATIVE_LAUNCH_CMD" "$WINDOWS_NATIVE_BATCH_CMD"
+        launcher_note="Windows shortcuts (${WINDOWS_LAUNCH_STRATEGY}) created in ${WINDOWS_DESKTOP_LINUX_PATH:-<unknown>} and Start Menu (${WINDOWS_START_MENU_WIN_PATH:-n/a}); GPU=${WINDOWS_GPU_VENDOR:-unknown}, desktop env=${DESKTOP_ENVIRONMENT}"
+        ;;
+      macos)
+        create_macos_launchers "$LAUNCH_CMD" "$LAUNCHER_LABEL"
+        launcher_note="macOS launchers created at $HOME/Desktop/${LAUNCHER_LABEL// /-}.command and $HOME/Applications/${LAUNCHER_LABEL}.app"
       ;;
     *)
       log_error "Unsupported platform ${PLATFORM_KIND}; launcher creation skipped."
