@@ -12,6 +12,14 @@
         <h1>AI Hub Web Launcher</h1>
         <p class="muted">Web-based replacement for the YAD/menu flows.</p>
       </div>
+      <form id="auth-form" class="auth-form">
+        <label>
+          API token
+          <input id="auth-token" type="password" placeholder="Optional bearer token" />
+        </label>
+        <button type="submit">Save</button>
+        <span id="auth-state" class="muted">Not set</span>
+      </form>
       <div class="status-pill" id="status-pill">Loading…</div>
     </header>
 

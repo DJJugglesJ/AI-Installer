@@ -49,7 +49,7 @@ AI-Hub provides a unified installer and launcher for creative and conversational
 
 ## Launcher menu and web UI
 You now have two ways to drive installs/launches:
-- **Web launcher (recommended):** `./launcher/start_web_launcher.sh` (or the Windows PowerShell/Batch equivalents) starts a lightweight local server at `http://127.0.0.1:3939` that serves a bundled HTML/JS UI. Buttons call the same shell helpers as the legacy menu while also exposing prompt compilation, manifest browsing, and Character Studio registry reads over JSON APIs. Desktop shortcuts created by the installer can be updated to point here for a YAD-free experience.
+- **Web launcher (recommended):** `./launcher/start_web_launcher.sh` (or the Windows PowerShell/Batch/macOS `.command` equivalents) starts a lightweight local server at `http://127.0.0.1:3939` that serves a bundled HTML/JS UI. Buttons call the same shell helpers as the legacy menu while also exposing prompt compilation, manifest browsing, and Character Studio registry reads over JSON APIs. Set `AIHUB_WEB_HOST`/`AIHUB_WEB_PORT` to change the bind or `AIHUB_WEB_TOKEN`/`--auth-token` to require a bearer token for the APIs. See [docs/web_launcher.md](docs/web_launcher.md) for hosting, authentication, and OS-specific notes.
 - **Legacy YAD menu:** `./aihub_menu.sh` (or the existing desktop shortcut) remains available for environments that prefer the dialog-based workflow.
 
 Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with these actions:

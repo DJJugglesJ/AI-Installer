@@ -1,6 +1,9 @@
 const actionsList = document.getElementById("actions-list");
 const actionResult = document.getElementById("action-result");
 const statusPill = document.getElementById("status-pill");
+const authForm = document.getElementById("auth-form");
+const authTokenInput = document.getElementById("auth-token");
+const authState = document.getElementById("auth-state");
 const manifestTable = document.getElementById("manifest-table");
 const manifestSearch = document.getElementById("manifest-search");
 const filterModels = document.getElementById("filter-models");
@@ -17,6 +20,22 @@ let manifestItems = [];
 const selectedModels = new Set();
 const selectedLoras = new Set();
 const activeTags = new Set();
+let authToken = localStorage.getItem("aihubAuthToken") || "";
+
+function setAuthToken(value) {
+  authToken = value.trim();
+  localStorage.setItem("aihubAuthToken", authToken);
+  authState.textContent = authToken ? "Token saved" : "Not set";
+}
+
+function initAuthForm() {
+  authTokenInput.value = authToken;
+  authState.textContent = authToken ? "Token saved" : "Not set";
+  authForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    setAuthToken(authTokenInput.value || "");
+  });
+}
 
 function formatBytes(value) {
   if (!value && value !== 0) return "";
@@ -31,10 +50,18 @@ function formatBytes(value) {
 }
 
 async function fetchJson(path, options = {}) {
-  const response = await fetch(path, options);
+  const config = { ...options };
+  config.headers = { ...(options.headers || {}) };
+  if (authToken) {
+    config.headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(path, config);
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(message || `Request failed with ${response.status}`);
+    const reason =
+      response.status === 401 ? "Unauthorized: set the API token above." : `Request failed with ${response.status}`;
+    throw new Error(message || reason);
   }
   return response.json();
 }
@@ -121,6 +148,7 @@ async function compilePrompt() {
 }
 
 async function bootstrap() {
+  initAuthForm();
   try {
     const status = await fetchJson("/api/status");
     statusPill.textContent = `Ready • ${status.actions.length} actions`;
