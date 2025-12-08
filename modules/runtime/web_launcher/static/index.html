@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Hub Web Launcher</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>AI Hub Web Launcher</h1>
+        <p class="muted">Web-based replacement for the YAD/menu flows.</p>
+      </div>
+      <div class="status-pill" id="status-pill">Loading…</div>
+    </header>
+
+    <main>
+      <section id="actions" class="card">
+        <div class="card-header">
+          <h2>Launcher Actions</h2>
+          <p>Runs the same shell helpers as the legacy menus.</p>
+        </div>
+        <div id="actions-list" class="actions-grid"></div>
+        <div id="action-result" class="result"></div>
+      </section>
+
+      <section id="prompt-builder" class="card">
+        <div class="card-header">
+          <h2>Prompt Builder</h2>
+          <p>Compile structured scenes into prompts and write the latest bundle for launchers.</p>
+        </div>
+        <form id="prompt-form" class="form-grid">
+          <label>World<input type="text" name="world" placeholder="Space opera" /></label>
+          <label>Setting<input type="text" name="setting" placeholder="Neon market" /></label>
+          <label>Mood<input type="text" name="mood" placeholder="Dramatic" /></label>
+          <label>Style<input type="text" name="style" placeholder="Cinematic, volumetric" /></label>
+          <label>NSFW Level<input type="text" name="nsfw_level" placeholder="safe / soft / adult" /></label>
+          <label>Camera<input type="text" name="camera" placeholder="35mm, low angle" /></label>
+          <label class="full">Extra Elements<textarea name="extra_elements" rows="2" placeholder="fog, rain, floating lanterns"></textarea></label>
+        </form>
+        <div class="characters">
+          <div class="card-subheader">
+            <h3>Characters</h3>
+            <button id="add-character" type="button">Add Character</button>
+          </div>
+          <table id="character-table">
+            <thead>
+              <tr><th>Slot ID</th><th>Character ID</th><th>Role</th><th>Override Prompt</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="actions-row">
+          <button id="compile-prompt" type="button">Compile Prompt</button>
+          <div id="prompt-result" class="result"></div>
+        </div>
+      </section>
+
+      <section id="manifests" class="card">
+        <div class="card-header">
+          <h2>Curated Manifests</h2>
+          <p>Browse bundled model and LoRA manifests without invoking the desktop UI.</p>
+        </div>
+        <div class="manifest-grid">
+          <div>
+            <h3>Models</h3>
+            <ul id="model-list" class="manifest-list"></ul>
+          </div>
+          <div>
+            <h3>LoRAs</h3>
+            <ul id="lora-list" class="manifest-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="characters" class="card">
+        <div class="card-header">
+          <h2>Character Studio</h2>
+          <p>Registry entries shared with Prompt Builder.</p>
+        </div>
+        <ul id="character-list" class="manifest-list"></ul>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
