@@ -279,33 +279,66 @@ async function installSelected() {
 }
 
 function renderHistory(history) {
+  const container = document.createElement("div");
+
   if (!history.length) {
-    return '<p class="muted">No selections recorded yet.</p>';
+    container.innerHTML = '<p class="muted">No selections recorded yet.</p>';
+    return container;
   }
 
-  return `
-    <h3>History</h3>
-    <div class="history-list">
-      ${history
-        .map(
-          (entry) => `
-            <div class="history-card">
-              <div>
-                <strong>${entry.started_at}</strong>
-                <p class="muted">${entry.status}</p>
-                <p>Models: ${(entry.models || []).join(", ") || "—"}</p>
-                <p>LoRAs: ${(entry.loras || []).join(", ") || "—"}</p>
-              </div>
-              <div class="history-actions">
-                <button type="button" data-models='${JSON.stringify(entry.models || [])}' data-loras='${JSON.stringify(entry.loras || [])}'>Reuse</button>
-                <a href="file://${entry.log_path}" target="_blank" rel="noreferrer">Log</a>
-              </div>
-            </div>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
+  const heading = document.createElement("h3");
+  heading.textContent = "History";
+  container.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "history-list";
+
+  history.forEach((entry) => {
+    const card = document.createElement("div");
+    card.className = "history-card";
+
+    const info = document.createElement("div");
+    const startedAt = document.createElement("strong");
+    startedAt.textContent = entry.started_at;
+    info.appendChild(startedAt);
+
+    const status = document.createElement("p");
+    status.className = "muted";
+    status.textContent = entry.status;
+    info.appendChild(status);
+
+    const models = document.createElement("p");
+    models.textContent = `Models: ${(entry.models || []).join(", ") || "—"}`;
+    info.appendChild(models);
+
+    const loras = document.createElement("p");
+    loras.textContent = `LoRAs: ${(entry.loras || []).join(", ") || "—"}`;
+    info.appendChild(loras);
+
+    const actions = document.createElement("div");
+    actions.className = "history-actions";
+
+    const reuseButton = document.createElement("button");
+    reuseButton.type = "button";
+    reuseButton.textContent = "Reuse";
+    reuseButton.dataset.models = JSON.stringify(entry.models || []);
+    reuseButton.dataset.loras = JSON.stringify(entry.loras || []);
+    actions.appendChild(reuseButton);
+
+    const logLink = document.createElement("a");
+    logLink.href = `file://${entry.log_path}`;
+    logLink.target = "_blank";
+    logLink.rel = "noreferrer";
+    logLink.textContent = "Log";
+    actions.appendChild(logLink);
+
+    card.appendChild(info);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+
+  container.appendChild(list);
+  return container;
 }
 
 function renderJobs(jobs) {
@@ -337,15 +370,19 @@ function renderJobs(jobs) {
 async function refreshInstallations() {
   try {
     const installs = await fetchJson("/api/installations");
-    installProgress.innerHTML = `
-      <div>
-        <h3>Running</h3>
-        ${renderJobs((installs.jobs || []).filter((j) => j.status === "running"))}
-      </div>
-      <div>
-        ${renderHistory(installs.history || [])}
-      </div>
+    installProgress.innerHTML = "";
+
+    const runningContainer = document.createElement("div");
+    runningContainer.innerHTML = `
+      <h3>Running</h3>
+      ${renderJobs((installs.jobs || []).filter((j) => j.status === "running"))}
     `;
+
+    const historyContainer = document.createElement("div");
+    historyContainer.appendChild(renderHistory(installs.history || []));
+
+    installProgress.appendChild(runningContainer);
+    installProgress.appendChild(historyContainer);
 
     installProgress.querySelectorAll("button[data-models]").forEach((btn) => {
       btn.addEventListener("click", () => {
