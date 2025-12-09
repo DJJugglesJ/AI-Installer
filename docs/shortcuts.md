@@ -16,7 +16,7 @@ The installer generates OS-aware shortcuts for the menu and web UI launchers so 
 - GPU-aware selection:
   - NVIDIA: native PowerShell (`launcher/start_web_launcher.ps1` or `launcher/aihub_menu.ps1`) and batch wrappers are copied to the Windows Desktop and Start Menu. `.lnk` files point directly at PowerShell with `-ExecutionPolicy Bypass` so the launcher runs without WSL.
   - AMD (and other vendors): WSL2 is preferred to reach ROCm-ready launchers. Shortcuts call `wsl.exe -e bash -lc "cd <repo> && <launcher>"` and copy helper `.bat`/`.ps1` wrappers alongside the `.lnk` files.
-- Prerequisites: `powershell.exe` must support COM automation for `.lnk` creation, and `wsl.exe`/`wslpath` must be available when using the WSL strategy. The installer logs which strategy was used and the detected GPU vendor.
+- Prerequisites: `powershell.exe` must support COM automation for `.lnk` creation. WSL helpers are optional and used only when the WSL strategy is selected (and `wsl.exe`/`wslpath` are available). The installer logs which strategy was used and the detected GPU vendor.
 - Paths: `.lnk` shortcuts are written to the Desktop (`[Environment]::GetFolderPath('Desktop')`) and Start Menu (`[Environment]::GetFolderPath('Programs')`). WSL-friendly `.bat`/`.ps1` helper scripts are copied to the Linux-side equivalents of those directories so you can double-click them from File Explorer or WSL.
 - Remove shortcuts: delete the `.lnk`, `.bat`, and `.ps1` files in both the Desktop and Start Menu locations. Re-running the installer cleans up stale copies before writing new ones.
 
