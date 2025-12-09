@@ -7,6 +7,7 @@ AI-Hub provides a unified installer and launcher for creative and conversational
 - **Runtime bundles:** Prepared runtimes, schemas, and JS/JSON helpers live in [`modules/runtime`](modules/runtime) (e.g., `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) so you can review what gets shipped without digging through logs.
 - **Expanded manifests:** Model and LoRA manifests track hashes, sizes, tags, mirrors, and frontend hints to keep downloads reliable and parity between shell and web launchers.
 - **Safer installer prompts:** Interactive runs clarify GPU suggestions, call out AMD/Intel guidance, and retry canceled package installs without forcing you to start over.
+- **Stability-first defaults:** Installer entrypoints run with strict bash safety flags, validate prerequisites before proceeding, and record errors to `~/.config/aihub/install.log`. Runtime services validate manifest JSON and prompt-builder payloads before exposing them to clients, and helper modules log failures instead of silently ignoring them.
 
 See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, and upcoming milestones.
 
@@ -39,6 +40,12 @@ See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, a
 - **Packages:** `git`, `curl`, `jq`, `yad`, `python3` (or `python` on Arch), `python3-pip`/`python-pip`, `nodejs`, `npm`, `wget`, `aria2`, and GPU helpers (`ubuntu-drivers-common`/`mesa-utils` or `vulkan-tools`/`mesa-dri-drivers` on RPM-based systems). Missing tools are installed for you during bootstrap.
 - **Python packages:** Install `PyYAML` before running the installer so YAML profiles/configs can be parsed: `pip install -r requirements.txt` (or `pip install PyYAML`).
 - **Permissions:** Ability to run package manager commands with `sudo` when prompted.
+
+### What you get out of the box
+- **Defensive install/launch flows:** Shell entrypoints enforce `set -euo pipefail`, validate required commands, and bail out with actionable logs when dependencies or permissions are missing.
+- **Schema-aware runtimes:** Prompt Builder and Character Studio ship typed dataclasses with lightweight validation so malformed scenes, characters, or LoRA bundles are rejected early.
+- **Manifest safety:** The web launcher parses `manifests/*.json` defensively, returning structured `errors` when files are malformed instead of crashing or serving incomplete lists.
+- **History and log hygiene:** Install history, manifest loads, and job monitoring emit clear timestamps and capture failures in `~/.config/aihub/install.log` for easier support.
 
 ## Installation
 1. Clone or download this repository on a supported distro. On Windows, enable WSL2 and install the Ubuntu distribution first, then launch the installer from the WSL shell.
