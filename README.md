@@ -37,6 +37,7 @@ See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, a
 ## Prerequisites
 - **Operating system:** Tested on Ubuntu/Debian, Arch, and Fedora/RHEL-based distributions (including WSL2 with Ubuntu). Other distributions may work with manual dependency installation.
 - **Packages:** `git`, `curl`, `jq`, `yad`, `python3` (or `python` on Arch), `python3-pip`/`python-pip`, `nodejs`, `npm`, `wget`, `aria2`, and GPU helpers (`ubuntu-drivers-common`/`mesa-utils` or `vulkan-tools`/`mesa-dri-drivers` on RPM-based systems). Missing tools are installed for you during bootstrap.
+- **Python packages:** Install `PyYAML` before running the installer so YAML profiles/configs can be parsed: `pip install -r requirements.txt` (or `pip install PyYAML`).
 - **Permissions:** Ability to run package manager commands with `sudo` when prompted.
 
 ## Installation
