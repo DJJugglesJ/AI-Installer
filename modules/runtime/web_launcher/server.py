@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -27,6 +28,9 @@ from urllib.parse import urlparse
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.services import UIIntegrationHooks
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -148,13 +152,69 @@ class WebLauncherAPI:
 
     def _load_manifest(self, name: str) -> Dict[str, object]:
         manifest_path = self.manifest_dir / f"{name}.json"
+        base_payload = {"source": None, "items": [], "errors": [], "has_errors": False}
         if not manifest_path.exists():
-            return {"source": None, "items": []}
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return {"source": payload.get("source"), "items": payload.get("items", [])}
+            return base_payload
+
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            message = f"Failed to parse {manifest_path.name}: {exc}"
+            logger.warning(message)
+            return {**base_payload, "errors": [message], "has_errors": True}
+
+        if not isinstance(payload, dict):
+            message = f"Manifest {manifest_path.name} must be a JSON object"
+            logger.warning(message)
+            return {**base_payload, "errors": [message], "has_errors": True}
+
+        errors: List[str] = []
+        source = payload.get("source")
+        items = payload.get("items", [])
+
+        if not isinstance(items, list):
+            message = f"Manifest {manifest_path.name} items must be a list"
+            logger.warning(message)
+            return {**base_payload, "source": source, "errors": [message], "has_errors": True}
+
+        required_keys = ("name", "model_id", "source")
+        validated_items: List[Dict[str, object]] = []
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                message = f"{manifest_path.name} items[{idx}] is not an object"
+                logger.warning(message)
+                errors.append(message)
+                continue
+
+            missing_keys = [key for key in required_keys if not isinstance(item.get(key), str) or not item.get(key)]
+            if missing_keys:
+                message = (
+                    f"{manifest_path.name} items[{idx}] missing or invalid keys: "
+                    f"{', '.join(sorted(missing_keys))}"
+                )
+                logger.warning(message)
+                errors.append(message)
+                continue
+
+            validated_items.append(item)
+
+        return {
+            "source": source,
+            "items": validated_items,
+            "errors": errors,
+            "has_errors": bool(errors),
+        }
 
     def get_manifests(self) -> Dict[str, object]:
-        return {"models": self._load_manifest("models"), "loras": self._load_manifest("loras")}
+        models_manifest = self._load_manifest("models")
+        loras_manifest = self._load_manifest("loras")
+        errors = models_manifest.get("errors", []) + loras_manifest.get("errors", [])
+        return {
+            "models": models_manifest,
+            "loras": loras_manifest,
+            "errors": errors,
+            "has_errors": bool(errors),
+        }
 
     def _tail_log(self, log_path: Path, lines: int = 20) -> str:
         if not log_path.exists():
