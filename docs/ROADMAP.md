@@ -8,13 +8,15 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Desktop launcher and YAD-based menu for launching Stable Diffusion WebUI, KoboldAI, SillyTavern, and update routines.
 - Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded curated manifests covering more Stable Diffusion checkpoints and LoRA presets; manifests now track per-asset metadata (hashes, size, tags, mirrors, suggested frontends) for faster validation, filtering, and parity between shell and web flows.
 - Early web launcher endpoints (local HTTP server) that reuse the runtime hooks to expose install/launch flows and manifest browsing without requiring desktop dialogs.
+- Hardened installer prompts that confirm package installs, surface NVIDIA/AMD/Intel guidance inline, retry canceled steps, and resume downloads with mirrors before prompting again.
+- Refreshed quickstarts and launcher labels so new users see SD1.5/SDXL presets, GPU hints, and clearer menu defaults out of the box.
 
 ## Short-term milestones (1–2 releases)
-- Harden install flow: clearer prompts, better error messaging, and safer retries for canceled package installs.
-- Improve GPU detection logs and expose guidance for AMD/Intel acceleration options.
-- Streamline menu and launcher UX to consume the `modules/runtime`/`modules/shell` layout and clarify wording on update options, default paths, and pairing flows.
-- Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads; keep manifests current with new model/LoRA entries and mirrors, including a weekly refresh job and checksum diffs to catch stale links.
-- Publish a quickstart for common model presets (e.g., SD1.5) and LoRA pairing examples.
+- Add a GPU health-and-diagnostics action (CLI + menu) that bundles detection logs, VRAM checks, and ROCm/oneAPI/DirectML hints for support scenarios.
+- Extend menu/web launcher parity for newer flows (manifest browser, pairing helpers) with inline descriptions, hover help, and default selections that match headless config behavior.
+- Expand the download reliability layer with optional offline bundles and a manifest mirror health dashboard that highlights stale links before the user retries.
+- Keep manifests current with new model/LoRA entries and mirrors via a weekly refresh job and checksum diffs to catch stale links.
+- Package the refreshed quickstart content into the web launcher so first-run users see preset guidance without opening separate docs.
 - Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`, including WSL-aware fallbacks for GPU checks and shared logging semantics, while preparing native Windows parity for menu/launcher flows.
 - Deliver a cross-platform web UI (Linux, WSL, Windows) that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes without desktop dependencies.
 - Expand the web launcher/manifest browser to reuse runtime hooks and expose manifest maintenance (refresh, checksum validation, tag edits) plus Prompt Builder and Character Studio panels that share schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio`.

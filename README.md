@@ -6,6 +6,7 @@ AI-Hub provides a unified installer and launcher for creative and conversational
 - **Shell-first helpers:** Easy-to-read bash utilities live in [`modules/shell`](modules/shell) and power both the YAD menu and the web launcher endpoints.
 - **Runtime bundles:** Prepared runtimes, schemas, and JS/JSON helpers live in [`modules/runtime`](modules/runtime) (e.g., `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) so you can review what gets shipped without digging through logs.
 - **Expanded manifests:** Model and LoRA manifests track hashes, sizes, tags, mirrors, and frontend hints to keep downloads reliable and parity between shell and web launchers.
+- **Safer installer prompts:** Interactive runs clarify GPU suggestions, call out AMD/Intel guidance, and retry canceled package installs without forcing you to start over.
 
 See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, and upcoming milestones.
 
@@ -25,6 +26,9 @@ See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, a
   - **Interactive:** `./install.sh` with guided YAD dialogs for GPU selection, package installation, and feature toggles.
   - **Headless/automated:** `./install.sh --headless` with optional config file (`--config <file>`) for unattended deployments. See [`docs/headless_config.md`](docs/headless_config.md).
   - Both options lean on the same small shell helpers in [`modules/shell`](modules/shell) and the prepared runtime bundles in [`modules/runtime`](modules/runtime), so the steps stay predictable whether you click through or run headless.
+- **Quickstarts:**
+  - For a concise Stable Diffusion and LoRA setup (including a new SDXL/SD1.5 preset rundown), see the refreshed [Model and LoRA quickstart](docs/quickstart_models.md).
+  - Coming from WSL or a lightweight desktop? The quickstart highlights the updated prompts that surface GPU guidance and download mirrors so you can complete installs without guessing.
 - **Launcher capabilities:**
   - Launch apps, update assets, manage pairings, and self-update the installer via `aihub_menu.sh` or the desktop shortcut it creates.
   - Direct install targets with `--install <target>` for `webui`, `kobold`, `sillytavern`, `loras`, or `models` when you want to skip the menu.
@@ -45,7 +49,8 @@ See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, a
    *Use `./install.sh --headless --gpu cpu --install webui` to run without prompts while forcing CPU mode and directly installing the Stable Diffusion WebUI. Use `./install.sh --help` to view all flags.*
 3. The installer will:
    - Run a cross-distro bootstrap to install or verify required packages (skipping tools that are already present and logging versions). On unsupported distributions, install dependencies manually with your package manager.
-   - Detect your GPU and suggest a driver (NVIDIA) or continue with CPU/Intel/AMD fallbacks.
+   - Ask before installing missing packages and retry gracefully if you cancel partway through.
+   - Detect your GPU and suggest a driver (NVIDIA) or continue with CPU/Intel/AMD fallbacks while surfacing ROCm/oneAPI/DirectML guidance when relevant.
    - Create OS-appropriate shortcuts for `aihub_menu.sh` (Linux `.desktop`, Windows `.lnk`/`.bat`/`.ps1`, or macOS `.app`/`.command`) and record their paths in `~/.config/aihub/install.log`.
 
 ## Command-line options
@@ -57,14 +62,14 @@ See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, a
 ## Launcher menu and web UI
 You now have two ways to drive installs/launches:
 - **Web launcher (recommended):** `./launcher/start_web_launcher.sh` (or the Windows PowerShell/Batch/macOS `.command` equivalents) starts a lightweight local server at `http://127.0.0.1:3939` that serves a bundled HTML/JS UI. Buttons call the same shell helpers as the legacy menu while also exposing prompt compilation, manifest browsing, and Character Studio registry reads over JSON APIs. Set `AIHUB_WEB_HOST`/`AIHUB_WEB_PORT` to change the bind or `AIHUB_WEB_TOKEN`/`--auth-token` to require a bearer token for the APIs. See [docs/web_launcher.md](docs/web_launcher.md) for hosting, authentication, and OS-specific notes.
-- **Legacy YAD menu:** `./aihub_menu.sh` (or the existing desktop shortcut) remains available for environments that prefer the dialog-based workflow.
+- **Legacy YAD menu:** `./aihub_menu.sh` (or the existing desktop shortcut) remains available for environments that prefer the dialog-based workflow with clearer action labels, hover help, and defaults that match the web launcher.
 
 Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with these actions:
 - **🖼️ Run Stable Diffusion WebUI:** Launch from `~/AI/WebUI` using the existing Stable-diffusion/ model folder and GPU flags.
 - **🤖 Launch KoboldAI:** Start KoboldAI from `~/AI/KoboldAI` with your downloaded models.
 - **🧠 Launch SillyTavern:** Start SillyTavern in `~/AI/SillyTavern` against your chosen backend.
-- **📥 Install or Update LoRAs:** Install or refresh LoRA assets into `~/AI/LoRAs` (curated + CivitAI).
-- **📦 Install or Update Models:** Download or update base/LLM models into `~/ai-hub/models` (Hugging Face tokens stay optional).
+- **📥 Install or Update LoRAs:** Install or refresh LoRA assets into `~/AI/LoRAs` (curated + CivitAI) with clearer retry prompts.
+- **📦 Install or Update Models:** Download or update base/LLM models into `~/ai-hub/models` (Hugging Face tokens stay optional) with resumable downloads and mirror fallbacks.
 - **🆕 Update Installer:** Self-update bundled installer scripts and relaunch the menu.
 - **🔁 Pull Updates:** Run a quick `git pull` when you cloned the repository manually.
 - **🧠/🎭 Pair LLM + LoRA:** Pair models and LoRAs for oobabooga or SillyTavern flows with defaults that match the menu/web launcher.
@@ -79,8 +84,8 @@ See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and env
 
 ## GPU considerations
 - NVIDIA cards trigger an optional driver install via `ubuntu-drivers autoinstall`.
-- **AMD:** The installer can install `mesa-vulkan-drivers` for the open-source stack and will record the detected AMD GPU. For hardware acceleration beyond the default Vulkan/OpenCL stack, plan to configure ROCm following the [AMD ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/install.html). Validate support with `rocminfo`/`clinfo` before enabling ROCm/HIP toggles; the GPU detection logs and launcher output call this guidance out when an AMD adapter is present (DirectML is exposed when running under Windows/WSL).
-- **Intel:** Intel GPUs are detected, but the installer defaults to CPU mode for AI workloads. To enable Intel acceleration, configure oneAPI/OpenVINO as described in Intel's [OpenVINO toolkit overview](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html). Installing `intel-opencl-icd` or the Level Zero/oneAPI runtimes and enabling OpenVINO/DirectML toggles is recommended; the detection scripts surface this hint and record the driver stack in the log.
+- **AMD:** The installer can install `mesa-vulkan-drivers` for the open-source stack and will record the detected AMD GPU. For hardware acceleration beyond the default Vulkan/OpenCL stack, plan to configure ROCm following the [AMD ROCm installation guide](https://rocm.docs.amd.com/en/latest/deploy/linux/install.html). Validate support with `rocminfo`/`clinfo` before enabling ROCm/HIP toggles; the GPU detection logs and launcher output call this guidance out when an AMD adapter is present (DirectML is exposed when running under Windows/WSL) and the installer now surfaces these pointers inline during GPU selection.
+- **Intel:** Intel GPUs are detected, but the installer defaults to CPU mode for AI workloads. To enable Intel acceleration, configure oneAPI/OpenVINO as described in Intel's [OpenVINO toolkit overview](https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html). Installing `intel-opencl-icd` or the Level Zero/oneAPI runtimes and enabling OpenVINO/DirectML toggles is recommended; the detection scripts surface this hint and record the driver stack in the log, and the dialogs now spell out the default CPU-safe path when acceleration is unavailable.
 - If no supported GPU is found, the installer can continue in CPU mode (slower inference).
 - **Performance flags:**
   - FP16 defaults to **enabled on NVIDIA** and **disabled elsewhere**; the installer will force full precision when FP16 is unstable/unsupported.
