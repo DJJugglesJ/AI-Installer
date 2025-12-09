@@ -11,6 +11,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Hardened installer prompts that confirm package installs, surface NVIDIA/AMD/Intel guidance inline, retry canceled steps, and resume downloads with mirrors before prompting again.
 - Refreshed quickstarts and launcher labels so new users see SD1.5/SDXL presets, GPU hints, and clearer menu defaults out of the box.
 - Defensive defaults across runtimes: installer entrypoints run with strict bash safety flags, web launcher manifest loads are schema-checked with structured errors, and Prompt Builder/Character Studio models include lightweight validation to catch malformed payloads early.
+- Windows parity groundwork: `.bat`/`.ps1` launchers and GPU probes mirror the YAD menu actions and logging conventions, while WSL-aware wrappers keep shortcuts and logs consistent across environments pending full native parity.
 
 ## Short-term milestones (1–2 releases)
 - Add a GPU health-and-diagnostics action (CLI + menu) that bundles detection logs, VRAM checks, and ROCm/oneAPI/DirectML hints for support scenarios.
@@ -18,7 +19,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Expand the download reliability layer with optional offline bundles and a manifest mirror health dashboard that highlights stale links before the user retries; include structured error surfacing in the UI based on the new manifest validation hooks.
 - Keep manifests current with new model/LoRA entries and mirrors via a weekly refresh job and checksum diffs to catch stale links.
 - Package the refreshed quickstart content into the web launcher so first-run users see preset guidance without opening separate docs.
-- Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`, including WSL-aware fallbacks for GPU checks and shared logging semantics, while preparing native Windows parity for menu/launcher flows.
+- Finalize Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`, including WSL-aware fallbacks for GPU checks and shared logging semantics, while closing the remaining gaps for native Windows parity in menu/launcher flows.
 - Deliver a cross-platform web UI (Linux, WSL, Windows) that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes without desktop dependencies. Incorporate loading/error states in each panel so malformed configs or network failures are obvious.
 - Expand the web launcher/manifest browser to reuse runtime hooks and expose manifest maintenance (refresh, checksum validation, tag edits) plus Prompt Builder and Character Studio panels that share schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio`; keep schema validation and logging in place when adding new endpoints.
 - Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks; expose manifest status (last refreshed, mirror health, checksum warnings) inside launcher and web UI flows.
