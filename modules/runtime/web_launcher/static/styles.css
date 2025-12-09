@@ -227,6 +227,50 @@ button.secondary {
   background: #0b1220;
 }
 
+.placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.banner {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0b1220;
+}
+
+.banner.error {
+  border-color: #7f1d1d;
+  background: #1f2937;
+  color: #fecaca;
+}
+
+.banner button {
+  margin-left: auto;
+  background: #ef4444;
+  color: #fff;
+}
+
 .manifest-list span {
   display: block;
 }
