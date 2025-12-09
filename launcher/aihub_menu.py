@@ -67,17 +67,23 @@ class ActionSpec:
 
 
 ACTION_MAP: Dict[str, ActionSpec] = {
-    "run_webui": ActionSpec("run_webui", "Start the Stable Diffusion WebUI stack", ["bash", str(SHELL_DIR / "run_webui.sh")]),
+    "run_webui": ActionSpec(
+        "run_webui", "Launch Stable Diffusion WebUI from the default workspace", ["bash", str(SHELL_DIR / "run_webui.sh")]
+    ),
     "performance_flags": ActionSpec(
-        "performance_flags", "Toggle FP16/xFormers/DirectML flags", ["bash", str(SHELL_DIR / "performance_flags.sh")]
+        "performance_flags", "Review FP16/xFormers/DirectML toggles", ["bash", str(SHELL_DIR / "performance_flags.sh")]
     ),
     "run_kobold": ActionSpec("run_kobold", "Launch KoboldAI", ["bash", str(SHELL_DIR / "run_kobold.sh")]),
     "run_sillytavern": ActionSpec("run_sillytavern", "Launch SillyTavern", ["bash", str(SHELL_DIR / "run_sillytavern.sh")]),
-    "install_loras": ActionSpec("install_loras", "Install or update LoRAs", ["bash", str(SHELL_DIR / "install_loras.sh")]),
-    "install_models": ActionSpec("install_models", "Install or update models", ["bash", str(SHELL_DIR / "install_models.sh")]),
+    "install_loras": ActionSpec(
+        "install_loras", "Install or refresh LoRAs into ~/AI/LoRAs", ["bash", str(SHELL_DIR / "install_loras.sh")]
+    ),
+    "install_models": ActionSpec(
+        "install_models", "Install or update models into ~/ai-hub/models", ["bash", str(SHELL_DIR / "install_models.sh")]
+    ),
     "download_models_civitai": ActionSpec(
         "download_models_civitai",
-        "Download models from CivitAI",
+        "Download models from CivitAI into ~/ai-hub/models",
         ["bash", str(SHELL_DIR / "install_models.sh")],
         env={"MODEL_SOURCE": "civitai"},
     ),
@@ -87,18 +93,20 @@ ACTION_MAP: Dict[str, ActionSpec] = {
     "artifact_maintenance": ActionSpec(
         "artifact_maintenance", "Run artifact maintenance", ["bash", str(SHELL_DIR / "artifact_manager.sh")]
     ),
-    "self_update": ActionSpec("self_update", "Update installer scripts", ["bash", str(SHELL_DIR / "self_update.sh")]),
-    "pull_updates": ActionSpec("pull_updates", "Pull latest Git changes", ["git", "pull"]),
+    "self_update": ActionSpec("self_update", "Self-update bundled installer scripts", ["bash", str(SHELL_DIR / "self_update.sh")]),
+    "pull_updates": ActionSpec("pull_updates", "Git pull for cloned checkouts", ["git", "pull"]),
     "launcher_status": ActionSpec(
         "launcher_status", "Show launcher status panel", ["bash", str(LAUNCHER_DIR / "ai_hub_launcher.sh")]
     ),
-    "pair_oobabooga": ActionSpec("pair_oobabooga", "Pair LLM + LoRA (oobabooga)", ["bash", str(SHELL_DIR / "pair_oobabooga.sh")]),
-    "pair_sillytavern": ActionSpec(
-        "pair_sillytavern", "Pair LLM + LoRA (SillyTavern)", ["bash", str(SHELL_DIR / "pair_sillytavern.sh")]
+    "pair_oobabooga": ActionSpec(
+        "pair_oobabooga", "Pair an oobabooga model with a LoRA", ["bash", str(SHELL_DIR / "pair_oobabooga.sh")]
     ),
-    "select_lora": ActionSpec("select_lora", "Select a LoRA preset target", ["bash", str(SHELL_DIR / "select_lora.sh")]),
+    "pair_sillytavern": ActionSpec(
+        "pair_sillytavern", "Pick backend + model for SillyTavern", ["bash", str(SHELL_DIR / "pair_sillytavern.sh")]
+    ),
+    "select_lora": ActionSpec("select_lora", "Choose a LoRA preset target", ["bash", str(SHELL_DIR / "select_lora.sh")]),
     "save_pairing": ActionSpec(
-        "save_pairing", "Save current pairing preset", ["bash", str(SHELL_DIR / "save_pairing_preset.sh")]
+        "save_pairing", "Save the current pairing preset", ["bash", str(SHELL_DIR / "save_pairing_preset.sh")]
     ),
     "load_pairing": ActionSpec(
         "load_pairing", "Load a saved pairing preset", ["bash", str(SHELL_DIR / "load_pairing_preset.sh")]

@@ -60,14 +60,14 @@ You now have two ways to drive installs/launches:
 - **Legacy YAD menu:** `./aihub_menu.sh` (or the existing desktop shortcut) remains available for environments that prefer the dialog-based workflow.
 
 Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with these actions:
-- **🖼️ Run Stable Diffusion WebUI:** Start the Stable Diffusion WebUI environment.
-- **🤖 Launch KoboldAI:** Start KoboldAI.
-- **🧠 Launch SillyTavern:** Start SillyTavern.
-- **📥 Install or Update LoRAs:** Fetch or refresh LoRA assets.
-- **📦 Install or Update Models:** Download base models (e.g., SD1.5) with optional Hugging Face tokens for gated content.
-- **🆕 Update Installer:** Run the self-update workflow (pulls latest code and relaunches the menu).
-- **🔁 Pull Updates:** Simple `git pull` to refresh the repository when it was cloned from GitHub.
-- **🧠/🎭 Pair LLM + LoRA:** Pair models and LoRAs for oobabooga or SillyTavern flows.
+- **🖼️ Run Stable Diffusion WebUI:** Launch from `~/AI/WebUI` using the existing Stable-diffusion/ model folder and GPU flags.
+- **🤖 Launch KoboldAI:** Start KoboldAI from `~/AI/KoboldAI` with your downloaded models.
+- **🧠 Launch SillyTavern:** Start SillyTavern in `~/AI/SillyTavern` against your chosen backend.
+- **📥 Install or Update LoRAs:** Install or refresh LoRA assets into `~/AI/LoRAs` (curated + CivitAI).
+- **📦 Install or Update Models:** Download or update base/LLM models into `~/ai-hub/models` (Hugging Face tokens stay optional).
+- **🆕 Update Installer:** Self-update bundled installer scripts and relaunch the menu.
+- **🔁 Pull Updates:** Run a quick `git pull` when you cloned the repository manually.
+- **🧠/🎭 Pair LLM + LoRA:** Pair models and LoRAs for oobabooga or SillyTavern flows with defaults that match the menu/web launcher.
 - **🎨 Select LoRA for Preset / 💾 Save Current Pairing / 📂 Load Saved Pairing:** Manage pairing presets.
 - **❌ Exit:** Close the menu.
 
@@ -103,8 +103,8 @@ See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and env
 - See the [model and LoRA quickstart](docs/quickstart_models.md) for a concise guide to installing SD1.5, knowing where assets live, and pairing LoRAs across WebUI, KoboldAI, and SillyTavern.
 
 ## Updates and self-update
-- Use **🆕 Update Installer** from the menu for a guided self-update (requires the repo to have a `.git` directory).
-- Use **🔁 Pull Updates** for a quick `git pull` when you already cloned from GitHub.
+- Use **🆕 Update Installer** from the menu for a guided self-update that refreshes bundled scripts and relaunches the menu (expects a `.git` checkout).
+- Use **🔁 Pull Updates** for a quick `git pull` when you already cloned from GitHub and want to keep local tweaks intact.
 
 ## Troubleshooting / FAQ
 - **Missing packages:** The installer will prompt to install them. Re-run `./install.sh` if a run was canceled.

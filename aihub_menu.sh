@@ -20,27 +20,29 @@ HEALTH_TEXT=$(HEADLESS=1 "$MODULE_DIR/shell/health_summary.sh")
 # Log menu intent before rendering so failed dialog invocations are still captured.
 log_event "info" app=aihub event=menu_open gpu_mode="$GPU_LABEL" headless="$HEADLESS_FLAG"
 
+# Keep menu copy concise while still calling out default paths so users know where assets land.
+# Update flows are split between "self update" (safe for bundled installs) and a plain git pull for clones.
 ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   --text="Health summary:\n${HEALTH_TEXT}" \
   --list --radiolist \
   --column="Select":R --column="Action" --column="Description" \
-  TRUE "🖼️  Run Stable Diffusion WebUI" "Starts the WebUI from ~/AI/WebUI with models in Stable-diffusion/; uses current GPU setup." \
-  FALSE "⚙️  Performance Flags" "Toggle FP16, xFormers/DirectML, and low VRAM behavior recorded in ~/.config/aihub/installer.conf." \
-  FALSE "🤖  Launch KoboldAI" "Launches KoboldAI from ~/AI/KoboldAI using your downloaded models." \
-  FALSE "🧠  Launch SillyTavern" "Opens SillyTavern in ~/AI/SillyTavern with existing API/backends." \
-  FALSE "📥  Install or Update LoRAs" "Downloads curated/CivitAI LoRAs into the default ~/AI/LoRAs directory." \
-  FALSE "📦  Install or Update Models (Hugging Face)" "Installs LLMs to the default ~/ai-hub/models directory (HEADLESS=$HEADLESS_FLAG)." \
-  FALSE "🗂️  Browse Curated Models & LoRAs" "Open the manifest browser to select curated downloads without visiting external sites." \
-  FALSE "📥  Download Models from CivitAI" "Fetches CivitAI models to the default ~/ai-hub/models directory with GUI prompts by default." \
+  TRUE "🖼️  Run Stable Diffusion WebUI" "Launch WebUI from ~/AI/WebUI using Stable-diffusion/ models and current GPU flags." \
+  FALSE "⚙️  Performance Flags" "Review FP16/xFormers/DirectML and low-VRAM toggles saved in ~/.config/aihub/installer.conf." \
+  FALSE "🤖  Launch KoboldAI" "Start KoboldAI from ~/AI/KoboldAI with your downloaded models." \
+  FALSE "🧠  Launch SillyTavern" "Open SillyTavern in ~/AI/SillyTavern against your existing backends." \
+  FALSE "📥  Install or Update LoRAs" "Install or refresh LoRAs in ~/AI/LoRAs (curated + CivitAI)." \
+  FALSE "📦  Install or Update Models (Hugging Face)" "Install/update LLMs into ~/ai-hub/models (HEADLESS=$HEADLESS_FLAG)." \
+  FALSE "🗂️  Browse Curated Models & LoRAs" "Browse manifests without leaving the menu; queue curated downloads." \
+  FALSE "📥  Download Models from CivitAI" "Download CivitAI models into ~/ai-hub/models with optional GUI prompts." \
   FALSE "🧹  Artifact Maintenance" "Prune caches, rotate logs, and verify model/LoRA links." \
-  FALSE "🆕  Update Installer" "Runs the built-in self-update to refresh installer scripts in this repository." \
-  FALSE "🔁  Pull Updates" "Pulls the latest Git changes for AI-Hub into $(basename "$SCRIPT_DIR")." \
+  FALSE "🆕  Update Installer" "Self-update bundled installer scripts, then relaunch this menu." \
+  FALSE "🔁  Pull Updates" "Run git pull for $(basename "$SCRIPT_DIR") when using a clone." \
   FALSE "ℹ️  View Installer Status" "Opens the AI Hub launcher status panel from $LAUNCHER_DIR." \
-  FALSE "🧠  Pair LLM + LoRA (oobabooga)" "Create a launch script pairing ~/AI/oobabooga/models with LoRAs in ~/AI/oobabooga/lora." \
-  FALSE "🎭  Pair LLM + LoRA (SillyTavern)" "Choose backend (oobabooga/KoboldAI) and model for SillyTavern pairing from ~/AI." \
-  FALSE "🎨  Select LoRA for Preset" "Pick a LoRA from ~/AI/LoRAs to use in pairing presets." \
-  FALSE "💾  Save Current Pairing as Preset" "Save the active model/LoRA pairing preset to reuse later." \
-  FALSE "📂  Load Saved Pairing Preset" "Load a previously saved pairing preset to quickly apply settings." \
+  FALSE "🧠  Pair LLM + LoRA (oobabooga)" "Pair an oobabooga model from ~/AI/oobabooga/models with a LoRA in ~/AI/oobabooga/lora." \
+  FALSE "🎭  Pair LLM + LoRA (SillyTavern)" "Pick backend (oobabooga/KoboldAI) and model for SillyTavern API pairing." \
+  FALSE "🎨  Select LoRA for Preset" "Choose a LoRA from ~/AI/LoRAs to set as the active preset target." \
+  FALSE "💾  Save Current Pairing as Preset" "Record the current model/LoRA pairing for reuse." \
+  FALSE "📂  Load Saved Pairing Preset" "Apply a saved pairing preset to quickly restore settings." \
   FALSE "📊  Health Summary" "Run connectivity, backend, and model-path checks for all apps with remediation hints." \
   FALSE "❌  Exit" "Close the launcher without making changes." \
 )

@@ -3,6 +3,7 @@
 OOBA_DIR="$HOME/AI/oobabooga"
 KOBOLD_DIR="$HOME/AI/KoboldAI"
 SILLY_DIR="$HOME/AI/SillyTavern"
+# Default model roots are shared with the web launcher so presets stay consistent.
 OOBA_MODELS="$OOBA_DIR/models"
 KOBOLD_MODELS="$KOBOLD_DIR/models"
 PAIR_FILE="/tmp/st_llm_pair.txt"
@@ -29,6 +30,7 @@ load_prompt_bundle() {
   export PROMPT_BUILDER_BUNDLE_PATH="$path"
 }
 
+# Create expected folders to avoid empty picklists when users install fresh models.
 [ -d "$OOBA_MODELS" ] || mkdir -p "$OOBA_MODELS"
 [ -d "$KOBOLD_MODELS" ] || mkdir -p "$KOBOLD_MODELS"
 
@@ -52,14 +54,14 @@ if [ -d "$KOBOLD_DIR" ]; then
 fi
 
 if [ ${#BACKENDS[@]} -eq 0 ]; then
-  yad --error --title="No Backends Found" --text="❌ No oobabooga or KoboldAI installation found."
+  yad --error --title="No Backends Found" --text="❌ No oobabooga or KoboldAI install found in ~/AI."
   exit 1
 fi
 
 if [ ${#BACKENDS[@]} -eq 1 ]; then
   SELECTED_BACKEND="${BACKENDS[0]}"
 else
-  SELECTED_BACKEND=$(yad --form --title="Choose Default Backend" --field="Use this backend:CB" "$(IFS=!; echo "${BACKENDS[*]}")" | cut -d '|' -f1)
+  SELECTED_BACKEND=$(yad --form --title="Choose Default Backend" --text="Pick which API to target for SillyTavern." --field="Backend:CB" "$(IFS=!; echo "${BACKENDS[*]}")" | cut -d '|' -f1)
 fi
 
 FILTERED_MODELS=()
@@ -69,13 +71,13 @@ for item in "${MODEL_LIST[@]}"; do
   fi
 done
 
-MODEL_CHOICE=$(yad --form --title="Select LLM Model" --field="Model:CB" "$(IFS=!; echo "${FILTERED_MODELS[*]}")")
+MODEL_CHOICE=$(yad --form --title="Select LLM Model" --text="Models are pulled from the selected backend's models/ folder." --field="Model:CB" "$(IFS=!; echo "${FILTERED_MODELS[*]}")")
 SELECTED_MODEL=$(echo "$MODEL_CHOICE" | cut -d '|' -f1)
 
 echo "$SELECTED_BACKEND:$SELECTED_MODEL" > "$PAIR_FILE"
 
-# Offer actions: launch, inject, or both
-ACTIONS=$(yad --list --title="Select Action" --width=400 --height=200 --column="Action" --column="Description"   "Launch Script" "Generate a launch script for the paired backend"   "Inject to SillyTavern" "Write API config to SillyTavern config.json"   "Both" "Do both actions")
+# Offer actions: launch, inject, or both.
+ACTIONS=$(yad --list --title="Select Action" --width=440 --height=200 --column="Action" --column="Description"   "Launch Script" "Generate a launch script for this backend/model"   "Inject to SillyTavern" "Write API URL into SillyTavern config.json"   "Both" "Create the script and update SillyTavern")
 
 if [ -z "$ACTIONS" ]; then
   yad --info --title="Cancelled" --text="No action selected."
@@ -124,7 +126,7 @@ if [[ "$ACTION" == "Inject to SillyTavern" || "$ACTION" == "Both" ]]; then
     cp "$SILLY_DIR/config.example.json" "$CONFIG_FILE"
   fi
 
-  # Choose port defaults
+  # Choose port defaults to match existing backend API listeners.
   PORT="5000"
   if [[ "$SELECTED_BACKEND" == "KoboldAI" ]]; then PORT="5001"; fi
 
