@@ -8,7 +8,20 @@ CONFIG_SERVICE_SCRIPT="${CONFIG_SERVICE_SCRIPT:-$(cd "$(dirname "${BASH_SOURCE[0
 CONFIG_ENV_PREFIX="${CONFIG_ENV_PREFIX:-AIHUB_}"
 
 ensure_config_paths() {
-  mkdir -p "$CONFIG_ROOT"
+  if ! mkdir -p "$CONFIG_ROOT"; then
+    echo "Failed to create config directory '$CONFIG_ROOT'. Check permissions and re-run the installer." >&2
+    return 1
+  fi
+
+  if [[ ! -w "$CONFIG_ROOT" ]]; then
+    echo "Config directory '$CONFIG_ROOT' is not writable. Adjust permissions and try again." >&2
+    return 1
+  fi
+
+  if ! touch "$CONFIG_STATE_FILE" "$CONFIG_ENV_FILE" 2>/dev/null; then
+    echo "Cannot write installer state under '$CONFIG_ROOT'. Verify permissions before retrying." >&2
+    return 1
+  fi
 }
 
 config_export() {

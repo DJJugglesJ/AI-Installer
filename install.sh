@@ -1,4 +1,12 @@
 #!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+fatal() {
+  local message="$1"
+  echo "[!] $message" >&2
+  exit 1
+}
 
 # AI Hub installer entrypoint
 # - Purpose: orchestrates interactive/headless setup flows and shared maintenance tasks.
@@ -11,11 +19,37 @@ DEFAULT_CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_FILE="${CONFIG_FILE:-$DEFAULT_CONFIG_FILE}"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
+AIHUB_SKIP_INSTALL_STEPS="${AIHUB_SKIP_INSTALL_STEPS:-}"
+HUGGINGFACE_TOKEN="${HUGGINGFACE_TOKEN:-}"
 
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
+LOG_DIR="$(dirname "$LOG_FILE")"
+if ! mkdir -p "$LOG_DIR"; then
+  fatal "Failed to create log directory '$LOG_DIR'. Check permissions and retry."
+fi
 
-source "$MODULE_DIR/config_service/config_helpers.sh"
+if ! touch "$LOG_FILE"; then
+  fatal "Failed to write to log file '$LOG_FILE'. Ensure you have permission to write to $LOG_DIR."
+fi
+
+require_command() {
+  local cmd="$1" hint="${2:-}" message
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    message="Required command '$cmd' is missing."
+    [[ -n "$hint" ]] && message+=" $hint"
+    fatal "$message"
+  fi
+}
+
+require_command uname "Install coreutils or ensure 'uname' is available."
+require_command grep "Install grep via your package manager."
+require_command tee "Logging requires 'tee' (coreutils)."
+
+CONFIG_HELPERS="$MODULE_DIR/config_service/config_helpers.sh"
+if [[ ! -r "$CONFIG_HELPERS" ]]; then
+  fatal "Config helpers not found or unreadable at $CONFIG_HELPERS. Ensure the repository checkout is complete."
+fi
+
+source "$CONFIG_HELPERS"
 
 HEADLESS_MODE=false
 INSTALL_TARGET=""
@@ -798,6 +832,10 @@ apply_headless_config
 export GPU_MODE_OVERRIDE
 
 detect_platform
+
+if [[ "$PLATFORM_KIND" == "wsl" || "$PLATFORM_KIND" == "windows" ]]; then
+  require_command powershell.exe "PowerShell is required for Windows integration from ${PLATFORM_KIND^^}. Install it or add it to the PATH."
+fi
 
 if [[ "$AIHUB_SKIP_INSTALL_STEPS" == "1" ]]; then
   log_msg "AIHUB_SKIP_INSTALL_STEPS set; stopping after configuration validation."
