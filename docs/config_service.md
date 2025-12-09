@@ -3,6 +3,8 @@
 The configuration service lives in `modules/config_service/` and owns the canonical JSON/YAML configuration at `~/.config/aihub/config.yaml`.
 The helper automatically mirrors a legacy env-style export to `~/.config/aihub/installer.conf` so existing shell modules can continue to `source` values.
 
+> **Dependency note:** YAML parsing relies on [PyYAML](https://pyyaml.org/). Install it with `pip install -r requirements.txt` (or `pip install PyYAML`) before running the installer or calling the configuration CLI.
+
 ## Priority rules
 
 1. **CLI flags** passed to `install.sh` (e.g., `--gpu nvidia`, `--install webui`) are forwarded as overrides to the service.

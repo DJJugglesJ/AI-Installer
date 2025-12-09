@@ -14,10 +14,27 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
+
+class ConfigError(Exception):
+    pass
+
+
+def _import_yaml():  # pragma: no cover - import guard
+    try:
+        import yaml  # type: ignore
+    except ImportError as exc:
+        raise ConfigError(
+            "PyYAML is required to load installer profiles and schemas. "
+            "Install it with `pip install -r requirements.txt` (or `pip install PyYAML`) and rerun the installer."
+        ) from exc
+    return yaml
+
+
 try:
-    import yaml  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
-    yaml = None
+    yaml = _import_yaml()
+except ConfigError as exc:  # pragma: no cover - dependency gate
+    print(f"[error] {exc}", file=sys.stderr)
+    sys.exit(1)
 
 CONFIG_ROOT = os.path.expanduser("~/.config/aihub")
 DEFAULT_CONFIG_PATH = os.path.join(CONFIG_ROOT, "config.yaml")
@@ -93,10 +110,6 @@ class LoadedConfig:
     migrated: bool
 
 
-class ConfigError(Exception):
-    pass
-
-
 def ensure_config_root(path: str) -> None:
     root = os.path.dirname(path)
     if root and not os.path.exists(root):
@@ -158,10 +171,6 @@ def load_structured_file(path: str) -> Dict[str, Any]:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        if yaml is None:
-            raise ConfigError(
-                "YAML requested but PyYAML is not installed. Please install PyYAML or convert the file to JSON."
-            )
         loaded = yaml.safe_load(text)
         if not isinstance(loaded, dict):
             raise ConfigError("Installer profile files must be a mapping/object.")
@@ -183,8 +192,6 @@ def load_raw_config(path: str) -> Tuple[Dict[str, Any], List[str]]:
     if stripped.startswith("{") or stripped.startswith("["):
         data = json.loads(text)
     elif stripped[0] in {"-", ":"} or ":" in stripped.splitlines()[0]:
-        if yaml is None:
-            raise ConfigError("YAML requested but PyYAML is not installed. Please install PyYAML or convert the file to JSON.")
         data = yaml.safe_load(text) or {}
     else:
         parsed = parse_env_style(text)
@@ -345,8 +352,6 @@ def save_config(data: Dict[str, Any], path: str) -> None:
     ensure_config_root(path)
     ext = os.path.splitext(path)[1].lower()
     if ext in {".yaml", ".yml"}:
-        if yaml is None:
-            raise ConfigError("Saving YAML requires PyYAML to be installed.")
         with open(path, "w", encoding="utf-8") as f:
             yaml.safe_dump(data, f, sort_keys=False)
     else:

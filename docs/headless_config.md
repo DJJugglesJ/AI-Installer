@@ -1,6 +1,6 @@
 # Headless installer configuration
 
-Headless runs can load a configuration file when you pass `--headless` (optionally with `--config <file>`). The installer supports simple `KEY=value` files **or** JSON objects and logs every decision—including defaults when entries are missing—to `~/.config/aihub/install.log`. All files are validated against the installer schema at `modules/config_service/installer_schema.yaml` to keep CI runs predictable.
+Headless runs can load a configuration file when you pass `--headless` (optionally with `--config <file>`). The installer supports simple `KEY=value` files **or** JSON/YAML objects (install [PyYAML](https://pyyaml.org/) with `pip install -r requirements.txt`) and logs every decision—including defaults when entries are missing—to `~/.config/aihub/install.log`. All files are validated against the installer schema at `modules/config_service/installer_schema.yaml` to keep CI runs predictable.
 
 ## Supported keys
 
