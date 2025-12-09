@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from . import compiler
-from .models import PromptAssembly, SceneDescription
+from .models import PromptAssembly, SceneDescription, validate_scene
 
 
 _DEFAULT_CACHE = Path.home() / ".cache/aihub/prompt_builder/prompt_bundle.json"
@@ -27,6 +27,7 @@ class PromptCompilerService:
     """
 
     def compile_scene(self, scene: SceneDescription) -> PromptAssembly:
+        validate_scene(scene)
         scene_json = asdict(scene)
         return compiler.build_prompt_from_scene(scene_json)
 

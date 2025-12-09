@@ -57,10 +57,14 @@ def main(argv: Iterable[str] | None = None) -> None:
     if preflight_error:
         raise SystemExit(preflight_error)
 
-    compiler_service = PromptCompilerService()
-    assembly = compiler_service.compile_scene(scene)
-    # Persist the compiled bundle for downstream launchers while echoing JSON for CLI users.
-    payload = hooks.publish_prompt(assembly)
+    try:
+        compiler_service = PromptCompilerService()
+        assembly = compiler_service.compile_scene(scene)
+        # Persist the compiled bundle for downstream launchers while echoing JSON for CLI users.
+        payload = hooks.publish_prompt(assembly)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     print(json.dumps(payload, indent=2))
 
 
