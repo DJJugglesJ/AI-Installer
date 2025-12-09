@@ -1,6 +1,6 @@
 # Model and LoRA Quickstart
 
-This guide highlights the fastest way to install the default Stable Diffusion 1.5 preset, know where assets are stored, and pair LoRAs with the supported frontends.
+This guide highlights the fastest way to install the default Stable Diffusion 1.5 preset, know where assets are stored, and pair LoRAs with the supported frontends. The refreshed installer now asks before installing packages, provides inline GPU guidance (NVIDIA/AMD/Intel/CPU), and retries or resumes downloads with mirror fallbacks so you can complete installs without babysitting every step.
 
 ## Install Stable Diffusion 1.5
 - From the repository root, run the installer and jump directly to model setup:
@@ -16,6 +16,7 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 - YAD installs can browse curated manifests; headless runs fall back to Hugging Face and download `sd-v1-5.ckpt` by default. Provide a token via the prompt or set `HUGGINGFACE_TOKEN` if the file is gated or rate limited.
 - The curated manifests now include SDXL base/refiner/turbo options, SD1.5 fallbacks, and community favorites so you can browse a wider set of checkpoints without hunting for links.
 - Use the launcher entry **🗂️ Browse Curated Models & LoRAs** (or `bash modules/shell/manifest_browser.sh` or `python -m modules.runtime.web_launcher`) to review manifest metadata and queue installs without leaving the menu.
+- If a download fails, the installer automatically retries with resumable transfers across `aria2c`/`wget` and rotates through manifest mirrors before prompting you to retry.
 
 ### SD1.5 preset cheat sheet
 - Base: `Stable Diffusion 1.5 (EMA-Only)` from the curated manifest (filename: `v1-5-pruned-emaonly.ckpt`).
@@ -31,6 +32,7 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 - Turbo: use `Stable Diffusion XL Turbo (FP16)` for low-latency tests with **4–6 steps** and CFG **2–3**.
 - Sampler defaults: `DPM++ SDE Karras` or `Euler a`; start at **30–35 steps** (base) and **20 steps** (refiner) for quality renders.
 - LoRA pairing: SDXL LoRAs in `~/AI/LoRAs/` are picked up by WebUI automatically, just like SD1.5, and can be mixed with the refiner pipeline.
+- GPU prompts during install will recommend NVIDIA drivers when applicable and surface ROCm/oneAPI/DirectML notes for AMD/Intel/WSL users so you can pick a safe default before downloading larger assets.
 
 ## LoRA installation
 - Run the LoRA helper directly or from the launcher menu to pull curated or CivitAI LoRAs into `~/AI/LoRAs/`:
@@ -40,6 +42,7 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
   bash modules/shell/install_loras.sh
   ```
 - The WebUI installer creates a symlink from `~/AI/LoRAs/` to `~/AI/WebUI/models/Lora/`, so any downloaded LoRA is immediately available to Stable Diffusion WebUI.
+- If a LoRA download is interrupted mid-file, rerun the task; it resumes automatically and validates checksums before prompting.
 
 ## Pairing flows
 ### Stable Diffusion WebUI
