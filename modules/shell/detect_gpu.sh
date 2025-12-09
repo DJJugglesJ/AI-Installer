@@ -54,6 +54,7 @@ NVIDIA_FOUND=$(lspci | grep -i 'NVIDIA')
 AMD_FOUND=$(lspci | grep -i 'AMD' | grep -i 'VGA')
 INTEL_FOUND=$(lspci | grep -i 'Intel' | grep -i 'VGA')
 GPU_DETAILS=$(lspci | grep -Ei 'VGA|3D|Display')
+GPU_STACK_DETAILS=$(lspci -nnk | grep -Ei 'VGA|3D|Display' -A3 || true)
 GPU_MODULES=$(lsmod | awk '{print $1}' | grep -E 'nvidia|amdgpu|i915' || true)
 
 log_msg "Running lspci scan for GPUs."
@@ -61,6 +62,7 @@ log_msg "NVIDIA entries found: $([[ -n "$NVIDIA_FOUND" ]] && echo yes || echo no
 log_msg "AMD entries found: $([[ -n "$AMD_FOUND" ]] && echo yes || echo no)"
 log_msg "Intel entries found: $([[ -n "$INTEL_FOUND" ]] && echo yes || echo no)"
 [[ -n "$GPU_MODULES" ]] && log_msg "Kernel modules currently loaded: $GPU_MODULES"
+[[ -n "$GPU_STACK_DETAILS" ]] && log_msg "Detailed PCI/kernel stack info:\n$GPU_STACK_DETAILS"
 
 if [[ -n "$NVIDIA_FOUND" ]]; then
   DETECTED_GPU="NVIDIA"
@@ -88,12 +90,14 @@ elif [[ "$DETECTED_GPU" == "AMD" ]]; then
   else
     log_msg "amdgpu kernel module not detected; defaulting to open-source stack."
   fi
+  log_msg "AMD acceleration guidance: Confirm your GPU is on the ROCm support matrix, ensure mesa-vulkan-drivers are present, and validate with rocminfo/clinfo before enabling ROCm/HIP flags."
 elif [[ "$DETECTED_GPU" == "INTEL" ]]; then
   if lsmod | grep -qi i915; then
     log_msg "i915 kernel module loaded for Intel graphics."
   else
     log_msg "i915 kernel module not detected; GPU acceleration may be limited."
   fi
+  log_msg "Intel acceleration guidance: Install intel-opencl-icd or oneAPI/Level Zero runtimes and enable OpenVINO/DirectML flags when available."
 else
   log_msg "No supported GPU modules detected; proceeding with CPU-only expectations."
 fi
@@ -161,6 +165,7 @@ case "$DETECTED_GPU" in
     ;;
   "AMD")
     DRIVER_HINT="For ROCm/AMDGPU acceleration, ensure mesa-vulkan-drivers are installed and see AMD acceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html"
+    AMD_GUIDANCE="AMD GPU detected. Validate against the ROCm support matrix, install mesa-vulkan-drivers, and use rocminfo/clinfo to confirm HIP/OpenCL support before toggling ROCm options."
     log_msg "$DRIVER_HINT"
     FP16_SUPPORTED="false"
     if [[ "$WSL_ENVIRONMENT" == "true" ]]; then
@@ -174,7 +179,7 @@ case "$DETECTED_GPU" in
       log_msg "Headless mode: skipping AMD driver prompt."
     else
       yad --question --title="AMD GPU Detected" \
-        --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?\n\nAcceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html\nVulkan troubleshooting: https://docs.mesa3d.org/install.html" \
+        --text="An AMD GPU was detected. Would you like to install the recommended open-source AMDGPU/Vulkan drivers (mesa-vulkan-drivers)?\n\nAcceleration notes: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html\nVulkan troubleshooting: https://docs.mesa3d.org/install.html\nAMD guidance: Validate support with rocminfo/clinfo before enabling ROCm/HIP." \
         --button="Yes!install:0" --button="No:1"
       if [[ $? -eq 0 ]]; then
         run_package_install "AMD Vulkan prerequisites" sudo apt update
@@ -187,6 +192,7 @@ case "$DETECTED_GPU" in
     ;;
   "INTEL")
     DRIVER_HINT="Intel GPU detected. For acceleration, review Intel oneAPI/OpenVINO guidance: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html"
+    INTEL_GUIDANCE="Intel GPU detected. Install intel-opencl-icd or Level Zero/oneAPI runtimes and enable OpenVINO or DirectML toggles when available to avoid CPU-only fallback."
     log_msg "$DRIVER_HINT"
     FP16_SUPPORTED="false"
     if [[ "$WSL_ENVIRONMENT" == "true" ]]; then
@@ -200,7 +206,7 @@ case "$DETECTED_GPU" in
       log_msg "Headless mode: defaulting Intel detection to CPU fallback."
     else
       yad --info --title="Intel GPU Detected" \
-        --text="An Intel GPU was detected. While usable for graphics, most AI tools will fall back to CPU.\n\nTo enable Intel GPU acceleration, you would need to manually configure OpenVINO or oneAPI support.\nIntel acceleration notes: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html\nGPU driver help: https://dgpu-docs.intel.com/driver/installation.html\n\nThe installer will now proceed with CPU fallback unless manually configured." --tooltip="OpenVINO/oneAPI required for acceleration"
+        --text="An Intel GPU was detected. While usable for graphics, most AI tools will fall back to CPU.\n\nTo enable Intel GPU acceleration, you would need to manually configure OpenVINO or oneAPI support.\nIntel acceleration notes: https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html\nGPU driver help: https://dgpu-docs.intel.com/driver/installation.html\nGuidance: Install intel-opencl-icd or Level Zero runtimes before enabling OpenVINO/DirectML flags.\n\nThe installer will now proceed with CPU fallback unless manually configured." --tooltip="OpenVINO/oneAPI required for acceleration"
     fi
     GPU_MODE="CPU"
     ;;
@@ -248,8 +254,16 @@ if [[ "$GPU_MODE" == "CPU" ]]; then
   sudo apt install -y libopenblas-dev
 fi
 
-  # Persist selection to config file
-  config_set "gpu.mode" "${GPU_MODE,,}"
-  config_set "gpu.detected_gpu" "$DETECTED_GPU"
-  log_msg "Final GPU mode recorded as $GPU_MODE"
-  log_msg "Detection summary: hardware=$DETECTED_GPU, gpu_mode=$GPU_MODE"
+# Persist selection to config file
+config_set "gpu.mode" "${GPU_MODE,,}"
+config_set "gpu.detected_gpu" "$DETECTED_GPU"
+log_msg "Final GPU mode recorded as $GPU_MODE"
+case "$DETECTED_GPU" in
+  "AMD")
+    [[ -n "$AMD_GUIDANCE" ]] && log_msg "Guidance (AMD): $AMD_GUIDANCE"
+    ;;
+  "INTEL")
+    [[ -n "$INTEL_GUIDANCE" ]] && log_msg "Guidance (Intel): $INTEL_GUIDANCE"
+    ;;
+esac
+log_msg "Detection summary: hardware=$DETECTED_GPU, gpu_mode=$GPU_MODE"
