@@ -7,19 +7,21 @@ AI Hub is a modular AI workstation that orchestrates local and remote AI systems
 2. **Runtime Layer** – Python modules that deliver higher-level logic, prompt tooling, model workflows, and data management.
 
 Directory layout after the recent reorganization:
-- `modules/runtime/` – the Python package root (`modules/runtime/__init__.py`) that exposes all runtime namespaces. Each
-  subpackage can be invoked via `python -m modules.runtime.<subpackage>` so installers and launchers stay decoupled from
-  file layout changes.
-- `modules/shell/` – shell helpers (plus Windows counterparts) for installers and launchers. Scripts here wrap
-  environment detection, dependency installs, and runtime entrypoints without embedding business logic.
+- `modules/runtime/` – **Python package root** (`modules/runtime/__init__.py`) that exposes all runtime namespaces. Every
+  runtime component is imported or executed via `modules.runtime` (for example, `python -m modules.runtime.prompt.builder`).
+- `modules/shell/` – **installer and launcher scripts** for POSIX and Windows. These helpers own environment detection,
+  dependency installs, and runtime entrypoints while delegating business logic to the Python package.
 
 Common handoffs after the reorg:
-- Installers and update flows call Python modules via `python -m modules.runtime.install.entrypoint --arg value`, avoiding
-  direct paths like `python modules/runtime/install/entrypoint.py`.
-- Launchers call shell helpers such as `modules/shell/run_webui.sh` or `modules/shell/run_comfyui.sh`, which then invoke
-  runtime services through module-qualified commands (for example, `python -m modules.runtime.webui.service`).
+- Install/update flows call module-qualified entrypoints, e.g., `python -m modules.runtime.install.entrypoint --manifest
+  manifests/base.json`, instead of file paths like `python modules/runtime/install/entrypoint.py`.
+- Launchers call shell helpers such as `modules/shell/run_webui.sh` or `modules/shell/run_comfyui.sh`. Each helper wraps
+  runtime services through module-qualified commands (for example, `python -m modules.runtime.webui.service --host 0.0.0.0`).
+- Cross-layer calls reference the new roots explicitly: shell scripts treat `modules/runtime` as the Python package root,
+  while Python code locates installer assets through `modules/shell` (for example, `Path(__file__).parents[2] / "modules"
+  / "shell" / "install.sh"`).
 
-The runtime and installer layers share only well-defined interfaces: shell scripts invoke Python entrypoints via module paths under `modules/runtime`, while Python code must reference shell assets using relative paths through `modules/shell` (e.g., `Path(__file__).parents[2] / "modules" / "shell" / "install.sh"`). Avoid hardcoded absolute paths so the project remains relocatable.
+The runtime and installer layers share only well-defined interfaces: shell scripts invoke Python entrypoints via module paths under `modules/runtime`, while Python code must reference shell assets using relative paths through `modules/shell`. Avoid hardcoded absolute paths so the project remains relocatable.
 
 AI Hub is designed to unify tools and services such as:
 - Stable Diffusion WebUI or ComfyUI for image and video generation
@@ -107,6 +109,11 @@ Responsibilities:
 - Runtime modules communicate with image generation backends via structured API calls
 - Installer scripts in `modules/shell` launch or update these services and then call into Python entrypoints under `modules.runtime` for orchestration and business logic
 - Data and configuration layers hold persistent metadata, datasets, models, LoRAs, and settings
+- Callers reference the reorganized roots explicitly:
+  - **Shell/installer → runtime:** `python -m modules.runtime.prompt.cli --scene scenes/example.json`
+  - **Runtime → shell helper:** `subprocess.run([repo_root / "modules" / "shell" / "run_webui.sh"], check=True)`
+  - **Launchers → services:** menu or web launchers point at shell wrappers (e.g., `modules/shell/run_comfyui.sh`) which then
+    execute the correct runtime module without depending on file layouts.
 - Modules remain self-contained yet interoperable through shared schemas
 
 ## 5. Backend Abstractions
