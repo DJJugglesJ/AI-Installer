@@ -15,7 +15,22 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 - The installer stores checkpoints at `~/ai-hub/models/` and links them into the Stable Diffusion WebUI folder at `~/AI/WebUI/models/Stable-diffusion/` when present.
 - YAD installs can browse curated manifests; headless runs fall back to Hugging Face and download `sd-v1-5.ckpt` by default. Provide a token via the prompt or set `HUGGINGFACE_TOKEN` if the file is gated or rate limited.
 - The curated manifests now include SDXL base/refiner/turbo options, SD1.5 fallbacks, and community favorites so you can browse a wider set of checkpoints without hunting for links.
-- Use the launcher entry **🗂️ Browse Curated Models & LoRAs** (or `bash modules/shell/manifest_browser.sh`) to review manifest metadata and queue installs without leaving the menu.
+- Use the launcher entry **🗂️ Browse Curated Models & LoRAs** (or `bash modules/shell/manifest_browser.sh` or `python -m modules.runtime.web_launcher`) to review manifest metadata and queue installs without leaving the menu.
+
+### SD1.5 preset cheat sheet
+- Base: `Stable Diffusion 1.5 (EMA-Only)` from the curated manifest (filename: `v1-5-pruned-emaonly.ckpt`).
+- Default sampler: `DPM++ 2M Karras` with **20–28 steps** and **CFG 7–8** for balanced sharpness.
+- Resolution: start at **768x768** for portraits; bump to **896x1152** for full-body compositions if VRAM allows.
+- Negative prompt starters: `nsfw, bad hands, extra limbs, worst quality, lowres` and add `EasyNegative` if you have the embedding.
+- Quick styles:
+  - **Photographic**: use a photographic LoRA (e.g., Analog Film Photo Enhancer) at weight **0.6–0.8** and add `cinematic lighting, 35mm photograph`.
+  - **Illustration**: pick an anime/line-art LoRA at **0.7** and add `sharp ink, cel shading, clean lineart`.
+
+### SDXL counterpart presets
+- Base/refiner pair: install `Stable Diffusion XL Base` and `Stable Diffusion XL Refiner` from the manifest; set refiner switch around **0.8** in two-stage pipelines.
+- Turbo: use `Stable Diffusion XL Turbo (FP16)` for low-latency tests with **4–6 steps** and CFG **2–3**.
+- Sampler defaults: `DPM++ SDE Karras` or `Euler a`; start at **30–35 steps** (base) and **20 steps** (refiner) for quality renders.
+- LoRA pairing: SDXL LoRAs in `~/AI/LoRAs/` are picked up by WebUI automatically, just like SD1.5, and can be mixed with the refiner pipeline.
 
 ## LoRA installation
 - Run the LoRA helper directly or from the launcher menu to pull curated or CivitAI LoRAs into `~/AI/LoRAs/`:
@@ -31,6 +46,12 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 1. Ensure models exist in `~/ai-hub/models/` (see above) and LoRAs in `~/AI/LoRAs/`.
 2. Launch WebUI (`aihub_menu.sh` ➜ **Run Stable Diffusion WebUI** or `bash modules/shell/run_webui.sh`).
 3. Pick the SD1.5 checkpoint (e.g., `sd-v1-5.ckpt`) from the model dropdown and select a LoRA from the `Lora` selector. The symlinked LoRA folder makes downloads immediately visible.
+4. Apply the preset cheatsheet values above: sampler + steps/CFG, resolution, and LoRA weight. Save the combination as a WebUI preset for quick reuse.
+
+#### Fast pairing examples
+- **SD1.5 + Analog Film look:** select `v1-5-pruned-emaonly.ckpt`, add `analog-film-photo-enhancer.safetensors` at **0.7**, set **DPM++ 2M Karras**, **24 steps**, **CFG 7**, and prompt `cinematic portrait, soft rim light, kodak gold color grading`.
+- **SD1.5 + Detail booster:** pick `v1-5-pruned-emaonly.ckpt`, add `add_detail.safetensors` at **0.6**, set **DPM++ 2M Karras**, **22 steps**, **CFG 8**, and prompt `highly detailed illustration, crisp lines, elaborate background, volumetric lighting`.
+- **SDXL + Expressive faces:** choose `sd_xl_base_1.0.safetensors`, enable the refiner at 0.8, add `expressive-faces-sdxl.safetensors` at **0.65**, use **Euler a**, **32 base / 20 refiner steps**, **CFG 6**, and prompt `studio portrait, dramatic expression, key light and fill light`.
 
 ### KoboldAI (LLM backends)
 1. Place models in `~/AI/KoboldAI/models/` or install them via the KoboldAI UI.
