@@ -22,6 +22,34 @@ const selectedLoras = new Set();
 const activeTags = new Set();
 let authToken = localStorage.getItem("aihubAuthToken") || "";
 
+function setPanelLoading(container, message) {
+  container.innerHTML = `<div class="placeholder"><span class="spinner" aria-hidden="true"></span> ${message}</div>`;
+}
+
+function setPanelError(container, message, retryHandler) {
+  container.innerHTML = "";
+  const banner = document.createElement("div");
+  banner.className = "banner error";
+
+  const title = document.createElement("strong");
+  title.textContent = "API error";
+  banner.appendChild(title);
+
+  const text = document.createElement("span");
+  text.textContent = message;
+  banner.appendChild(text);
+
+  if (retryHandler) {
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = "Retry";
+    retry.addEventListener("click", retryHandler);
+    banner.appendChild(retry);
+  }
+
+  container.appendChild(banner);
+}
+
 function setAuthToken(value) {
   authToken = value.trim();
   localStorage.setItem("aihubAuthToken", authToken);
@@ -68,6 +96,11 @@ async function fetchJson(path, options = {}) {
 
 function renderActions(actions) {
   actionsList.innerHTML = "";
+  if (!actions.length) {
+    actionsList.innerHTML = '<p class="muted">No actions available.</p>';
+    return;
+  }
+
   actions.forEach((action) => {
     const button = document.createElement("button");
     button.className = "action-button";
@@ -93,6 +126,11 @@ async function triggerAction(actionId) {
 
 function renderCharacters(characters) {
   characterList.innerHTML = "";
+  if (!characters.length) {
+    characterList.innerHTML = '<li class="muted">No characters found.</li>';
+    return;
+  }
+
   characters.forEach((card) => {
     const li = document.createElement("li");
     const nsfw = card.nsfw_allowed ? "NSFW allowed" : "SFW";
@@ -149,22 +187,48 @@ async function compilePrompt() {
 
 async function bootstrap() {
   initAuthForm();
+  statusPill.textContent = "Loading…";
+  setPanelLoading(actionsList, "Loading actions…");
+  setPanelLoading(manifestTable, "Loading manifests…");
+  setPanelLoading(installProgress, "Loading installers…");
+  setPanelLoading(characterList, "Loading characters…");
+
+  let actionsCount = 0;
+  let hasError = false;
+
   try {
     const status = await fetchJson("/api/status");
-    statusPill.textContent = `Ready • ${status.actions.length} actions`;
+    actionsCount = status.actions.length;
     renderActions(status.actions);
+  } catch (err) {
+    hasError = true;
+    setPanelError(actionsList, `Failed to load actions: ${err.message}`, bootstrap);
+    actionResult.textContent = "";
+  }
 
+  try {
     const manifests = await fetchJson("/api/manifests");
     hydrateManifests(manifests);
+  } catch (err) {
+    hasError = true;
+    setPanelError(manifestTable, `Failed to load manifests: ${err.message}`, bootstrap);
+  }
 
+  try {
     const characters = await fetchJson("/api/characters");
     renderCharacters(characters.items || []);
-
-    await refreshInstallations();
   } catch (err) {
-    statusPill.textContent = `API error`; // surface details below
-    actionResult.textContent = `Failed to load status: ${err.message}`;
+    hasError = true;
+    setPanelError(characterList, `Failed to load characters: ${err.message}`, bootstrap);
   }
+
+  try {
+    await refreshInstallations(true);
+  } catch (err) {
+    hasError = true;
+  }
+
+  statusPill.textContent = hasError ? "API error" : `Ready • ${actionsCount} actions`;
 }
 
 function hydrateManifests(manifests) {
@@ -272,7 +336,7 @@ async function installSelected() {
       body: JSON.stringify(payload),
     });
     installResult.textContent = `Installers started (${response.jobs.map((j) => j.id).join(", ")}).`;
-    refreshInstallations();
+    await refreshInstallations(true);
   } catch (err) {
     installResult.textContent = `Failed to start installers: ${err.message}`;
   }
@@ -367,7 +431,11 @@ function renderJobs(jobs) {
     .join("");
 }
 
-async function refreshInstallations() {
+async function refreshInstallations(showLoading = false) {
+  if (showLoading) {
+    setPanelLoading(installProgress, "Loading installers…");
+  }
+
   try {
     const installs = await fetchJson("/api/installations");
     installProgress.innerHTML = "";
@@ -395,7 +463,9 @@ async function refreshInstallations() {
       });
     });
   } catch (err) {
-    installProgress.innerHTML = `<p class="muted">Failed to load installers: ${err.message}</p>`;
+    statusPill.textContent = "API error";
+    setPanelError(installProgress, `Failed to load installers: ${err.message}`, () => refreshInstallations(true));
+    throw err;
   }
 }
 
@@ -408,4 +478,6 @@ manifestSearch.addEventListener("input", renderManifestTable);
 filterModels.addEventListener("change", renderManifestTable);
 filterLoras.addEventListener("change", renderManifestTable);
 installButton.addEventListener("click", installSelected);
-setInterval(refreshInstallations, 5000);
+setInterval(() => {
+  refreshInstallations().catch(() => {});
+}, 5000);

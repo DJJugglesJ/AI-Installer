@@ -29,7 +29,9 @@
           <h2>Launcher Actions</h2>
           <p>Runs the same shell helpers as the legacy menus.</p>
         </div>
-        <div id="actions-list" class="actions-grid"></div>
+        <div id="actions-list" class="actions-grid">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading actions…</div>
+        </div>
         <div id="action-result" class="result"></div>
       </section>
 
@@ -78,7 +80,9 @@
           </div>
           <div class="tags" id="tag-filters"></div>
         </div>
-        <div id="manifest-table" class="manifest-table"></div>
+        <div id="manifest-table" class="manifest-table">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading manifests…</div>
+        </div>
         <div class="actions-row">
           <button id="install-selected" type="button">Install Selected</button>
           <div id="install-result" class="result"></div>
@@ -90,7 +94,9 @@
           <h2>Install Progress & History</h2>
           <p>Track running installers and quickly reuse past selections.</p>
         </div>
-        <div id="install-progress" class="manifest-grid"></div>
+        <div id="install-progress" class="manifest-grid">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading installers…</div>
+        </div>
       </section>
 
       <section id="characters" class="card">
@@ -98,7 +104,9 @@
           <h2>Character Studio</h2>
           <p>Registry entries shared with Prompt Builder.</p>
         </div>
-        <ul id="character-list" class="manifest-list"></ul>
+        <ul id="character-list" class="manifest-list">
+          <li class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading characters…</li>
+        </ul>
       </section>
     </main>
 
