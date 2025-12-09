@@ -86,7 +86,7 @@ Running `aihub_menu.sh` (or the desktop shortcut) opens a YAD-based menu with th
 
 ### Shortcut locations
 - **Linux:** The primary `.desktop` entry lives at `${XDG_DATA_HOME:-$HOME/.local/share}/applications/ai-hub-launcher.desktop` with a convenience copy on the Desktop when available.
-- **Windows / WSL:** Desktop helpers (`AI-Hub-Launcher.bat`/`AI-Hub-Launcher.ps1`) and `.lnk` shortcuts on the Desktop and Start Menu (`%PROGRAMS%`). All shortcuts call the same launcher script via `wsl.exe`.
+- **Windows / WSL:** Desktop helpers (`AI-Hub-Launcher.bat`/`AI-Hub-Launcher.ps1`) and `.lnk` shortcuts land on the Desktop and Start Menu (`%PROGRAMS%`). Native runs point `.lnk` files directly at PowerShell while WSL-aware wrappers stay available for WSL-first installs.
 - **macOS:** `~/Desktop/AI-Hub-Launcher.command` plus a user-level app bundle at `~/Applications/AI Hub Launcher.app` that wraps the selected launcher target.
 See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and environment detection details. Shortcut creation attempts and the detected desktop environment are logged to `~/.config/aihub/install.log` for troubleshooting.
 
@@ -102,8 +102,8 @@ See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and env
   - See [`docs/performance_flags.md`](docs/performance_flags.md) for defaults and trade-offs by GPU family.
 
 ## Windows / WSL2 notes
-- AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell. Native Windows launch flows are being developed in parallel with WSL parity checks so that the same manifests, runtime bundles, and launcher features behave consistently across platforms.
-- The installer expects to manage Linux packages and create launchers inside the WSL distribution; Windows-native paths or shells are not supported. Windows Desktop shortcuts are generated via WSL tooling when available.
+- AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell when you want the bash-first experience. A native PowerShell installer (`install.ps1`) now mirrors the core flags, provisions workspaces, validates tooling with `winget`/`choco`, writes logs to `%LOCALAPPDATA%\AIHub\logs`, and creates Desktop/Start Menu shortcuts without requiring WSL.
+- WSL-aware launchers remain available for ROCm/WSL-first workflows, but `.lnk` files now target PowerShell directly when running on Windows so shortcut creation no longer depends on `wsl.exe`.
 - **Windows entry points:** `launcher/aihub_menu.bat` and `launcher/aihub_menu.ps1` call the Python helper `launcher/aihub_menu.py`, which mirrors `aihub_menu.sh` actions, performs lightweight GPU detection (including DirectML hints), and logs to `%LOCALAPPDATA%\AIHub\logs\install.log` on Windows (or `~/.config/aihub/install.log` under WSL). Use these when creating `.lnk` shortcuts on Windows.
 - **GPU probes:** `launcher/detect_gpu.ps1` and `launcher/detect_gpu.bat` emit the same detection summary as the Linux launcher while guiding Windows users toward WSL2 when shell-based actions are required.
 - **Running inside WSL:** Launch `aihub_menu.sh` directly or run `python launcher/aihub_menu.py --list-actions` for a headless-friendly menu. Actions that depend on the shell helpers still require a WSL bash environment; the Windows `.bat`/`.ps1` wrappers will emit a log message if bash is unavailable.
