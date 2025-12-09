@@ -114,7 +114,8 @@ ensure_downloader() {
   command -v wget >/dev/null 2>&1 && has_wget=1
 
   if [[ $has_aria -eq 0 && $has_wget -eq 0 ]]; then
-    notify error "Downloader missing" "Please install aria2 and/or wget to continue.\n\nExamples:\n  sudo apt-get install aria2\n  sudo apt-get install wget"
+    notify error "Downloader missing" "aria2c and wget are required for LoRA downloads.\n\nInstall suggestions:\n  sudo apt-get install aria2 wget\n  brew install aria2 wget\n  choco install aria2 wget"
+    log_msg "Preflight failed: aria2c and wget missing; aborting download flow"
     exit 1
   fi
 
@@ -130,13 +131,14 @@ ensure_downloader() {
 }
 
 run_downloader() {
-  local tool="$1" url="$2" dest="$3"
+  local tool="$1" url="$2" dest="$3" label="$4"
+  log_msg "Downloader start [$label]: $tool -> $url"
   case "$tool" in
     aria2c)
-      aria2c --continue=true --max-tries=1 --retry-wait=3 --dir="$(dirname "$dest")" --out="$(basename "$dest")" "$url"
+      aria2c --continue=true --max-tries=3 --retry-wait=5 --auto-file-renaming=false --allow-overwrite=true --max-resume-failure-tries=5 --dir="$(dirname "$dest")" --out="$(basename "$dest")" "$url"
       ;;
     wget)
-      wget --continue --show-progress --tries=1 --waitretry=3 -O "$dest" "$url"
+      wget --continue --show-progress --tries=3 --retry-connrefused --waitretry=5 --timeout=30 -O "$dest" "$url"
       ;;
     *)
       return 1
@@ -169,6 +171,7 @@ download_with_retries() {
   local backoff_start=5
   local urls=("$url")
   local current_url=""
+  local failures=()
 
   if [[ -n "$mirror_list" ]]; then
     while IFS= read -r mirror; do
@@ -179,26 +182,36 @@ download_with_retries() {
   command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
   command -v wget >/dev/null 2>&1 && downloaders+=(wget)
 
-  for current_url in "${urls[@]}"; do
-    log_msg "Starting download: $dest from $current_url using ${downloaders[*]}"
+  for idx in "${!urls[@]}"; do
+    current_url="${urls[$idx]}"
+    local mirror_label="mirror $((idx + 1))/${#urls[@]}"
+    log_msg "Starting download: $dest from $current_url using ${downloaders[*]} (${mirror_label})"
+
     for ((i = 0; i < ${#downloaders[@]}; i++)); do
       local downloader="${downloaders[$i]}"
       local attempt=1
       local backoff=$backoff_start
 
       while [ $attempt -le $max_attempts ]; do
+        local attempt_label="$mirror_label attempt $attempt via $downloader"
         if [ $attempt -gt 1 ]; then
           notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
-          log_msg "Retry attempt $attempt for $dest with $downloader (url: $current_url)"
+          log_msg "Retry $attempt_label for $dest (url: $current_url)"
           sleep $backoff
           backoff=$((backoff * 2))
+        else
+          log_msg "Initiating $attempt_label for $dest"
         fi
 
-        if run_downloader "$downloader" "$current_url" "$dest"; then
+        if run_downloader "$downloader" "$current_url" "$dest" "$attempt_label"; then
           if verify_checksum "$dest" "$expected_checksum"; then
-            log_msg "Download succeeded with $downloader from $current_url"
+            log_msg "Download succeeded with $downloader from $current_url (${mirror_label})"
             return 0
+          else
+            failures+=("Checksum failed via $downloader at $current_url")
           fi
+        else
+          failures+=("Downloader error via $downloader at $current_url (attempt $attempt)")
         fi
 
         attempt=$((attempt + 1))
@@ -206,16 +219,18 @@ download_with_retries() {
 
       if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
         notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
-        log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]}"
+        log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]} for $current_url"
       fi
     done
 
-    notify warning "Trying mirror" "Switching to next mirror for $(basename "$dest")"
-    log_msg "Primary URL failed for $dest; moving to mirror"
+    if (( idx + 1 < ${#urls[@]} )); then
+      notify warning "Trying mirror" "Switching to next mirror for $(basename "$dest")"
+      log_msg "Primary URL failed for $dest; moving to mirror $((idx + 2))"
+    fi
   done
 
   notify error "Download failed" "Unable to download $(basename "$dest") after trying mirrors and downloaders."
-  log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest"
+  log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest (failures: ${failures[*]})"
   return 1
 }
 
