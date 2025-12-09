@@ -454,31 +454,47 @@ run_package_install() {
   local description="$1"
   shift
   local cmd=("$@")
-  local attempts=0 max_attempts=2
+  local attempts=0 max_attempts=2 last_exit=0
 
   while (( attempts < max_attempts )); do
     attempts=$((attempts + 1))
     log_msg "Executing package command ($attempts/$max_attempts): ${cmd[*]} for ${description:-packages}"
     if "${cmd[@]}"; then
-      log_msg "Package command succeeded for ${description:-packages}"
+      log_msg "Package command succeeded for ${description:-packages} on attempt ${attempts}/${max_attempts}"
       return 0
     fi
 
-    local exit_code=$?
-    log_error "Package command failed or was canceled (exit $exit_code) for ${description:-packages}"
+    last_exit=$?
+    local reason="failed"
+    [[ $last_exit -eq 130 || $last_exit -eq 143 ]] && reason="canceled"
+    log_error "Package command ${reason} (exit $last_exit) for ${description:-packages} on attempt ${attempts}/${max_attempts}. See $LOG_FILE for details."
+
     if (( attempts >= max_attempts )); then
       break
     fi
 
+    local retry_selected=false
     if command -v yad >/dev/null 2>&1; then
-      yad --question --title="Retry ${description:-install}" --text="The last package command failed or was canceled.\nWould you like to retry?" --tooltip="If network was interrupted, connect and retry" --button="Yes!retry:0" --button="No:1"
-      [[ $? -eq 0 ]] || break
+      yad --question \
+        --title="Retry ${description:-install}?" \
+        --text="The last package command ${reason} (exit $last_exit).\nCommand: ${cmd[*]}\n\nRetry now? A detailed log is kept at $LOG_FILE." \
+        --button="Retry:0" --button="Skip:1"
+      [[ $? -eq 0 ]] && retry_selected=true
     else
-      read -rp "Retry ${description:-install}? [y/N]: " answer || break
-      [[ "$answer" =~ ^[Yy]$ ]] || break
+      read -rp "${description:-Install} ${reason}. Retry attempt $((attempts + 1))/${max_attempts}? [y/N]: " answer || true
+      [[ "$answer" =~ ^[Yy]$ ]] && retry_selected=true
     fi
+
+    if ! $retry_selected; then
+      log_msg "User skipped retry for ${description:-packages} after attempt ${attempts}/${max_attempts}"
+      break
+    fi
+
+    log_msg "Retrying ${description:-packages}; next attempt $((attempts + 1))/${max_attempts}"
+    sleep 1
   done
 
+  log_error "Package command exhausted retries for ${description:-packages} after ${attempts} attempt(s); last exit $last_exit"
   return 1
 }
 

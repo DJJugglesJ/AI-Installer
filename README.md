@@ -112,6 +112,7 @@ See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and env
 - **Slow downloads or failures:** Provide a Hugging Face token when prompted and ensure `aria2c` or `wget` can reach the internet.
 - **No GPU detected:** Continue with CPU mode; expect slower performance.
 - **Permission errors:** Make sure your user can run `sudo` commands.
+- **Package retries and logs:** If a package command fails or you cancel it, the installer will ask whether to retry and record each attempt in `~/.config/aihub/install.log`. Check that log before re-running in headless mode so you know which step failed.
 
 ## Contributing
 Contributions are welcome! Fork the repository, make changes on a branch, and open a pull request. Please keep scripts modular and avoid wrapping imports in try/catch blocks (per project style).
