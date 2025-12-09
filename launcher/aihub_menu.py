@@ -127,8 +127,11 @@ def _check_output(cmd: List[str]) -> str:
 def detect_gpu() -> Dict[str, object]:
     label = "Unknown"
     details: List[str] = []
+    hardware: List[str] = []
+    modules: List[str] = []
     vram_gb: Optional[int] = None
     driver_hint: Optional[str] = None
+    guidance: Optional[str] = None
 
     try:
         output = _check_output(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
@@ -191,13 +194,53 @@ def detect_gpu() -> Dict[str, object]:
     elif label != "Unknown" and not driver_hint:
         driver_hint = "Detected via platform defaults"
 
+    if platform.system().lower() == "linux":
+        try:
+            hardware_output = _check_output(["bash", "-lc", "lspci | grep -Ei 'VGA|3D|Display'"])
+            hardware = [line.strip() for line in hardware_output.splitlines() if line.strip()]
+        except Exception:
+            hardware = []
+
+        try:
+            stack_output = _check_output(
+                ["bash", "-lc", "lspci -nnk | grep -Ei 'VGA|3D|Display' -A3"]
+            )
+            extra_lines = [line.strip() for line in stack_output.splitlines() if line.strip()]
+            hardware.extend([line for line in extra_lines if line not in hardware])
+        except Exception:
+            pass
+
+        try:
+            module_output = _check_output(["bash", "-lc", "lsmod | awk '{print $1}' | grep -E 'nvidia|amdgpu|i915'"])
+            modules = [line.strip() for line in module_output.splitlines() if line.strip()]
+        except Exception:
+            modules = []
+
+    if label == "AMD":
+        guidance = (
+            "AMD GPU detected. Validate against the ROCm support matrix, install mesa-vulkan-drivers, "
+            "and confirm HIP/OpenCL availability with rocminfo/clinfo before enabling ROCm toggles."
+        )
+        if wsl_signature:
+            guidance += " DirectML can be used from Windows/WSL when ROCm is unavailable."
+    elif label == "INTEL":
+        guidance = (
+            "Intel GPU detected. Install intel-opencl-icd or Level Zero/oneAPI runtimes and enable "
+            "OpenVINO or DirectML flags when available to avoid CPU-only fallback."
+        )
+        if wsl_signature:
+            guidance += " WSL2 users should keep Windows GPU drivers current for passthrough."
+
     return {
         "label": label,
         "details": details,
+        "hardware": hardware,
+        "modules": modules,
         "vram_gb": vram_gb,
         "directml": directml_supported,
         "wsl": wsl_signature,
         "driver_hint": driver_hint,
+        "guidance": guidance,
     }
 
 
@@ -292,13 +335,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     log_line(
         f"Environment summary — GPU: {gpu_info['label']}, DirectML: {gpu_info['directml']}, "
         f"WSL: {gpu_info['wsl']}, VRAM(GB): {gpu_info['vram_gb'] or 'unknown'}, "
-        f"Hint: {gpu_info.get('driver_hint') or 'n/a'}"
+        f"Hint: {gpu_info.get('driver_hint') or 'n/a'}, Guidance: {gpu_info.get('guidance') or 'n/a'}"
     )
 
     if args.detect_gpu:
         print("GPU detection summary:")
         for key, value in gpu_info.items():
             print(f"- {key}: {value}")
+        if gpu_info.get("hardware"):
+            print("Hardware enumeration (lspci / vendor APIs):")
+            for line in gpu_info["hardware"]:
+                print(f"  - {line}")
+        if gpu_info.get("modules"):
+            print("Kernel modules detected:")
+            for mod in gpu_info["modules"]:
+                print(f"  - {mod}")
+        if gpu_info.get("guidance"):
+            print(f"Guidance: {gpu_info['guidance']}")
         if not gpu_info.get("wsl") and platform.system().lower().startswith("windows"):
             print("Tip: To reuse Linux launchers, run inside WSL2 (Ubuntu recommended) and re-run this probe.")
         return 0
