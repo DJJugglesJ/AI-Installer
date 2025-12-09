@@ -3,22 +3,21 @@
 This roadmap outlines current capabilities and planned milestones for AI Installer across short-, mid-, and long-term horizons. It also highlights reliability/UX efforts, GPU/performance goals, automation/configuration targets, and model/content management expansions.
 
 ## Current capabilities
-- Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation, split between `modules/runtime` (shared helpers, including `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) and `modules/shell` (menu/launcher glue and OS-specific wrappers).
+- Modular installer for Ubuntu 22.04 with prerequisite checks and optional package installation, split between `modules/runtime` (shared helpers, schemas, and JS/JSON assets under directories like `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) and `modules/shell` (menu/launcher glue and OS-specific wrappers).
 - GPU detection with NVIDIA driver prompt and CPU fallback for AMD/Intel.
 - Desktop launcher and YAD-based menu for launching Stable Diffusion WebUI, KoboldAI, SillyTavern, and update routines.
-- Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded curated manifests covering more Stable Diffusion checkpoints and LoRA presets; manifests now track per-asset metadata (hashes, size, tags, suggested frontends) for faster validation, filtering, and parity between shell and web flows.
+- Model and LoRA download utilities with optional Hugging Face token support, pairing workflows, and expanded curated manifests covering more Stable Diffusion checkpoints and LoRA presets; manifests now track per-asset metadata (hashes, size, tags, mirrors, suggested frontends) for faster validation, filtering, and parity between shell and web flows.
+- Early web launcher endpoints (local HTTP server) that reuse the runtime hooks to expose install/launch flows and manifest browsing without requiring desktop dialogs.
 
 ## Short-term milestones (1–2 releases)
 - Harden install flow: clearer prompts, better error messaging, and safer retries for canceled package installs.
 - Improve GPU detection logs and expose guidance for AMD/Intel acceleration options.
-- Streamline menu and launcher UX to consume the new `modules/runtime`/`modules/shell` layout and clarify wording on update options, default paths, and pairing flows.
+- Streamline menu and launcher UX to consume the `modules/runtime`/`modules/shell` layout and clarify wording on update options, default paths, and pairing flows.
 - Add sanity checks for required tools (aria2c/wget) and fallback mirrors for model downloads; keep manifests current with new model/LoRA entries and mirrors, including a weekly refresh job and checksum diffs to catch stale links.
 - Publish a quickstart for common model presets (e.g., SD1.5) and LoRA pairing examples.
-- Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`,
-  including WSL-aware fallbacks for GPU checks and shared logging semantics.
-- Deliver a cross-platform web UI MVP (Linux, WSL, Windows) that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes without desktop dependencies.
-- Add a web-based launcher and manifest browser that wraps existing YAD/menu flows, reuses runtime hooks, and exposes the same install/update/launch actions plus manifest browsing/maintenance (refresh, checksum validation, tag edits) from a local HTTP server for Linux, WSL, and non-Linux desktops.
-- Ship Prompt Builder and Character Studio views inside the web UI, sharing schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio` and calling the same APIs currently invoked by YAD/menu flows.
+- Add Windows launcher and hardware probing counterparts (`.bat`/`.ps1`) that mirror the shell helpers under `modules/shell/`, including WSL-aware fallbacks for GPU checks and shared logging semantics, while preparing native Windows parity for menu/launcher flows.
+- Deliver a cross-platform web UI (Linux, WSL, Windows) that mirrors core launcher actions (install/update/launch) with server-hosted static assets so it can run on headless nodes without desktop dependencies.
+- Expand the web launcher/manifest browser to reuse runtime hooks and expose manifest maintenance (refresh, checksum validation, tag edits) plus Prompt Builder and Character Studio panels that share schemas with `modules/runtime/prompt_builder` and `modules/runtime/character_studio`.
 - Add a curated model/LoRA browser (CLI and web UI surfaces) that refreshes manifests on a set cadence, validates checksums and metadata, and wires one-click installs through the existing installer/runtime hooks; expose manifest status (last refreshed, mirror health, checksum warnings) inside launcher and web UI flows.
 
 ## Mid-term milestones (quarterly)
@@ -27,6 +26,7 @@ This roadmap outlines current capabilities and planned milestones for AI Install
 - Add GPU performance toggles (e.g., half-precision, xformers/DirectML flags when available) with safety checks.
 - Broaden model management: curated model lists, optional gated content prompts, and per-frontend defaults; publish quarterly manifest updates with changelog notes and deprecation warnings for removed assets, keeping parity between shell and web UI surfaces.
 - Improve logging and telemetry hooks (opt-in) to surface install/launch errors.
+- Package a native Windows launcher path that reuses the same manifests and runtime bundles as WSL/Linux flows while keeping feature parity across shells and the web UI.
 - Replace legacy YAD/menu-only experiences with the web UI by default, keeping CLI parity; add remote access mode so the UI can be proxied or tunneled from another machine.
 - Add offline-capable bundles for the web UI (pre-built JS/CSS + cached API schemas) to keep feature parity on air-gapped systems.
 

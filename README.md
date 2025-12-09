@@ -1,6 +1,13 @@
 # AI Installer
 
-AI-Hub provides a unified installer and launcher for creative and conversational AI tools on Linux (including Windows via WSL2). The goal is to give newcomers a dependable, repeatable setup that handles GPUs, dependencies, and launch workflows so you can focus on using the apps rather than wiring them together. The installer and launcher are powered by easy-to-read shell helpers in [`modules/shell`](modules/shell) and use ready-to-run runtime packages stored in [`modules/runtime`](modules/runtime), so you can peek at what's included without digging into code. See the [roadmap](docs/ROADMAP.md) for current capabilities and upcoming milestones.
+AI-Hub provides a unified installer and launcher for creative and conversational AI tools on Linux (including Windows via WSL2). The goal is to give newcomers a dependable, repeatable setup that handles GPUs, dependencies, and launch workflows so you can focus on using the apps rather than wiring them together.
+
+### How it is structured today
+- **Shell-first helpers:** Easy-to-read bash utilities live in [`modules/shell`](modules/shell) and power both the YAD menu and the web launcher endpoints.
+- **Runtime bundles:** Prepared runtimes, schemas, and JS/JSON helpers live in [`modules/runtime`](modules/runtime) (e.g., `modules/runtime/prompt_builder` and `modules/runtime/character_studio`) so you can review what gets shipped without digging through logs.
+- **Expanded manifests:** Model and LoRA manifests track hashes, sizes, tags, mirrors, and frontend hints to keep downloads reliable and parity between shell and web launchers.
+
+See the [roadmap](docs/ROADMAP.md) for present capabilities, platform targets, and upcoming milestones.
 
 ## Why it matters
 - **Reliable setup:** Cross-distro bootstrapper installs prerequisites, validates GPU drivers, and records configuration so you avoid guesswork.
@@ -82,7 +89,7 @@ See [`docs/shortcuts.md`](docs/shortcuts.md) for cleanup/uninstall steps and env
   - See [`docs/performance_flags.md`](docs/performance_flags.md) for defaults and trade-offs by GPU family.
 
 ## Windows / WSL2 notes
-- AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell.
+- AI-Hub is designed to run inside a Linux environment. On Windows, enable WSL2, install Ubuntu 22.04, and run the installer from that WSL shell. Native Windows launch flows are being developed in parallel with WSL parity checks so that the same manifests, runtime bundles, and launcher features behave consistently across platforms.
 - The installer expects to manage Linux packages and create launchers inside the WSL distribution; Windows-native paths or shells are not supported. Windows Desktop shortcuts are generated via WSL tooling when available.
 - **Windows entry points:** `launcher/aihub_menu.bat` and `launcher/aihub_menu.ps1` call the Python helper `launcher/aihub_menu.py`, which mirrors `aihub_menu.sh` actions, performs lightweight GPU detection (including DirectML hints), and logs to `%LOCALAPPDATA%\AIHub\logs\install.log` on Windows (or `~/.config/aihub/install.log` under WSL). Use these when creating `.lnk` shortcuts on Windows.
 - **GPU probes:** `launcher/detect_gpu.ps1` and `launcher/detect_gpu.bat` emit the same detection summary as the Linux launcher while guiding Windows users toward WSL2 when shell-based actions are required.
