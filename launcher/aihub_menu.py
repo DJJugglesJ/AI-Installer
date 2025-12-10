@@ -28,8 +28,10 @@ from typing import Dict, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SHELL_DIR = PROJECT_ROOT / "modules" / "shell"
+WINDOWS_SHELL_DIR = PROJECT_ROOT / "launcher" / "windows"
 LAUNCHER_DIR = PROJECT_ROOT / "launcher"
 MANIFEST_DIR = PROJECT_ROOT / "manifests"
+IS_WINDOWS = platform.system().lower().startswith("windows")
 
 
 def _default_log_path() -> Path:
@@ -66,53 +68,81 @@ class ActionSpec:
         self.python_module = python_module
 
 
+def _shell_command(script_base: str) -> List[str]:
+    script_name = script_base if script_base.endswith(".sh") else f"{script_base}.sh"
+    if IS_WINDOWS:
+        return [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            str(WINDOWS_SHELL_DIR / f"{Path(script_name).stem}.ps1"),
+        ]
+    return ["bash", str(SHELL_DIR / script_name)]
+
+
 ACTION_MAP: Dict[str, ActionSpec] = {
     "run_webui": ActionSpec(
-        "run_webui", "Launch Stable Diffusion WebUI from the default workspace", ["bash", str(SHELL_DIR / "run_webui.sh")]
+        "run_webui",
+        "Launch Stable Diffusion WebUI from the default workspace",
+        _shell_command("run_webui"),
     ),
     "performance_flags": ActionSpec(
-        "performance_flags", "Review FP16/xFormers/DirectML toggles", ["bash", str(SHELL_DIR / "performance_flags.sh")]
+        "performance_flags",
+        "Review FP16/xFormers/DirectML toggles",
+        _shell_command("performance_flags"),
     ),
-    "run_kobold": ActionSpec("run_kobold", "Launch KoboldAI", ["bash", str(SHELL_DIR / "run_kobold.sh")]),
-    "run_sillytavern": ActionSpec("run_sillytavern", "Launch SillyTavern", ["bash", str(SHELL_DIR / "run_sillytavern.sh")]),
+    "run_kobold": ActionSpec("run_kobold", "Launch KoboldAI", _shell_command("run_kobold")),
+    "run_sillytavern": ActionSpec(
+        "run_sillytavern", "Launch SillyTavern", _shell_command("run_sillytavern")
+    ),
     "install_loras": ActionSpec(
-        "install_loras", "Install or refresh LoRAs into ~/AI/LoRAs", ["bash", str(SHELL_DIR / "install_loras.sh")]
+        "install_loras",
+        "Install or refresh LoRAs into ~/AI/LoRAs",
+        _shell_command("install_loras"),
     ),
     "install_models": ActionSpec(
-        "install_models", "Install or update models into ~/ai-hub/models", ["bash", str(SHELL_DIR / "install_models.sh")]
+        "install_models",
+        "Install or update models into ~/ai-hub/models",
+        _shell_command("install_models"),
     ),
     "download_models_civitai": ActionSpec(
         "download_models_civitai",
         "Download models from CivitAI into ~/ai-hub/models",
-        ["bash", str(SHELL_DIR / "install_models.sh")],
+        _shell_command("install_models"),
         env={"MODEL_SOURCE": "civitai"},
     ),
     "manifest_browser": ActionSpec(
-        "manifest_browser", "Browse curated manifests", ["bash", str(SHELL_DIR / "manifest_browser.sh")]
+        "manifest_browser", "Browse curated manifests", _shell_command("manifest_browser")
     ),
     "artifact_maintenance": ActionSpec(
-        "artifact_maintenance", "Run artifact maintenance", ["bash", str(SHELL_DIR / "artifact_manager.sh")]
+        "artifact_maintenance",
+        "Run artifact maintenance",
+        _shell_command("artifact_manager"),
     ),
-    "self_update": ActionSpec("self_update", "Self-update bundled installer scripts", ["bash", str(SHELL_DIR / "self_update.sh")]),
+    "self_update": ActionSpec("self_update", "Self-update bundled installer scripts", _shell_command("self_update")),
     "pull_updates": ActionSpec("pull_updates", "Git pull for cloned checkouts", ["git", "pull"]),
     "launcher_status": ActionSpec(
         "launcher_status", "Show launcher status panel", ["bash", str(LAUNCHER_DIR / "ai_hub_launcher.sh")]
     ),
     "pair_oobabooga": ActionSpec(
-        "pair_oobabooga", "Pair an oobabooga model with a LoRA", ["bash", str(SHELL_DIR / "pair_oobabooga.sh")]
+        "pair_oobabooga", "Pair an oobabooga model with a LoRA", _shell_command("pair_oobabooga")
     ),
     "pair_sillytavern": ActionSpec(
-        "pair_sillytavern", "Pick backend + model for SillyTavern", ["bash", str(SHELL_DIR / "pair_sillytavern.sh")]
+        "pair_sillytavern", "Pick backend + model for SillyTavern", _shell_command("pair_sillytavern")
     ),
-    "select_lora": ActionSpec("select_lora", "Choose a LoRA preset target", ["bash", str(SHELL_DIR / "select_lora.sh")]),
+    "select_lora": ActionSpec("select_lora", "Choose a LoRA preset target", _shell_command("select_lora")),
     "save_pairing": ActionSpec(
-        "save_pairing", "Save the current pairing preset", ["bash", str(SHELL_DIR / "save_pairing_preset.sh")]
+        "save_pairing", "Save the current pairing preset", _shell_command("save_pairing_preset")
     ),
     "load_pairing": ActionSpec(
-        "load_pairing", "Load a saved pairing preset", ["bash", str(SHELL_DIR / "load_pairing_preset.sh")]
+        "load_pairing", "Load a saved pairing preset", _shell_command("load_pairing_preset")
     ),
     "health_summary": ActionSpec(
-        "health_summary", "Run environment health summary", ["bash", str(SHELL_DIR / "health_summary.sh")], env={"HEADLESS": "1"}
+        "health_summary",
+        "Run environment health summary",
+        _shell_command("health_summary"),
+        env={"HEADLESS": "1"},
     ),
     "web_launcher": ActionSpec(
         "web_launcher", "Start the web launcher UI", python_module=("modules.runtime.web_launcher", [])
@@ -309,11 +339,19 @@ def run_action(action_id: str, headless: bool = True) -> int:
     log_line(f"Starting action '{action_id}' with command: {' '.join(cmd)}")
     process = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     assert process.stdout is not None
-    with LOG_PATH.open("a", encoding="utf-8") as log_file:
+    should_log_output = not (
+        IS_WINDOWS and spec.command and Path(spec.command[0]).name.lower() == "powershell"
+    )
+    log_file_handle = LOG_PATH.open("a", encoding="utf-8") if should_log_output else None
+    try:
         for line in process.stdout:
             decoded = line.decode(errors="ignore")
-            log_file.write(decoded)
+            if log_file_handle:
+                log_file_handle.write(decoded)
             print(decoded, end="")
+    finally:
+        if log_file_handle:
+            log_file_handle.close()
     return process.wait()
 
 
