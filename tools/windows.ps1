@@ -9,8 +9,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-AIHubProjectRoot {
-  $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-  return (Resolve-Path (Join-Path $scriptRoot '..'))
+  if (-not $script:AIHubProjectRoot) {
+    if (-not $PSScriptRoot) {
+      throw 'Unable to determine script root; ensure tools/windows.ps1 is executed as a file.'
+    }
+
+    $resolvedRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+    $script:AIHubProjectRoot = $resolvedRoot.ProviderPath
+  }
+
+  return $script:AIHubProjectRoot
 }
 
 function Get-AIHubPython {
