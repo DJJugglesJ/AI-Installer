@@ -116,6 +116,31 @@ main {
   gap: 0.75rem;
 }
 
+.toolkit-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+  font-size: 0.85rem;
+}
+
+.badge.ok {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.badge.warn {
+  border-color: #f97316;
+  color: #f97316;
+}
+
 .action-button {
   border: 1px solid var(--border);
   background: #1f2937;
@@ -198,6 +223,22 @@ main {
 
 .actions-row.space-between {
   justify-content: space-between;
+}
+
+.note-list {
+  margin-top: 0.5rem;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.note-list li {
+  margin-bottom: 0.2rem;
+}
+
+.warning {
+  display: block;
+  color: #fbbf24;
+  margin-top: 0.15rem;
 }
 
 button {

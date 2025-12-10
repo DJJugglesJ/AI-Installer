@@ -51,6 +51,7 @@ ACTION=$(yad --width=750 --height=520 --center --title="$MENU_TITLE" \
   FALSE "📥  Install or Update LoRAs" "Install or refresh LoRAs in ~/AI/LoRAs (curated + CivitAI)." \
   FALSE "📦  Install or Update Models (Hugging Face)" "Install/update LLMs into ~/ai-hub/models (HEADLESS=$HEADLESS_FLAG)." \
   FALSE "🗂️  Browse Curated Models & LoRAs" "Browse manifests without leaving the menu; queue curated downloads." \
+  FALSE "🖥️  GPU Diagnostics" "Collect VRAM, driver/toolkit versions, and CPU fallback guidance." \
   FALSE "📥  Download Models from CivitAI" "Download CivitAI models into ~/ai-hub/models with optional GUI prompts." \
   FALSE "🧹  Artifact Maintenance" "Prune caches, rotate logs, and verify model/LoRA links." \
   FALSE "🆕  Update Installer" "Self-update bundled installer scripts, then relaunch this menu." \
@@ -87,6 +88,28 @@ case "$ACTION" in
     ;;
   *"🗂️  Browse Curated Models & LoRAs"*)
     bash "$MODULE_DIR/shell/manifest_browser.sh"
+    ;;
+  *"🖥️  GPU Diagnostics"*)
+    DIAG_PAYLOAD=$(bash "$MODULE_DIR/shell/gpu_diagnostics.sh" || true)
+    SUMMARY=$(PYTHONPATH="$SCRIPT_DIR" printf '%s\n' "$DIAG_PAYLOAD" | python3 - <<'PY'
+import json
+import sys
+from modules.runtime.hardware.gpu_diagnostics import format_summary
+
+raw = sys.stdin.read()
+try:
+    payload = json.loads(raw)
+except json.JSONDecodeError:
+    print(raw)
+    raise SystemExit(0)
+print(format_summary(payload))
+PY
+)
+    if [[ "${HEADLESS:-0}" -eq 1 ]]; then
+      printf '%s\n' "$SUMMARY"
+    else
+      yad --width=720 --height=520 --center --title="GPU Diagnostics" --text="$SUMMARY" --wrap --text-align=center --button="OK:0" || printf '%s\n' "$SUMMARY"
+    fi
     ;;
   *"📥  Download Models from CivitAI"*)
     MODEL_SOURCE="civitai" bash "$MODULE_DIR/shell/install_models.sh"
