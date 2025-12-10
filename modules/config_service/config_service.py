@@ -87,6 +87,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "loras_installed": False,
         "models_installed": False,
     },
+    "selection": {"model": "", "loras": []},
 }
 
 # Map deprecated top-level fields to their new home
@@ -260,6 +261,7 @@ def validate_simple_type(value: Any, expected: Any) -> bool:
         "number": (int, float),
         "integer": int,
         "object": dict,
+        "array": list,
     }
     if isinstance(expected, list):
         return any(validate_simple_type(value, t) for t in expected)
@@ -275,6 +277,16 @@ def validate_schema_fragment(value: Any, schema: Dict[str, Any], path: str, erro
 
     if enum is not None and value not in enum:
         errors.append(f"{path or 'value'} must be one of {enum}; received {value!r}")
+        return
+
+    if expected_type == "array":
+        if not isinstance(value, list):
+            errors.append(f"{path or 'value'} must be an array/list")
+            return
+        item_schema = schema.get("items")
+        if item_schema:
+            for idx, child in enumerate(value):
+                validate_schema_fragment(child, item_schema, f"{path}[{idx}]", errors)
         return
 
     if expected_type == "object":

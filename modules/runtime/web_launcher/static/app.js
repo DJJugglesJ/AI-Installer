@@ -5,12 +5,16 @@ const authForm = document.getElementById("auth-form");
 const authTokenInput = document.getElementById("auth-token");
 const authState = document.getElementById("auth-state");
 const manifestTable = document.getElementById("manifest-table");
+const manifestDetail = document.getElementById("manifest-detail");
 const manifestSearch = document.getElementById("manifest-search");
 const filterModels = document.getElementById("filter-models");
 const filterLoras = document.getElementById("filter-loras");
 const tagFilters = document.getElementById("tag-filters");
 const installButton = document.getElementById("install-selected");
 const installResult = document.getElementById("install-result");
+const pairingState = document.getElementById("pairing-state");
+const pairResult = document.getElementById("pair-result");
+const pairButton = document.getElementById("pair-selection");
 const installProgress = document.getElementById("install-progress");
 const characterList = document.getElementById("character-list");
 const characterTableBody = document.querySelector("#character-table tbody");
@@ -411,6 +415,7 @@ async function bootstrap() {
   setPanelLoading(gpuDiagnosticsBody, "Loading GPU diagnostics…");
   setPanelLoading(actionsList, "Loading actions…");
   setPanelLoading(manifestTable, "Loading manifests…");
+  setPanelLoading(manifestDetail, "Select a manifest entry to see details");
   setPanelLoading(installProgress, "Loading installers…");
   setPanelLoading(characterList, "Loading characters…");
   setPanelLoading(taskList, "Loading tasks…");
@@ -446,6 +451,13 @@ async function bootstrap() {
   }
 
   try {
+    await loadPairings();
+  } catch (err) {
+    hasError = true;
+    setPanelError(manifestDetail, `Failed to load pairings: ${err.message}`, bootstrap);
+  }
+
+  try {
     const characters = await fetchJson("/api/characters");
     renderCharacters(characters.items || []);
   } catch (err) {
@@ -475,6 +487,92 @@ function hydrateManifests(manifests) {
   ];
   renderTagFilters();
   renderManifestTable();
+}
+
+function renderHealthPill(status) {
+  const pill = document.createElement("span");
+  pill.className = `pill inline ${status || "ok"}`;
+  pill.textContent = status === "warning" ? "Needs attention" : "Healthy";
+  return pill;
+}
+
+function renderManifestDetail(detail) {
+  if (!manifestDetail) return;
+  manifestDetail.innerHTML = "";
+  if (!detail || !detail.item) {
+    manifestDetail.innerHTML = '<p class="muted">No item selected.</p>';
+    return;
+  }
+
+  const item = detail.item;
+  const header = document.createElement("div");
+  header.className = "detail-header";
+  const title = document.createElement("div");
+  title.innerHTML = `<strong>${item.name}</strong><span class="muted">${detail.type || ""}</span>`;
+  header.appendChild(title);
+  header.appendChild(renderHealthPill(item.health));
+  manifestDetail.appendChild(header);
+
+  const meta = document.createElement("div");
+  meta.className = "detail-grid";
+  meta.innerHTML = `
+    <div><span class="muted">Version</span><strong>${item.version || ""}</strong></div>
+    <div><span class="muted">License</span><strong>${item.license || ""}</strong></div>
+    <div><span class="muted">Size</span><strong>${formatBytes(item.size_bytes)}</strong></div>
+    <div><span class="muted">Checksum</span><strong class="wrap">${item.checksum || "—"}</strong></div>
+  `;
+  manifestDetail.appendChild(meta);
+
+  const tags = document.createElement("div");
+  tags.className = "tags";
+  (item.tags || []).forEach((tag) => {
+    const pill = document.createElement("span");
+    pill.className = "tag muted";
+    pill.textContent = tag;
+    tags.appendChild(pill);
+  });
+  manifestDetail.appendChild(tags);
+
+  const notes = document.createElement("p");
+  notes.className = "muted wrap";
+  notes.textContent = item.notes || "";
+  manifestDetail.appendChild(notes);
+
+  if (detail.errors && detail.errors.length) {
+    const warning = document.createElement("div");
+    warning.className = "banner error";
+    warning.innerHTML = `<strong>Validation</strong><span>${detail.errors.join("; ")}</span>`;
+    manifestDetail.appendChild(warning);
+  }
+}
+
+async function loadManifestDetail(item) {
+  if (!manifestDetail) return;
+  setPanelLoading(manifestDetail, "Loading manifest detail…");
+  try {
+    const type = item.type === "Model" ? "models" : "loras";
+    const detail = await fetchJson(`/api/manifests/${type}/${encodeURIComponent(item.slug || item.name)}`);
+    renderManifestDetail(detail);
+  } catch (err) {
+    setPanelError(manifestDetail, `Failed to load manifest detail: ${err.message}`, () => loadManifestDetail(item));
+  }
+}
+
+async function loadPairings() {
+  if (!pairingState) return;
+  setPanelLoading(pairingState, "Loading saved pairings…");
+  try {
+    const payload = await fetchJson("/api/pairings");
+    const selection = payload.selection || {};
+    pairingState.innerHTML = `
+      <p class="muted">Persisted selection in installer config</p>
+      <p><strong>Model:</strong> ${selection.model || "—"}</p>
+      <p><strong>LoRAs:</strong> ${(selection.loras || []).join(", ") || "—"}</p>
+    `;
+  } catch (err) {
+    setPanelError(pairingState, `Failed to load pairings: ${err.message}`, loadPairings);
+    throw err;
+  }
 }
 
 function renderTagFilters() {
@@ -518,7 +616,7 @@ function renderManifestTable() {
   const table = document.createElement("table");
   table.innerHTML = `
     <thead>
-      <tr><th>Select</th><th>Type</th><th>Name</th><th>Version</th><th>Size</th><th>License</th><th>Tags</th><th>Notes</th></tr>
+      <tr><th>Select</th><th>Type</th><th>Name</th><th>Version</th><th>Size</th><th>License</th><th>Health</th><th>Tags</th><th>Notes</th><th>Actions</th></tr>
     </thead>
     <tbody></tbody>
   `;
@@ -534,8 +632,10 @@ function renderManifestTable() {
       <td>${item.version || ""}</td>
       <td>${formatBytes(item.size_bytes)}</td>
       <td>${item.license || ""}</td>
+      <td></td>
       <td>${(item.tags || []).join(", ")}</td>
       <td class="wrap">${item.notes || ""}</td>
+      <td><button type="button" class="secondary" data-detail>Details</button></td>
     `;
 
     row.querySelector("input").addEventListener("change", (event) => {
@@ -543,6 +643,11 @@ function renderManifestTable() {
       event.target.checked ? bucket.add(item.name) : bucket.delete(item.name);
       renderManifestTable();
     });
+
+    const healthCell = row.querySelectorAll("td")[6];
+    healthCell.appendChild(renderHealthPill(item.health));
+
+    row.querySelector("button[data-detail]").addEventListener("click", () => loadManifestDetail(item));
 
     tbody.appendChild(row);
   });
@@ -576,6 +681,27 @@ async function installSelected() {
     await refreshInstallations(true);
   } catch (err) {
     installResult.textContent = `Failed to start installers: ${err.message}`;
+  }
+}
+
+async function pairSelection() {
+  const payload = buildPayloadFromSelection();
+  if (payload.models.length > 1) {
+    pairResult.textContent = "Select only one model when pairing.";
+    return;
+  }
+
+  pairResult.textContent = "Saving selection…";
+  try {
+    const response = await fetchJson("/api/pairings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: payload.models[0] || "", loras: payload.loras }),
+    });
+    pairResult.textContent = `Saved pairing for ${response.selection.model || "no model"}.`;
+    await loadPairings();
+  } catch (err) {
+    pairResult.textContent = `Failed to save pairing: ${err.message}`;
   }
 }
 
@@ -715,6 +841,9 @@ manifestSearch.addEventListener("input", renderManifestTable);
 filterModels.addEventListener("change", renderManifestTable);
 filterLoras.addEventListener("change", renderManifestTable);
 installButton.addEventListener("click", installSelected);
+if (pairButton) {
+  pairButton.addEventListener("click", pairSelection);
+}
 if (gpuRefresh) {
   gpuRefresh.addEventListener("click", () => loadGpuDiagnostics(true));
 }
