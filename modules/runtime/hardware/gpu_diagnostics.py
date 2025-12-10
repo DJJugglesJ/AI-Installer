@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 
 @dataclass
@@ -51,6 +52,15 @@ class GPUDevice:
 class SystemInfo:
     platform: str
     is_wsl: bool = False
+
+
+def _parse_version_from_output(patterns: Tuple[str, ...], stdout: str) -> Optional[str]:
+    for line in stdout.splitlines():
+        for pattern in patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                return match.group(1)
+    return None
 
 
 def _default_runner(command: List[str]) -> CommandResult:
@@ -171,6 +181,53 @@ def _parse_sycl_ls(stdout: str, system_info: SystemInfo) -> List[GPUDevice]:
     return devices
 
 
+def _detect_toolkits(
+    *, runner: CommandRunner, command_exists: CommandExists, system_info: SystemInfo
+) -> Dict[str, Dict[str, object]]:
+    toolkits: Dict[str, Dict[str, object]] = {
+        "cuda": {"detected": False, "version": None, "notes": []},
+        "rocm": {"detected": False, "version": None, "notes": []},
+        "oneapi": {"detected": False, "version": None, "notes": []},
+        "directml": {
+            "detected": system_info.platform in {"Windows", "Darwin"} or system_info.is_wsl,
+            "version": None,
+            "notes": [],
+        },
+    }
+
+    if command_exists("nvidia-smi"):
+        toolkits["cuda"]["detected"] = True
+        smi_output = runner(["nvidia-smi"])
+        if smi_output.stdout:
+            version = _parse_version_from_output((r"CUDA Version:\s*([0-9.]+)",), smi_output.stdout)
+            if version:
+                toolkits["cuda"]["version"] = version
+        elif smi_output.returncode != 0:
+            toolkits["cuda"]["notes"].append("nvidia-smi reported an error while probing CUDA version.")
+
+    if command_exists("rocminfo"):
+        toolkits["rocm"]["detected"] = True
+        rocminfo_result = runner(["rocminfo"])
+        if rocminfo_result.stdout:
+            version = _parse_version_from_output((r"ROCm version:\s*([0-9.]+)", r"ROCm.*?([0-9]+\.[0-9.]+)"), rocminfo_result.stdout)
+            if version:
+                toolkits["rocm"]["version"] = version
+        elif rocminfo_result.returncode != 0:
+            toolkits["rocm"]["notes"].append("rocminfo failed to return ROCm descriptors.")
+
+    if command_exists("sycl-ls"):
+        toolkits["oneapi"]["detected"] = True
+        sycl_version = runner(["sycl-ls", "--version"])
+        if sycl_version.stdout:
+            version = _parse_version_from_output((r"sycl-ls\s*version\s*([0-9.]+)", r"version\s*([0-9.]+)"), sycl_version.stdout)
+            if version:
+                toolkits["oneapi"]["version"] = version
+        elif sycl_version.returncode != 0:
+            toolkits["oneapi"]["notes"].append("sycl-ls --version did not provide version details.")
+
+    return toolkits
+
+
 def collect_gpu_diagnostics(
     *,
     runner: CommandRunner | None = None,
@@ -185,6 +242,8 @@ def collect_gpu_diagnostics(
 
     devices: List[GPUDevice] = []
     notes: List[str] = []
+
+    toolkits = _detect_toolkits(runner=runner, command_exists=command_exists, system_info=system_info)
 
     if command_exists("nvidia-smi"):
         result = runner(["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits"])
@@ -215,12 +274,22 @@ def collect_gpu_diagnostics(
         or system_info.is_wsl,
     }
 
+    cpu_fallback = {
+        "expected": not devices,
+        "reason": "No GPUs reported by diagnostics tooling; CPU runtimes will be used by default." if not devices else "GPU detected; CPU fallback should be optional only.",
+    }
+
+    if not devices:
+        notes.append("No GPUs detected. Ensure drivers or runtimes are installed if acceleration is expected.")
+
     summary = {
         "has_gpu": bool(devices),
         "platform": system_info.platform,
         "is_wsl": system_info.is_wsl,
         "backends": backends,
+        "toolkits": toolkits,
         "notes": notes,
+        "cpu_fallback": cpu_fallback,
     }
 
     return {
@@ -241,6 +310,25 @@ def format_summary(payload: Dict[str, object]) -> str:
         "Backends → "
         f"ROCm: {backend.get('rocm', False)} | oneAPI: {backend.get('oneapi', False)} | DirectML: {backend.get('directml', False)}"
     )
+    toolkits = summary.get("toolkits", {})
+    if toolkits:
+        toolkit_lines = []
+        for name, meta in toolkits.items():
+            if not isinstance(meta, dict):
+                continue
+            detected = meta.get("detected", False)
+            version = meta.get("version")
+            detail = f"{name}: {'present' if detected else 'missing'}"
+            if version:
+                detail += f" (v{version})"
+            toolkit_lines.append(detail)
+        if toolkit_lines:
+            lines.append("Toolkits → " + " | ".join(toolkit_lines))
+    cpu_fallback = summary.get("cpu_fallback", {})
+    if cpu_fallback:
+        expected = cpu_fallback.get("expected")
+        reason = cpu_fallback.get("reason") or ""
+        lines.append(f"CPU fallback expected: {expected} — {reason}")
     if not gpus:
         lines.append("No GPUs detected by available diagnostics tools.")
         return "\n".join(lines)

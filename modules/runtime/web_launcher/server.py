@@ -582,6 +582,25 @@ class WebLauncherAPI:
         }
 
     def gpu_diagnostics(self) -> Dict[str, object]:
+        script_path = self.shell_dir / "gpu_diagnostics.sh"
+        env = {**os.environ, "HEADLESS": "1"}
+        if script_path.exists():
+            try:
+                result = subprocess.run(
+                    ["bash", str(script_path)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    cwd=self.project_root,
+                    env=env,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return json.loads(result.stdout)
+                logger.warning("GPU diagnostics helper returned %s", result.returncode)
+            except json.JSONDecodeError:
+                logger.warning("Failed to decode GPU diagnostics JSON; falling back to runtime collector")
+            except OSError as exc:
+                logger.warning("GPU diagnostics helper invocation failed: %s", exc)
         return collect_gpu_diagnostics()
 
 
@@ -662,7 +681,7 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.list_tools())
             elif path == "/api/tasks":
                 self._send_json(self.api.list_tasks())
-            elif path == "/api/hardware/gpu":
+            elif path in {"/api/hardware/gpu", "/api/hardware/gpu/diagnostics"}:
                 self._send_json(self.api.gpu_diagnostics())
             elif path == "/api/pairings":
                 self._send_json(self.api.get_pairings())

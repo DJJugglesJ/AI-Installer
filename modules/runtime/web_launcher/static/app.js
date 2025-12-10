@@ -32,6 +32,7 @@ const txt2vidResult = document.getElementById("txt2vid-result");
 const taskList = document.getElementById("task-list");
 const gpuDiagnosticsBody = document.getElementById("gpu-diagnostics-body");
 const gpuRefresh = document.getElementById("refresh-gpu");
+const gpuGuidance = document.getElementById("gpu-guidance");
 
 let manifestItems = [];
 const selectedModels = new Set();
@@ -70,10 +71,13 @@ function setPanelError(container, message, retryHandler) {
 function renderGpuDiagnostics(payload) {
   if (!gpuDiagnosticsBody) return;
   gpuDiagnosticsBody.innerHTML = "";
+  if (gpuGuidance) gpuGuidance.innerHTML = "";
 
   const summary = payload.summary || {};
   const gpus = payload.gpus || [];
   const backend = summary.backends || {};
+  const toolkits = summary.toolkits || {};
+  const cpuFallback = summary.cpu_fallback || {};
 
   const summaryRow = document.createElement("div");
   summaryRow.className = "gpu-summary";
@@ -85,11 +89,32 @@ function renderGpuDiagnostics(payload) {
   `;
   gpuDiagnosticsBody.appendChild(summaryRow);
 
+  const toolkitRow = document.createElement("div");
+  toolkitRow.className = "toolkit-row";
+  const toolkitEntries = Object.entries(toolkits);
+  if (toolkitEntries.length) {
+    toolkitEntries.forEach(([name, data]) => {
+      const meta = data || {};
+      const badge = document.createElement("span");
+      badge.className = `badge ${meta.detected ? "ok" : "warn"}`;
+      const version = meta.version ? ` (v${meta.version})` : "";
+      badge.textContent = `${name.toUpperCase()}: ${meta.detected ? "present" : "missing"}${version}`;
+      toolkitRow.appendChild(badge);
+    });
+    gpuDiagnosticsBody.appendChild(toolkitRow);
+  }
+
   if (!gpus.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
     empty.textContent = "No GPUs were reported by the diagnostics helper.";
     gpuDiagnosticsBody.appendChild(empty);
+    if (cpuFallback && cpuFallback.reason) {
+      const reason = document.createElement("p");
+      reason.className = "muted";
+      reason.textContent = cpuFallback.reason;
+      gpuDiagnosticsBody.appendChild(reason);
+    }
     return;
   }
 
@@ -105,15 +130,36 @@ function renderGpuDiagnostics(payload) {
     if (hints.rocm) backendNotes.push("ROCm");
     if (hints.oneapi) backendNotes.push("oneAPI");
     if (hints.directml) backendNotes.push("DirectML");
+    const warnings = Array.isArray(gpu.warnings) ? gpu.warnings : [];
     item.innerHTML = `
       <strong>${gpu.vendor || "GPU"} — ${gpu.name || "Unknown"}</strong>
       <span>${memLabel}${driver}</span>
       <span class="tagline">Backends: ${backendNotes.join(", ") || "None detected"}</span>
+      ${warnings.length ? `<span class="warning">${warnings.join("; ")}</span>` : ""}
     `;
     list.appendChild(item);
   });
 
   gpuDiagnosticsBody.appendChild(list);
+
+  const guidance = [];
+  if (cpuFallback && cpuFallback.reason) guidance.push(cpuFallback.reason);
+  (summary.notes || []).forEach((note) => guidance.push(note));
+  Object.values(toolkits).forEach((meta) => {
+    if (!meta || !Array.isArray(meta.notes)) return;
+    meta.notes.forEach((note) => guidance.push(note));
+  });
+
+  if (gpuGuidance && guidance.length) {
+    const listEl = document.createElement("ul");
+    listEl.className = "note-list";
+    guidance.forEach((note) => {
+      const li = document.createElement("li");
+      li.textContent = note;
+      listEl.appendChild(li);
+    });
+    gpuGuidance.appendChild(listEl);
+  }
 }
 
 async function loadGpuDiagnostics(initial = false) {
