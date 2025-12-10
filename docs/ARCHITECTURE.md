@@ -56,6 +56,26 @@ The runtime lives under `modules/runtime/` and contains all domain logic for AI 
 - Model / LoRA Manager: downloads, metadata, sorting, and activation sets
 - Future planned modules such as prompt helper UIs, API orchestrators, or tagging services
 
+#### Modular media agents
+- **Audio runtime** lives under `modules/runtime/audio/` with subpackages for `tts`, `asr`, and `voice_profiles`. Each tool keeps
+  a consistent layout of `core.py`, `models.py`, `services.py`, `cli.py`, and an `__init__.py` that registers a `ToolSpec` with
+  the global registry. Heavy work stays in `core.py`/`services.py`, while the CLI modules exchange JSON payloads. Example:
+  - `modules/runtime/audio/tts/core.py`
+  - `modules/runtime/audio/tts/models.py`
+  - `modules/runtime/audio/tts/services.py`
+  - `modules/runtime/audio/tts/cli.py`
+- **Video runtime** mirrors the same layout under `modules/runtime/video/` with `img2vid` and `txt2vid` subpackages following
+  the same thin-layer pattern: dataclasses in `models.py`, orchestration in `services.py`, and JSON-friendly CLI entrypoints.
+
+Both families register themselves through `modules/runtime/registry.py`, which tracks available tools and gracefully marks
+entries unavailable when dependencies are missing instead of failing imports. Shell wrappers in `modules/shell/run_*.sh` call
+the Python entrypoints via `python -m ...` so the web launcher and menus can trigger the same flows safely.
+
+#### Shared task bookkeeping
+- `modules/runtime/models/tasks.py` defines a lightweight `Task` dataclass shared by audio/video services and the web launcher.
+  Helpers such as `new_task`, `mark_running`, `mark_succeeded`, and `serialize_task` provide consistent status updates and
+  timestamped payloads/results so orchestration surfaces (CLI, shell helpers, or the web UI) can render job history uniformly.
+
 Runtime modules take structured JSON input (scene descriptions, character cards, settings) and communicate with AI backends including:
 - Stable Diffusion WebUI APIs
 - ComfyUI workflows

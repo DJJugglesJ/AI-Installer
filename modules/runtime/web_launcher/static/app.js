@@ -15,6 +15,17 @@ const installProgress = document.getElementById("install-progress");
 const characterList = document.getElementById("character-list");
 const characterTableBody = document.querySelector("#character-table tbody");
 const promptResult = document.getElementById("prompt-result");
+const audioTools = document.getElementById("audio-tools");
+const videoTools = document.getElementById("video-tools");
+const ttsForm = document.getElementById("tts-form");
+const asrForm = document.getElementById("asr-form");
+const img2vidForm = document.getElementById("img2vid-form");
+const txt2vidForm = document.getElementById("txt2vid-form");
+const ttsResult = document.getElementById("tts-result");
+const asrResult = document.getElementById("asr-result");
+const img2vidResult = document.getElementById("img2vid-result");
+const txt2vidResult = document.getElementById("txt2vid-result");
+const taskList = document.getElementById("task-list");
 
 let manifestItems = [];
 const selectedModels = new Set();
@@ -110,6 +121,25 @@ function renderActions(actions) {
   });
 }
 
+function renderTools(container, tools, label) {
+  container.innerHTML = "";
+  const scoped = tools.filter((tool) => !label || tool.kind === label);
+  if (!scoped.length) {
+    container.innerHTML = '<li class="muted">No tools available.</li>';
+    return;
+  }
+
+  scoped.forEach((tool) => {
+    const row = document.createElement("li");
+    row.innerHTML = `<strong>${tool.label}</strong><span>${tool.description}</span><span class="tagline">${tool.available ? "Available" : "Unavailable"}</span>`;
+    if (!tool.available) {
+      row.classList.add("error-text");
+      row.title = tool.availability_error || "Unavailable";
+    }
+    container.appendChild(row);
+  });
+}
+
 async function triggerAction(actionId) {
   actionResult.textContent = "Running action…";
   try {
@@ -185,13 +215,142 @@ async function compilePrompt() {
   }
 }
 
+async function submitTask(toolId, payload, target) {
+  target.textContent = "Submitting task…";
+  try {
+    const response = await fetchJson("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tool: toolId, payload }),
+    });
+    const task = response.task || {};
+    target.textContent = `${toolId} → ${task.status || "queued"} (${task.id || ""})`;
+    await refreshTasks();
+  } catch (err) {
+    target.textContent = `Failed to create task: ${err.message}`;
+  }
+}
+
+function renderTasks(tasks) {
+  taskList.innerHTML = "";
+  if (!tasks.length) {
+    taskList.innerHTML = '<li class="muted">No tasks created yet.</li>';
+    return;
+  }
+  tasks.forEach((task) => {
+    const li = document.createElement("li");
+    const status = task.status || "pending";
+    const result = task.result || {};
+    const summary = result.audio_path || result.video_path || result.transcript || "Ready";
+    li.innerHTML = `<strong>${task.kind}</strong><span>${status}</span><span class="tagline">${summary}</span>`;
+    taskList.appendChild(li);
+  });
+}
+
+async function refreshTasks(initial = false) {
+  if (!taskList) return;
+  if (initial) {
+    setPanelLoading(taskList, "Waiting for tasks…");
+  }
+  try {
+    const payload = await fetchJson("/api/tasks");
+    renderTasks(payload.items || []);
+  } catch (err) {
+    setPanelError(taskList, `Failed to load tasks: ${err.message}`);
+  }
+}
+
+function hydrateTools(toolsPayload) {
+  if (!toolsPayload) {
+    return;
+  }
+  const items = toolsPayload.items || [];
+  if (audioTools) {
+    renderTools(audioTools, items.filter((tool) => tool.kind === "audio"));
+  }
+  if (videoTools) {
+    renderTools(videoTools, items.filter((tool) => tool.kind === "video"));
+  }
+}
+
+function bindLabForms() {
+  if (ttsForm) {
+    ttsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(ttsForm);
+      const payload = { text: formData.get("text") || "", voice: formData.get("voice") || undefined };
+      const metadataRaw = formData.get("metadata");
+      if (metadataRaw) {
+        try {
+          payload.metadata = JSON.parse(metadataRaw);
+        } catch (err) {
+          ttsResult.textContent = `Metadata must be valid JSON: ${err.message}`;
+          return;
+        }
+      }
+      if (!payload.text) {
+        ttsResult.textContent = "Text is required.";
+        return;
+      }
+      await submitTask("tts", payload, ttsResult);
+    });
+  }
+
+  if (asrForm) {
+    asrForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(asrForm);
+      const payload = { source_path: formData.get("source_path"), language: formData.get("language") || undefined };
+      if (!payload.source_path) {
+        asrResult.textContent = "Source path is required.";
+        return;
+      }
+      await submitTask("asr", payload, asrResult);
+    });
+  }
+
+  if (img2vidForm) {
+    img2vidForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(img2vidForm);
+      const payload = {
+        image_path: formData.get("image_path"),
+        prompt: formData.get("prompt") || undefined,
+        frames: Number(formData.get("frames") || 16),
+      };
+      if (!payload.image_path) {
+        img2vidResult.textContent = "Image path is required.";
+        return;
+      }
+      await submitTask("img2vid", payload, img2vidResult);
+    });
+  }
+
+  if (txt2vidForm) {
+    txt2vidForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(txt2vidForm);
+      const payload = { prompt: formData.get("prompt"), duration: Number(formData.get("duration") || 4) };
+      if (!payload.prompt) {
+        txt2vidResult.textContent = "Prompt is required.";
+        return;
+      }
+      await submitTask("txt2vid", payload, txt2vidResult);
+    });
+  }
+}
+
 async function bootstrap() {
   initAuthForm();
+  bindLabForms();
   statusPill.textContent = "Loading…";
   setPanelLoading(actionsList, "Loading actions…");
   setPanelLoading(manifestTable, "Loading manifests…");
   setPanelLoading(installProgress, "Loading installers…");
   setPanelLoading(characterList, "Loading characters…");
+  setPanelLoading(taskList, "Loading tasks…");
+  setPanelLoading(audioTools, "Loading audio tools…");
+  setPanelLoading(videoTools, "Loading video tools…");
 
   let actionsCount = 0;
   let hasError = false;
@@ -200,6 +359,7 @@ async function bootstrap() {
     const status = await fetchJson("/api/status");
     actionsCount = status.actions.length;
     renderActions(status.actions);
+    hydrateTools(status.tools);
   } catch (err) {
     hasError = true;
     setPanelError(actionsList, `Failed to load actions: ${err.message}`, bootstrap);
@@ -224,6 +384,12 @@ async function bootstrap() {
 
   try {
     await refreshInstallations(true);
+  } catch (err) {
+    hasError = true;
+  }
+
+  try {
+    await refreshTasks(true);
   } catch (err) {
     hasError = true;
   }

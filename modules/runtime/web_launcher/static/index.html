@@ -67,6 +67,62 @@
         </div>
       </section>
 
+      <section id="audio-lab" class="card">
+        <div class="card-header">
+          <h2>Audio Lab</h2>
+          <p>Registry-driven TTS and ASR helpers with graceful fallback when unavailable.</p>
+        </div>
+        <div id="audio-tools" class="manifest-list">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading audio tools…</div>
+        </div>
+        <form id="tts-form" class="form-grid">
+          <label class="full">Text<input type="text" name="text" placeholder="Hello from AI Hub" required /></label>
+          <label>Voice<input type="text" name="voice" placeholder="basic_female" /></label>
+          <label class="full">Metadata<input type="text" name="metadata" placeholder="optional json pairs" /></label>
+          <div class="actions-row">
+            <button type="submit">Run TTS</button>
+            <div id="tts-result" class="result"></div>
+          </div>
+        </form>
+
+        <form id="asr-form" class="form-grid">
+          <label class="full">Source Path<input type="text" name="source_path" placeholder="/path/to/audio.wav" required /></label>
+          <label>Language<input type="text" name="language" placeholder="en" /></label>
+          <div class="actions-row">
+            <button type="submit">Run ASR</button>
+            <div id="asr-result" class="result"></div>
+          </div>
+        </form>
+      </section>
+
+      <section id="video-lab" class="card">
+        <div class="card-header">
+          <h2>Video Lab</h2>
+          <p>Experimental img2vid and txt2vid flows using the shared task model.</p>
+        </div>
+        <div id="video-tools" class="manifest-list">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading video tools…</div>
+        </div>
+        <form id="img2vid-form" class="form-grid">
+          <label class="full">Image Path<input type="text" name="image_path" placeholder="/path/to/image.png" required /></label>
+          <label class="full">Prompt<input type="text" name="prompt" placeholder="Optional animation hint" /></label>
+          <label>Frames<input type="number" name="frames" value="16" min="1" /></label>
+          <div class="actions-row">
+            <button type="submit">Run img2vid</button>
+            <div id="img2vid-result" class="result"></div>
+          </div>
+        </form>
+
+        <form id="txt2vid-form" class="form-grid">
+          <label class="full">Prompt<input type="text" name="prompt" placeholder="Describe the scene" required /></label>
+          <label>Duration (seconds)<input type="number" name="duration" value="4" min="1" /></label>
+          <div class="actions-row">
+            <button type="submit">Run txt2vid</button>
+            <div id="txt2vid-result" class="result"></div>
+          </div>
+        </form>
+      </section>
+
       <section id="manifests" class="card">
         <div class="card-header">
           <h2>Curated Manifests</h2>
@@ -96,6 +152,16 @@
         </div>
         <div id="install-progress" class="manifest-grid">
           <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading installers…</div>
+        </div>
+      </section>
+
+      <section id="tasks" class="card">
+        <div class="card-header">
+          <h2>Runtime Tasks</h2>
+          <p>Shared Task dataclass results for audio and video flows.</p>
+        </div>
+        <div id="task-list" class="manifest-list">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Waiting for tasks…</div>
         </div>
       </section>
 
