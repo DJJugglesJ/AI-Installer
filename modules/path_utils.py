@@ -16,7 +16,7 @@ def _is_windows() -> bool:
 
 
 def get_config_root() -> Path:
-    """Return the base configuration directory.
+    r"""Return the base configuration directory.
 
     Environment overrides (AIHUB_CONFIG_DIR) take precedence. On Windows we
     align with %APPDATA%\AIHub\config; otherwise ~/.config/aihub is used.
