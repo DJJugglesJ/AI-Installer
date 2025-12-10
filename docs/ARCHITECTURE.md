@@ -11,15 +11,17 @@ Directory layout after the recent reorganization:
   runtime component is imported or executed via `modules.runtime` (for example, `python -m modules.runtime.prompt.builder`).
 - `modules/shell/` – **installer and launcher scripts** for POSIX and Windows. These helpers own environment detection,
   dependency installs, and runtime entrypoints while delegating business logic to the Python package.
+- `modules/runtime/web_launcher/static/` – **packaged web assets** served by the runtime web launcher alongside its JSON APIs.
 
 Common handoffs after the reorg:
-- Install/update flows call module-qualified entrypoints, e.g., `python -m modules.runtime.install.entrypoint --manifest
-  manifests/base.json`, instead of file paths like `python modules/runtime/install/entrypoint.py`.
-- Launchers call shell helpers such as `modules/shell/run_webui.sh` or `modules/shell/run_comfyui.sh`. Each helper wraps
-  runtime services through module-qualified commands (for example, `python -m modules.runtime.webui.service --host 0.0.0.0`).
+- Install/update flows run through shell helpers in `modules/shell/` (for example, `install.sh`, `modules/shell/install_webui.sh`),
+  which handle environment checks and delegate runtime-specific logic to Python where necessary.
+- Launchers call shell helpers such as `modules/shell/run_webui.sh`, `modules/shell/run_comfyui.sh`, or `modules/shell/run_kobold.sh`.
+  Each helper wraps runtime services through module-qualified commands where applicable (for example, `python -m modules.runtime.web_launcher`).
 - Cross-layer calls reference the new roots explicitly: shell scripts treat `modules/runtime` as the Python package root,
   while Python code locates installer assets through `modules/shell` (for example, `Path(__file__).parents[2] / "modules"
-  / "shell" / "install.sh"`).
+  / "shell" / "install.sh").
+
 
 The runtime and installer layers share only well-defined interfaces: shell scripts invoke Python entrypoints via module paths under `modules/runtime`, while Python code must reference shell assets using relative paths through `modules/shell`. Avoid hardcoded absolute paths so the project remains relocatable.
 
@@ -155,7 +157,8 @@ AI Hub avoids hardcoded dependencies by relying on abstraction layers:
 
 ### Hosting model
 - The web UI is a static, compiled frontend (e.g., React/Vite or similar) that is served by a lightweight HTTP layer inside the runtime stack so it can run headless on servers, WSL, or desktop Linux without requiring a local browser process to be installed by the installer scripts.
-- Static assets live under a dedicated `modules/runtime/webui_frontend/` build output, with the Python runtime exposing them through the same process that serves JSON APIs. This keeps the UI deployable via `python -m modules.runtime.<service>` and compatible with launcher scripts that already start runtime daemons.
+- Static assets live under `modules/runtime/web_launcher/static/`, and the Python runtime exposes them through the same `web_launcher`
+  server process that serves JSON APIs. This keeps the UI deployable via `python -m modules.runtime.web_launcher` and compatible with launcher scripts that already start runtime daemons.
 - A reverse-proxy-friendly binding (127.0.0.1 by default, configurable host/port) allows the UI to be tunneled over SSH or proxied behind Caddy/NGINX for remote access.
 
 ### Runtime integration
