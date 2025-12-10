@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
@@ -12,9 +13,13 @@ INSTALL_DIR="$HOME/AI/LoRAs"
 MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 LORA_MANIFEST="$MANIFEST_DIR/loras.json"
 FORCE_CURATED_SELECTION=0
+HEADLESS="${HEADLESS:-0}"
+DOWNLOAD_LOG_FILE="$LOG_FILE"
+DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
 
 [ -n "${CURATED_LORA_NAMES:-}" ] && FORCE_CURATED_SELECTION=1
 
+source "$SCRIPT_DIR/downloads/download_helpers.sh"
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 
@@ -37,7 +42,7 @@ notify()
 }
 
 log_msg() {
-  echo "$(date): $1" >> "$LOG_FILE"
+  download_log "$1"
 }
 
 log_msg "LoRA installer starting; logging to $LOG_FILE"
@@ -130,110 +135,6 @@ ensure_downloader() {
   fi
 }
 
-run_downloader() {
-  local tool="$1" url="$2" dest="$3" label="$4"
-  log_msg "Downloader start [$label]: $tool -> $url"
-  case "$tool" in
-    aria2c)
-      aria2c --continue=true --max-tries=3 --retry-wait=5 --auto-file-renaming=false --allow-overwrite=true --max-resume-failure-tries=5 --dir="$(dirname "$dest")" --out="$(basename "$dest")" "$url"
-      ;;
-    wget)
-      wget --continue --show-progress --tries=3 --retry-connrefused --waitretry=5 --timeout=30 -O "$dest" "$url"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-verify_checksum() {
-  local file="$1" expected="$2"
-  if [ -z "$expected" ] || [ "$expected" = "null" ]; then
-    log_msg "Checksum not provided for $(basename "$file"); skipping verification"
-    return 0
-  fi
-  local actual
-  actual=$(sha256sum "$file" | awk '{print $1}')
-  if [ "$actual" != "$expected" ]; then
-    notify error "Checksum mismatch" "Expected $expected but found $actual for $(basename "$file")."
-    log_msg "Checksum mismatch for $file (expected: $expected, got: $actual); removing corrupt download"
-    rm -f "$file"
-    return 1
-  fi
-  log_msg "Checksum verified for $(basename "$file")"
-  return 0
-}
-
-download_with_retries() {
-  local url="$1" dest="$2" expected_checksum="$3" mirror_list="$4"
-  local downloaders=()
-  local max_attempts=3
-  local backoff_start=5
-  local urls=("$url")
-  local current_url=""
-  local failures=()
-
-  if [[ -n "$mirror_list" ]]; then
-    while IFS= read -r mirror; do
-      [[ -n "$mirror" ]] && urls+=("$mirror")
-    done <<< "$mirror_list"
-  fi
-
-  command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
-  command -v wget >/dev/null 2>&1 && downloaders+=(wget)
-
-  for idx in "${!urls[@]}"; do
-    current_url="${urls[$idx]}"
-    local mirror_label="mirror $((idx + 1))/${#urls[@]}"
-    log_msg "Starting download: $dest from $current_url using ${downloaders[*]} (${mirror_label})"
-
-    for ((i = 0; i < ${#downloaders[@]}; i++)); do
-      local downloader="${downloaders[$i]}"
-      local attempt=1
-      local backoff=$backoff_start
-
-      while [ $attempt -le $max_attempts ]; do
-        local attempt_label="$mirror_label attempt $attempt via $downloader"
-        if [ $attempt -gt 1 ]; then
-          notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
-          log_msg "Retry $attempt_label for $dest (url: $current_url)"
-          sleep $backoff
-          backoff=$((backoff * 2))
-        else
-          log_msg "Initiating $attempt_label for $dest"
-        fi
-
-        if run_downloader "$downloader" "$current_url" "$dest" "$attempt_label"; then
-          if verify_checksum "$dest" "$expected_checksum"; then
-            log_msg "Download succeeded with $downloader from $current_url (${mirror_label})"
-            return 0
-          else
-            failures+=("Checksum failed via $downloader at $current_url")
-          fi
-        else
-          failures+=("Downloader error via $downloader at $current_url (attempt $attempt)")
-        fi
-
-        attempt=$((attempt + 1))
-      done
-
-      if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
-        notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
-        log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]} for $current_url"
-      fi
-    done
-
-    if (( idx + 1 < ${#urls[@]} )); then
-      notify warning "Trying mirror" "Switching to next mirror for $(basename "$dest")"
-      log_msg "Primary URL failed for $dest; moving to mirror $((idx + 2))"
-    fi
-  done
-
-  notify error "Download failed" "Unable to download $(basename "$dest") after trying mirrors and downloaders."
-  log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest (failures: ${failures[*]})"
-  return 1
-}
-
 download_manifest_lora() {
   local item="$1"
   local name url filename checksum size mirrors
@@ -256,6 +157,7 @@ download_manifest_lora() {
     return 0
   fi
 
+  notify error "Download failed" "Unable to download $filename from available mirrors. Check connectivity or replace the URL."
   log_msg "Failed to download curated LoRA $filename"
   return 1
 }
@@ -492,6 +394,7 @@ for NAME in "${NAMES[@]}"; do
 
   log_msg "Downloading $OUTNAME.$EXT"
   if ! download_with_retries "$URL" "$DEST" "$CHECKSUM" ""; then
+    notify error "Download Failed" "Unable to download $OUTNAME.$EXT from CivitAI."
     echo "$(date): Download failed for $OUTNAME.$EXT" >> "$LOG_FILE"
     continue
   fi

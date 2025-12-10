@@ -76,6 +76,7 @@ class InstallJob:
     loras: List[str] = field(default_factory=list)
     command: List[str] = field(default_factory=list)
     log_path: Path = Path()
+    status_path: Optional[Path] = None
     started_at: str = ""
     completed_at: Optional[str] = None
     returncode: Optional[int] = None
@@ -91,25 +92,33 @@ class InstallJob:
             return "failed"
         return "unknown"
 
-    def to_dict(self, log_tail: str = "") -> Dict[str, object]:
+    def to_dict(self, log_tail: str = "", events: Optional[List[Dict[str, object]]] = None) -> Dict[str, object]:
         return {
             "id": self.id,
             "models": self.models,
             "loras": self.loras,
             "command": self.command,
             "log_path": str(self.log_path),
+            "status_path": str(self.status_path) if self.status_path else "",
             "started_at": self.started_at,
             "completed_at": self.completed_at,
             "status": self.status,
             "returncode": self.returncode,
             "log_tail": log_tail,
+            "events": events or [],
         }
 
 
 class WebLauncherAPI:
     """Backend helpers for the web launcher HTTP surface."""
 
-    def __init__(self, project_root: Path, config_path: Optional[Path] = None):
+    def __init__(
+        self,
+        project_root: Path,
+        config_path: Optional[Path] = None,
+        log_dir: Optional[Path] = None,
+        history_path: Optional[Path] = None,
+    ):
         self.project_root = project_root
         self.modules_dir = project_root / "modules"
         self.shell_dir = self.modules_dir / "shell"
@@ -118,8 +127,8 @@ class WebLauncherAPI:
         self._ui_hooks = UIIntegrationHooks()
         self._card_registry = CharacterCardRegistry()
         self._action_map: Dict[str, ActionSpec] = self._build_action_map()
-        self._log_dir = Path.home() / ".cache/aihub/web_launcher/logs"
-        self._history_path = Path.home() / ".cache/aihub/web_launcher/selection_history.json"
+        self._log_dir = log_dir or Path.home() / ".cache/aihub/web_launcher/logs"
+        self._history_path = history_path or Path.home() / ".cache/aihub/web_launcher/selection_history.json"
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._history_path.parent.mkdir(parents=True, exist_ok=True)
         self._install_jobs: Dict[str, InstallJob] = {}
@@ -285,6 +294,39 @@ class WebLauncherAPI:
             return "".join(content)
         return "".join(content[-lines:])
 
+    def _append_status_event(
+        self, path: Path, level: str, event: str, message: str, detail: Optional[object] = None
+    ) -> None:
+        payload: Dict[str, object] = {
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "level": level,
+            "event": event,
+            "message": message,
+        }
+        if detail is not None:
+            payload["detail"] = detail
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload))
+            handle.write("\n")
+
+    def _load_status_events(self, path: Path, limit: int = 50) -> List[Dict[str, object]]:
+        if not path or not path.exists():
+            return []
+
+        events: List[Dict[str, object]] = []
+        with path.open("r", encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return events[-limit:]
+
     def _load_history(self) -> List[Dict[str, object]]:
         if not self._history_path.exists():
             return []
@@ -317,6 +359,10 @@ class WebLauncherAPI:
             return
         job.returncode = job.process.wait()
         job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        if job.status_path:
+            level = "info" if job.returncode == 0 else "error"
+            message = "Installer completed successfully" if job.returncode == 0 else "Installer failed"
+            self._append_status_event(job.status_path, level, "installer_completed", message, {"returncode": job.returncode})
         with self._lock:
             self._install_jobs[job.id] = job
         self._record_history(job)
@@ -324,15 +370,28 @@ class WebLauncherAPI:
     def _start_job(self, *, models: List[str], loras: List[str], script_name: str) -> InstallJob:
         job_id = f"{Path(script_name).stem}-{uuid.uuid4().hex[:8]}"
         log_path = self._log_dir / f"{job_id}.log"
+        status_path = self._log_dir / f"{job_id}.status.jsonl"
+        if status_path.exists():
+            status_path.unlink()
         env = {
             **os.environ,
             "HEADLESS": "1",
+            "DOWNLOAD_STATUS_FILE": str(status_path),
+            "DOWNLOAD_LOG_FILE": str(log_path),
         }
 
         if models:
             env["CURATED_MODEL_NAMES"] = "\n".join(models)
         if loras:
             env["CURATED_LORA_NAMES"] = "\n".join(loras)
+
+        self._append_status_event(
+            status_path,
+            "info",
+            "installer_started",
+            f"Starting {script_name}",
+            {"models": models, "loras": loras},
+        )
 
         process = subprocess.Popen(
             ["bash", str(self.shell_dir / script_name)],
@@ -348,6 +407,7 @@ class WebLauncherAPI:
             loras=loras,
             command=["bash", str(self.shell_dir / script_name)],
             log_path=log_path,
+            status_path=status_path,
             started_at=datetime.utcnow().strftime("%Y%m%dT%H%M%SZ"),
             process=process,
         )
@@ -383,7 +443,12 @@ class WebLauncherAPI:
                 if job.returncode is not None and job.completed_at is None:
                     job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
                     self._record_history(job)
-            rendered_jobs.append(job.to_dict(log_tail=self._tail_log(job.log_path)))
+            rendered_jobs.append(
+                job.to_dict(
+                    log_tail=self._tail_log(job.log_path),
+                    events=self._load_status_events(job.status_path),
+                )
+            )
 
         return {
             "jobs": rendered_jobs,
