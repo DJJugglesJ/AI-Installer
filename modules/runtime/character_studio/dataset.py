@@ -8,11 +8,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import Iterable, List
 
-from .models import CARD_STORAGE_ROOT, CharacterCard
+from .models import CARD_STORAGE_ROOT, CharacterCard, CharacterStudioError, SchemaValidationError
+
+logger = logging.getLogger(__name__)
 
 DATASET_ROOT = Path(__file__).resolve().parent / "datasets"
 DATASET_ROOT.mkdir(exist_ok=True)
@@ -20,11 +23,25 @@ DATASET_ROOT.mkdir(exist_ok=True)
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
 
+class DatasetOperationError(CharacterStudioError):
+    """Raised when dataset creation or tagging setup fails."""
+
+
 def _load_card(character_id: str) -> CharacterCard:
     card_path = CARD_STORAGE_ROOT / character_id / "card.json"
     if not card_path.exists():
-        raise FileNotFoundError(f"Character Card not found for id {character_id} at {card_path}")
-    return CharacterCard.load(character_id, path=card_path)
+        raise DatasetOperationError(
+            "Character Card not found for dataset operation",
+            context={"character_id": character_id, "card_path": str(card_path)},
+        )
+
+    try:
+        return CharacterCard.load(character_id, path=card_path)
+    except (OSError, json.JSONDecodeError, SchemaValidationError) as exc:
+        raise DatasetOperationError(
+            "Failed to load Character Card for dataset operation",
+            context={"character_id": character_id, "card_path": str(card_path), "reason": str(exc)},
+        ) from exc
 
 
 def _character_dataset_dir(character_id: str) -> Path:
@@ -58,6 +75,7 @@ def _persist_dataset_metadata(card: CharacterCard) -> Path:
         "trigger_token": card.trigger_token,
         "default_prompt_snippet": card.default_prompt_snippet,
         "anatomy_tags": card.anatomy_tags,
+        "wardrobe": card.wardrobe,
     }
     metadata_path = dataset_dir / "dataset.json"
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -76,7 +94,10 @@ def create_dataset_structure(character_id: str) -> None:
         (dataset_dir / "nsfw").mkdir(parents=True, exist_ok=True)
 
     metadata_path = _persist_dataset_metadata(card)
-    print(f"Initialized dataset for {character_id} at {dataset_dir} (metadata: {metadata_path})")
+    logger.info(
+        "Initialized dataset",
+        extra={"character_id": character_id, "dataset_dir": str(dataset_dir), "metadata": str(metadata_path)},
+    )
 
 
 def add_images_to_dataset(character_id: str, images: Iterable[str], subset_name: str) -> List[str]:
@@ -84,7 +105,10 @@ def add_images_to_dataset(character_id: str, images: Iterable[str], subset_name:
 
     card = _load_card(character_id)
     if _subset_is_nsfw(subset_name) and not card.nsfw_allowed:
-        raise PermissionError("NSFW dataset subsets are not allowed for this character")
+        raise DatasetOperationError(
+            "NSFW dataset subsets are not allowed for this character",
+            context={"character_id": character_id, "subset": subset_name},
+        )
 
     target_dir = get_subset_dir(character_id, subset_name)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -93,7 +117,10 @@ def add_images_to_dataset(character_id: str, images: Iterable[str], subset_name:
     for image_path_str in images:
         image_path = Path(image_path_str).expanduser().resolve()
         if not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
+            raise DatasetOperationError(
+                "Image not found",
+                context={"character_id": character_id, "subset": subset_name, "image": str(image_path)},
+            )
         # Avoid accidental overwrite by suffixing duplicates inside the chosen subset.
         destination = target_dir / image_path.name
         suffix_counter = 1
@@ -120,7 +147,10 @@ def generate_captions_for_dataset(character_id: str, subset_name: str) -> List[s
 
     card = _load_card(character_id)
     if _subset_is_nsfw(subset_name) and not card.nsfw_allowed:
-        raise PermissionError("NSFW dataset subsets are not allowed for this character")
+        raise DatasetOperationError(
+            "NSFW dataset subsets are not allowed for this character",
+            context={"character_id": character_id, "subset": subset_name},
+        )
 
     subset_dir = get_subset_dir(character_id, subset_name)
     subset_dir.mkdir(parents=True, exist_ok=True)
@@ -132,6 +162,7 @@ def generate_captions_for_dataset(character_id: str, subset_name: str) -> List[s
         if card.trigger_token:
             caption_parts.append(card.trigger_token)
         caption_parts.extend(card.anatomy_tags)
+        caption_parts.extend(card.wardrobe)
         if card.default_prompt_snippet:
             caption_parts.append(card.default_prompt_snippet)
         caption_parts.extend(subset_tags)
@@ -148,5 +179,16 @@ def generate_captions_for_dataset(character_id: str, subset_name: str) -> List[s
         caption_path = subset_dir / f"{image_path.stem}.txt"
         caption_path.write_text(caption_text, encoding="utf-8")
         captions.append(str(caption_path))
+
+    if not captions:
+        logger.warning(
+            "No images found for captioning",
+            extra={"character_id": character_id, "subset": subset_name, "subset_dir": str(subset_dir)},
+        )
+    else:
+        logger.info(
+            "Generated captions",
+            extra={"character_id": character_id, "subset": subset_name, "count": len(captions)},
+        )
 
     return captions

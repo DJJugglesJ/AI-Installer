@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 from . import dataset, tagging, trainer
-from .models import CARD_STORAGE_ROOT, CharacterCard
+from .models import CARD_STORAGE_ROOT, CharacterCard, CharacterStudioError
 
 
 CARD_FILENAME = "card.json"
@@ -33,6 +33,12 @@ def _parse_tags(tag_text: str | None) -> List[str]:
     return [tag.strip() for tag in tag_text.split(",") if tag.strip()]
 
 
+def _parse_wardrobe(wardrobe_text: str | None) -> List[str]:
+    if not wardrobe_text:
+        return []
+    return [item.strip() for item in wardrobe_text.split(",") if item.strip()]
+
+
 def _load_existing_card(card_id: str) -> CharacterCard:
     card_path = _get_card_path(card_id)
     if not card_path.exists():
@@ -51,6 +57,7 @@ def create_card(args: argparse.Namespace) -> None:
         default_prompt_snippet=args.default_prompt_snippet,
         trigger_token=args.trigger_token,
         anatomy_tags=tags,
+        wardrobe=_parse_wardrobe(args.wardrobe),
         lora_file=args.lora_file,
         lora_default_strength=args.lora_default_strength,
     )
@@ -74,6 +81,8 @@ def edit_card(args: argparse.Namespace) -> None:
         card.trigger_token = args.trigger_token
     if args.anatomy_tags:
         card.anatomy_tags = _parse_tags(args.anatomy_tags)
+    if args.wardrobe:
+        card.wardrobe = _parse_wardrobe(args.wardrobe)
     if args.lora_file:
         card.lora_file = args.lora_file
     if args.lora_default_strength is not None:
@@ -123,6 +132,7 @@ def list_cards(_: argparse.Namespace) -> None:
 
 def create_dataset(args: argparse.Namespace) -> None:
     dataset.create_dataset_structure(args.id)
+    print(f"Initialized dataset at {dataset.get_character_dataset_dir(args.id)}")
 
 
 def add_dataset_images(args: argparse.Namespace) -> None:
@@ -189,6 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--default-prompt-snippet", dest="default_prompt_snippet", help="Default prompt snippet")
     create.add_argument("--trigger-token", dest="trigger_token", help="Trigger token")
     create.add_argument("--anatomy-tags", dest="anatomy_tags", help="Comma separated anatomy tags")
+    create.add_argument("--wardrobe", dest="wardrobe", help="Comma separated wardrobe descriptors")
     create.add_argument("--lora-file", dest="lora_file", help="LoRA file path")
     create.add_argument("--lora-default-strength", dest="lora_default_strength", type=float)
     create.set_defaults(func=create_card)
@@ -202,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     edit.add_argument("--default-prompt-snippet", dest="default_prompt_snippet", help="Default prompt snippet")
     edit.add_argument("--trigger-token", dest="trigger_token", help="Trigger token")
     edit.add_argument("--anatomy-tags", dest="anatomy_tags", help="Comma separated anatomy tags")
+    edit.add_argument("--wardrobe", dest="wardrobe", help="Comma separated wardrobe descriptors")
     edit.add_argument("--lora-file", dest="lora_file", help="LoRA file path")
     edit.add_argument("--lora-default-strength", dest="lora_default_strength", type=float)
     edit.set_defaults(func=edit_card)
@@ -262,7 +274,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    args.func(args)
+    try:
+        args.func(args)
+    except CharacterStudioError as exc:
+        payload = {"error": str(exc), "context": getattr(exc, "context", {})}
+        print(json.dumps(payload, indent=2))
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":
