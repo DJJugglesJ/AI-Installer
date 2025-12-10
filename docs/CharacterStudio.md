@@ -38,5 +38,10 @@ Character Studio manages the character lifecycle for prompting and LoRA training
 - `apply_feedback_to_character(character_card, feedback_text)`:
   - **Inputs:** current Character Card JSON and a feedback string.
   - **Output:** updated Character Card JSON.
-  - **Behavior:** uses the LLM abstraction to adjust `description`, `default_prompt_snippet`, and `anatomy_tags` so the character better matches the feedback.
+  - **Behavior:** parses structured directives separated by semicolons or newlines instead of calling an LLM. Supported directives include:
+    - Editing text fields such as `description`, `default_prompt_snippet`, `trigger_token`, `age`, or `name` (e.g., `description: confident nightclub singer`).
+    - Updating NSFW permissions with `nsfw` or `nsfw_allowed` (e.g., `nsfw_allowed: false`).
+    - Adding anatomy tags via `tag`, `anatomy_tag`, `anatomy_tags`, or `tags` (e.g., `anatomy_tags: windswept hair, silver eyes`).
+    - Storing arbitrary metadata using `metadata.<key>` (e.g., `metadata.version: 1.0`).
+  - Directives can be combined in one string with semicolons or newlines, such as `anatomy_tags: freckles, athletic_build; nsfw_allowed: true; description: adventurous explorer`.
 - Scene-level feedback can optionally be applied permanently to the Character Card through this pathway.
