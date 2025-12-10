@@ -551,11 +551,23 @@ class WebLauncherAPI:
             tasks = [serialize_task(task) for task in self._tasks.values()]
         return {"items": tasks}
 
-    def compile_prompt(self, scene_json: Dict[str, object]) -> Dict[str, object]:
-        assembly = compiler.build_prompt_from_scene(scene_json)
-        payload = assembly.to_payload()
+    def compile_prompt(self, scene_json: Dict[str, object], feedback: Optional[str] = None) -> Dict[str, object]:
+        if not isinstance(scene_json, dict):
+            raise ValueError("scene must be a JSON object")
+        if feedback is not None and not isinstance(feedback, str):
+            raise ValueError("feedback must be a string when provided")
+
+        compiled_scene = scene_json if feedback is None else compiler.apply_feedback_to_scene(scene_json, feedback)
+        assembly = compiler.build_prompt_from_scene(compiled_scene)
+        assembly_payload = assembly.to_payload()
         published = self._ui_hooks.publish_prompt(assembly)
-        return {"assembly": payload, "published": published}
+        return {"assembly": assembly_payload, "published": published}
+
+    def apply_feedback(self, scene_json: Dict[str, object], feedback: str) -> Dict[str, object]:
+        if not isinstance(scene_json, dict):
+            raise ValueError("scene must be a JSON object")
+        updated = compiler.apply_feedback_to_scene(scene_json, feedback)
+        return {"scene": updated}
 
     def status(self) -> Dict[str, object]:
         manifests = self.get_manifests()
@@ -671,7 +683,14 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
             elif path == "/api/prompt/compile":
                 payload = self._read_json_body()
                 scene_payload = payload.get("scene", payload)
-                result = self.api.compile_prompt(scene_payload)
+                feedback = payload.get("feedback")
+                result = self.api.compile_prompt(scene_payload, feedback)
+                self._send_json(result)
+            elif path == "/api/prompt/feedback":
+                payload = self._read_json_body()
+                scene_payload = payload.get("scene", payload)
+                feedback = payload.get("feedback", "")
+                result = self.api.apply_feedback(scene_payload, feedback)
                 self._send_json(result)
             elif path == "/api/installations":
                 payload = self._read_json_body()

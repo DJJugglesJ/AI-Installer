@@ -29,6 +29,11 @@ def test_scene_validation_requires_characters_fields():
         )
 
 
+def test_scene_validation_rejects_bad_extras():
+    with pytest.raises(ValueError):
+        compiler.build_prompt_from_scene({"characters": [], "extra_elements": [123]})
+
+
 def test_prompt_assembly_with_character_card(tmp_path):
     card = CharacterCard(
         id="hero",
@@ -68,6 +73,40 @@ def test_prompt_assembly_with_character_card(tmp_path):
     assert compiled.lora_calls[0].weight == 0.75
 
 
+def test_compile_prompt_payload_includes_serialized_loras(tmp_path):
+    card = CharacterCard(
+        id="hero",
+        name="Hero",
+        nsfw_allowed=True,
+        description="brave hero",
+        default_prompt_snippet="cinematic lighting",
+        trigger_token="herotoken",
+        lora_file="hero.safetensors",
+        lora_default_strength=0.75,
+    )
+    card.save(path=tmp_path / "hero" / "card.json")
+
+    scene_json = {
+        "world": "fantasy",
+        "setting": "castle courtyard",
+        "characters": [
+            {
+                "slot_id": "protagonist",
+                "character_id": "hero",
+                "role": "lead",
+            }
+        ],
+        "extra_elements": ["torchlight"],
+    }
+
+    payload = compiler.compile_prompt_payload(scene_json)
+
+    assert payload["lora_calls"] == [
+        {"name": "hero.safetensors", "weight": 0.75, "trigger": "herotoken"}
+    ]
+    assert "positive_prompt_text" in payload
+
+
 def test_apply_feedback_updates_scene_fields():
     scene_json = {
         "world": "demo",
@@ -88,3 +127,8 @@ def test_apply_feedback_updates_scene_fields():
     assert updated["mood"] == "dramatic"
     assert "rain" in updated["extra_elements"]
     assert any(character["role"] == "antagonist" for character in updated["characters"])
+
+
+def test_apply_feedback_requires_text():
+    with pytest.raises(ValueError):
+        compiler.apply_feedback_to_scene({}, None)

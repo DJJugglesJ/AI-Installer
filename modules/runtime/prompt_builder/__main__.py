@@ -1,4 +1,4 @@
-"""Prompt Builder CLI entry point.
+"""CLI entrypoint for Prompt Builder.
 
 - Purpose: load a scene payload, optionally apply natural language feedback, and emit a prompt bundle.
 - Assumptions: SceneDescription JSON is well-formed UTF-8 and UI hooks perform their own validation.
@@ -46,11 +46,10 @@ def main(argv: Iterable[str] | None = None) -> None:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     scene = _load_scene(args.scene)
-    scene_json = asdict(scene)
     if args.feedback:
         # Apply heuristic feedback before validation hooks so users see deterministic adjustments.
-        scene_json = compiler.apply_feedback_to_scene(scene_json, args.feedback)
-        scene = _load_scene_from_json(scene_json)
+        scene_json = compiler.apply_feedback_to_scene(asdict(scene), args.feedback)
+        scene = compiler.parse_scene_description(scene_json)
 
     hooks = UIIntegrationHooks()
     preflight_error = hooks.preflight_scene(scene)

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Dict
+from typing import Dict, Optional
 
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 
@@ -87,6 +87,12 @@ def _scene_from_json(scene_json: Dict) -> SceneDescription:
     )
 
 
+def parse_scene_description(scene_json: Dict) -> SceneDescription:
+    """Public helper to normalize and validate a SceneDescription payload."""
+
+    return _scene_from_json(scene_json)
+
+
 def build_prompt_from_scene(scene_json: Dict) -> PromptAssembly:
     """Convert a structured SceneDescription into prompts and LoRA calls."""
 
@@ -102,8 +108,28 @@ def compile_scene_description(scene: SceneDescription) -> PromptAssembly:
     return build_prompt_from_scene(asdict(scene))
 
 
+def compile_prompt_payload(scene_json: Dict, feedback_text: Optional[str] = None) -> Dict[str, object]:
+    """Compile a scene payload into a JSON-ready prompt bundle.
+
+    Accepts an optional ``feedback_text`` to adjust the scene before compilation.
+    """
+
+    scene = parse_scene_description(scene_json)
+    if feedback_text:
+        scene_json = apply_feedback_to_scene(scene_json, feedback_text)
+        scene = parse_scene_description(scene_json)
+
+    assembly = build_prompt_from_scene(asdict(scene))
+    return assembly.to_payload()
+
+
 def apply_feedback_to_scene(scene_json: Dict, feedback_text: str) -> Dict:
     """Use natural language feedback to refine a SceneDescription payload via the LLM adapter."""
+
+    if feedback_text is None:
+        raise ValueError("feedback_text must be provided")
+    if not isinstance(feedback_text, str):
+        raise ValueError("feedback_text must be a string")
 
     scene = _scene_from_json(scene_json)
     adapter = SceneLLMAdapter(card_registry=CharacterCardRegistry())

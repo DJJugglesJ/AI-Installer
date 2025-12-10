@@ -1,5 +1,7 @@
 import json
 import sys
+import json
+import sys
 from pathlib import Path
 
 import pytest
