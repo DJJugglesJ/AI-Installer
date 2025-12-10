@@ -19,6 +19,8 @@ DEFAULT_CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_FILE="${CONFIG_FILE:-$DEFAULT_CONFIG_FILE}"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
+DEFAULT_DESKTOP_ENTRY="$HOME/.local/share/applications/ai-hub-launcher.desktop"
+DESKTOP_ENTRY="${DESKTOP_ENTRY:-$DEFAULT_DESKTOP_ENTRY}"
 AIHUB_SKIP_INSTALL_STEPS="${AIHUB_SKIP_INSTALL_STEPS:-}"
 HUGGINGFACE_TOKEN="${HUGGINGFACE_TOKEN:-}"
 
@@ -655,7 +657,11 @@ require_commands() {
 }
 
 # Ensure we have the basics to prompt and install dependencies before proceeding
-require_commands bash sudo lspci lsmod yad
+if [[ "$AIHUB_SKIP_INSTALL_STEPS" == "1" ]]; then
+  log_msg "AIHUB_SKIP_INSTALL_STEPS set; skipping prerequisite validation."
+else
+  require_commands bash sudo lspci lsmod yad
+fi
 
 mkdir -p "$INSTALL_PATH"
 mkdir -p "$(dirname "$CONFIG_FILE")"
