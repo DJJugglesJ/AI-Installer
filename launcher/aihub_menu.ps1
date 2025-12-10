@@ -7,6 +7,7 @@ param(
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path "$ScriptDir/.."
+. "$ProjectRoot/launcher/windows/paths.ps1"
 
 function Get-PythonPath {
   if ($Env:AIHUB_PYTHON) { return @($Env:AIHUB_PYTHON) }
@@ -19,25 +20,20 @@ function Get-PythonPath {
   return @()
 }
 
-function Get-LogPath {
-  if ($Env:AIHUB_LOG_PATH) { return $Env:AIHUB_LOG_PATH }
-  if ($IsWindows -and $Env:LOCALAPPDATA) {
-    return (Join-Path $Env:LOCALAPPDATA "AIHub/logs/install.log")
-  }
-  return (Join-Path $Env:USERPROFILE ".config/aihub/install.log")
-}
-
 $PythonPath = Get-PythonPath
 if ($PythonPath.Count -eq 0) {
   Write-Host "Python was not found. Install Python 3 or run inside WSL2 (Ubuntu recommended)."
   exit 1
 }
 
-$LogPath = Get-LogPath
+$LogPath = Get-AIHubLogPath
 $LogDir = Split-Path $LogPath -Parent
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
 if (-not (Test-Path $LogPath)) { New-Item -ItemType File -Path $LogPath -Force | Out-Null }
 $Env:AIHUB_LOG_PATH = $LogPath
+$Env:AIHUB_CONFIG_DIR = Get-AIHubConfigRoot
+$Env:CONFIG_FILE = Get-AIHubConfigFile
+$Env:CONFIG_STATE_FILE = Get-AIHubStatePath
 
 $wslAvailable = Get-Command wsl.exe -ErrorAction SilentlyContinue
 if ($IsWindows -and -not $wslAvailable) {

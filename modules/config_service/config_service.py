@@ -12,7 +12,14 @@ import os
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from modules.path_utils import get_config_root, get_state_path
 
 
 class ConfigError(Exception):
@@ -36,8 +43,8 @@ except ConfigError as exc:  # pragma: no cover - dependency gate
     print(f"[error] {exc}", file=sys.stderr)
     sys.exit(1)
 
-CONFIG_ROOT = os.path.expanduser("~/.config/aihub")
-DEFAULT_CONFIG_PATH = os.path.join(CONFIG_ROOT, "config.yaml")
+CONFIG_ROOT = str(get_config_root())
+DEFAULT_CONFIG_PATH = str(get_state_path())
 CURRENT_VERSION = 2
 INSTALLER_SCHEMA_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "installer_schema.yaml"

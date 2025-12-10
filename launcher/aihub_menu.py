@@ -26,28 +26,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from modules.path_utils import (
+    ensure_file_path,
+    get_config_file,
+    get_config_root,
+    get_log_path,
+    get_state_path,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SHELL_DIR = PROJECT_ROOT / "modules" / "shell"
 WINDOWS_SHELL_DIR = PROJECT_ROOT / "launcher" / "windows"
 LAUNCHER_DIR = PROJECT_ROOT / "launcher"
 MANIFEST_DIR = PROJECT_ROOT / "manifests"
 IS_WINDOWS = platform.system().lower().startswith("windows")
-
-
-def _default_log_path() -> Path:
-    override = os.environ.get("AIHUB_LOG_PATH")
-    if override:
-        return Path(override).expanduser()
-    if platform.system().lower().startswith("windows"):
-        local_appdata = os.environ.get("LOCALAPPDATA")
-        if local_appdata:
-            return Path(local_appdata) / "AIHub" / "logs" / "install.log"
-    return Path.home() / ".config" / "aihub" / "install.log"
-
-
-LOG_PATH = _default_log_path()
-LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-LOG_PATH.touch(exist_ok=True)
+LOG_PATH = ensure_file_path(get_log_path())
+os.environ.setdefault("AIHUB_LOG_PATH", str(LOG_PATH))
+os.environ.setdefault("AIHUB_CONFIG_DIR", str(get_config_root()))
+os.environ.setdefault("CONFIG_FILE", str(get_config_file()))
+os.environ.setdefault("CONFIG_STATE_FILE", str(get_state_path()))
 
 
 class ActionSpec:
