@@ -52,10 +52,12 @@ if ($Help) { Show-Usage; exit 0 }
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path "$ScriptDir"
-$LogDir = if ($Env:LOCALAPPDATA) { Join-Path $Env:LOCALAPPDATA "AIHub/logs" } else { Join-Path $env:USERPROFILE ".config/aihub" }
-$ConfigDir = if ($Env:APPDATA) { Join-Path $Env:APPDATA "AIHub/config" } else { Join-Path $env:USERPROFILE ".config/aihub" }
+$PathsModule = Join-Path $ProjectRoot "launcher/windows/paths.ps1"
+. $PathsModule
+$ConfigDir = Get-AIHubConfigRoot
 $ConfigPath = $null
-$LogPath = Join-Path $LogDir "install.log"
+$LogPath = Get-AIHubLogPath
+$LogDir = Split-Path $LogPath -Parent
 
 function Ensure-Directory {
   param([string]$Path)
@@ -68,6 +70,8 @@ if (-not (Test-Path $LogPath)) { New-Item -ItemType File -Path $LogPath -Force |
 
 $Env:AIHUB_LOG_PATH = $LogPath
 $Env:AIHUB_CONFIG_DIR = $ConfigDir
+$Env:CONFIG_FILE = Get-AIHubConfigFile
+$Env:CONFIG_STATE_FILE = Get-AIHubStatePath
 
 function Write-Log {
   param([string]$Message, [string]$Level = "INFO")

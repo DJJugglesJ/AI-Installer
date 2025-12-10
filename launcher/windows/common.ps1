@@ -1,12 +1,5 @@
 # Common helpers for PowerShell-based AI Hub actions
-
-function Get-AIHubLogPath {
-  if ($Env:AIHUB_LOG_PATH) { return $Env:AIHUB_LOG_PATH }
-  if ($IsWindows -and $Env:LOCALAPPDATA) {
-    return (Join-Path $Env:LOCALAPPDATA "AIHub/logs/install.log")
-  }
-  return (Join-Path $Env:USERPROFILE ".config/aihub/install.log")
-}
+. "$PSScriptRoot/paths.ps1"
 
 function Ensure-Path {
   param([string]$Path)
@@ -41,6 +34,9 @@ function Invoke-AIHubShellAction {
   # Preserve caller-provided AIHUB_LOG_PATH overrides so log redirection is
   # consistent across shell and PowerShell entry points.
   $Env:AIHUB_LOG_PATH = $logPath
+  $Env:AIHUB_CONFIG_DIR = Get-AIHubConfigRoot
+  $Env:CONFIG_FILE = Get-AIHubConfigFile
+  $Env:CONFIG_STATE_FILE = Get-AIHubStatePath
   Ensure-Path $logPath
 
   if (-not (Test-Path $scriptPath)) {

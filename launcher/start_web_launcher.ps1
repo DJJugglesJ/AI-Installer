@@ -1,6 +1,11 @@
 # Start the AI Hub web launcher (Windows/PowerShell)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path "$ScriptDir/.."
+. "$ProjectRoot/launcher/windows/paths.ps1"
+$Env:AIHUB_LOG_PATH = Get-AIHubLogPath
+$Env:AIHUB_CONFIG_DIR = Get-AIHubConfigRoot
+$Env:CONFIG_FILE = Get-AIHubConfigFile
+$Env:CONFIG_STATE_FILE = Get-AIHubStatePath
 $HostValue = $Env:AIHUB_WEB_HOST
 if (-not $HostValue) { $HostValue = "127.0.0.1" }
 $PortValue = $Env:AIHUB_WEB_PORT

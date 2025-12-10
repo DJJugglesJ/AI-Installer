@@ -11,6 +11,18 @@ if "%LOG_PATH%"=="" (
   )
 )
 
+set AIHUB_CONFIG_DIR=%AIHUB_CONFIG_DIR%
+if "%AIHUB_CONFIG_DIR%"=="" (
+  if not "%APPDATA%"=="" (
+    set AIHUB_CONFIG_DIR=%APPDATA%\AIHub\config
+  ) else (
+    set AIHUB_CONFIG_DIR=%USERPROFILE%\.config\aihub
+  )
+)
+
+if "%CONFIG_FILE%"=="" set CONFIG_FILE=%AIHUB_CONFIG_DIR%\installer.conf
+if "%CONFIG_STATE_FILE%"=="" set CONFIG_STATE_FILE=%AIHUB_CONFIG_DIR%\config.yaml
+
 for %%P in (%AIHUB_PYTHON%) do if not "%%~P"=="" set PY_CMD=%%~P
 if "%PY_CMD%"=="" if exist "%PROJECT_ROOT%\.venv\Scripts\python.exe" set PY_CMD=%PROJECT_ROOT%\.venv\Scripts\python.exe
 if "%PY_CMD%"=="" set PY_CMD=python
