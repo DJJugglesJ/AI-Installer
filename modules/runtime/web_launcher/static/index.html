@@ -24,6 +24,17 @@
     </header>
 
     <main>
+      <section id="gpu-diagnostics" class="card">
+        <div class="card-header">
+          <h2>GPU Diagnostics</h2>
+          <p>Unified CLI, menu, and web diagnostics for VRAM and backend readiness.</p>
+          <button id="refresh-gpu" type="button">Refresh</button>
+        </div>
+        <div id="gpu-diagnostics-body" class="manifest-list">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading GPU diagnostics…</div>
+        </div>
+      </section>
+
       <section id="actions" class="card">
         <div class="card-header">
           <h2>Launcher Actions</h2>
