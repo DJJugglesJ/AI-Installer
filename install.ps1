@@ -4,17 +4,49 @@ param(
   [string]$Config,
   [string]$Install,
   [string]$Gpu,
-  [switch]$Help
+  [switch]$Help,
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$RemainingArgs
 )
 
 function Show-Usage {
   Write-Host "Usage: install.ps1 [--headless] [--config <file>] [--install <target>] [--gpu <mode>] [--help]" -ForegroundColor Cyan
-  Write-Host """  --headless         Run without prompts (defaults are applied)."""
-  Write-Host """  --config <file>    Optional config file persisted to %APPDATA%\\AIHub\\config."""
-  Write-Host """  --install <target> Install a component directly (e.g., webui, kobold, sillytavern, loras, models)."""
-  Write-Host """  --gpu <mode>       Force GPU mode (nvidia|amd|intel|cpu) and install matching tooling."""
-  Write-Host """  --help             Show this help."""
+  Write-Host '  --headless         Run without prompts (defaults are applied).'
+  Write-Host '  --config <file>    Optional config file persisted to %APPDATA%\AIHub\config.'
+  Write-Host '  --install <target> Install a component directly (e.g., webui, kobold, sillytavern, loras, models).'
+  Write-Host '  --gpu <mode>       Force GPU mode (nvidia|amd|intel|cpu) and install matching tooling.'
+  Write-Host '  --help             Show this help.'
 }
+
+function Parse-ExtraArgs {
+  param([string[]]$Args)
+  $parsed = @{}
+  for ($i = 0; $i -lt $Args.Count; $i++) {
+    $arg = $Args[$i]
+    switch ($arg) {
+      '--headless' { $parsed['Headless'] = $true }
+      '--config' {
+        if ($i + 1 -lt $Args.Count) { $parsed['Config'] = $Args[$i + 1]; $i++ }
+      }
+      '--install' {
+        if ($i + 1 -lt $Args.Count) { $parsed['Install'] = $Args[$i + 1]; $i++ }
+      }
+      '--gpu' {
+        if ($i + 1 -lt $Args.Count) { $parsed['Gpu'] = $Args[$i + 1]; $i++ }
+      }
+      '--help' { $parsed['Help'] = $true }
+      default { }
+    }
+  }
+  return $parsed
+}
+
+$extra = Parse-ExtraArgs -Args $RemainingArgs
+if ($extra.ContainsKey('Help')) { $Help = $true }
+if ($extra.ContainsKey('Headless')) { $Headless = $true }
+if ($extra.ContainsKey('Config')) { $Config = $extra['Config'] }
+if ($extra.ContainsKey('Install')) { $Install = $extra['Install'] }
+if ($extra.ContainsKey('Gpu')) { $Gpu = $extra['Gpu'] }
 
 if ($Help) { Show-Usage; exit 0 }
 
@@ -22,16 +54,20 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path "$ScriptDir"
 $LogDir = if ($Env:LOCALAPPDATA) { Join-Path $Env:LOCALAPPDATA "AIHub/logs" } else { Join-Path $env:USERPROFILE ".config/aihub" }
 $ConfigDir = if ($Env:APPDATA) { Join-Path $Env:APPDATA "AIHub/config" } else { Join-Path $env:USERPROFILE ".config/aihub" }
+$ConfigPath = $null
 $LogPath = Join-Path $LogDir "install.log"
-$ConfigPath = if ($Config) { $Config } else { Join-Path $ConfigDir "installer.conf" }
 
-function Ensure-Path($Path) {
+function Ensure-Directory {
+  param([string]$Path)
   if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
 }
 
-Ensure-Path $LogDir
-Ensure-Path $ConfigDir
+Ensure-Directory $LogDir
+Ensure-Directory $ConfigDir
 if (-not (Test-Path $LogPath)) { New-Item -ItemType File -Path $LogPath -Force | Out-Null }
+
+$Env:AIHUB_LOG_PATH = $LogPath
+$Env:AIHUB_CONFIG_DIR = $ConfigDir
 
 function Write-Log {
   param([string]$Message, [string]$Level = "INFO")
@@ -41,9 +77,40 @@ function Write-Log {
   Add-Content -Path $LogPath -Value $line
 }
 
-Write-Log "AI Hub Windows installer starting (headless=$($Headless.IsPresent), install=$Install, gpu=$Gpu)."
+function Resolve-ConfigPath {
+  if ($Config) {
+    if (Test-Path $Config) {
+      return Join-Path $ConfigDir (Split-Path $Config -Leaf)
+    }
+    return $Config
+  }
+  return Join-Path $ConfigDir "installer.conf"
+}
+
+$ConfigPath = Resolve-ConfigPath
+Write-Log "AI Hub Windows installer starting (headless=$($Headless.IsPresent -or $Headless), install=$Install, gpu=$Gpu)."
 Write-Log "Log path: $LogPath"
 Write-Log "Config path: $ConfigPath"
+
+function Persist-ConfigFile {
+  if ($Config -and (Test-Path $Config)) {
+    try {
+      Copy-Item -Path $Config -Destination $ConfigPath -Force
+      Write-Log "Config file '$Config' copied to $ConfigPath"
+    } catch {
+      Write-Log "Failed to copy config file: $_" "ERROR"
+    }
+  } elseif (-not (Test-Path $ConfigPath)) {
+    try {
+      New-Item -ItemType File -Path $ConfigPath -Force | Out-Null
+      Write-Log "Created default config placeholder at $ConfigPath"
+    } catch {
+      Write-Log "Unable to create config file at $ConfigPath: $_" "ERROR"
+    }
+  } else {
+    Write-Log "Using existing config at $ConfigPath"
+  }
+}
 
 function Get-PackageManager {
   if (Get-Command winget -ErrorAction SilentlyContinue) { return "winget" }
@@ -58,12 +125,15 @@ if (-not $PackageManager) {
 }
 Write-Log "Using package manager: $PackageManager"
 
-function Test-Command($Name) { return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
+function Test-Command {
+  param([string]$Name)
+  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
 
 function Install-Package {
   param([string]$WingetId, [string]$ChocoId, [string]$Label)
   $pkgId = if ($PackageManager -eq "winget") { $WingetId } else { $ChocoId }
-  if (-not $pkgId) { Write-Log "No package id supplied for $Label; skipping." "WARN"; return }
+  if (-not $pkgId) { Write-Log "No package id supplied for $Label; skipping." "WARN"; return $false }
   try {
     if ($PackageManager -eq "winget") {
       Write-Log "Installing $Label via winget ($pkgId) ..."
@@ -72,9 +142,33 @@ function Install-Package {
       Write-Log "Installing $Label via choco ($pkgId) ..."
       choco install $pkgId -y --no-progress | Out-Null
     }
-    Write-Log "$Label installation attempted; verify presence after completion."
+    return $true
   } catch {
     Write-Log "Failed to install $Label ($pkgId): $_" "ERROR"
+    return $false
+  }
+}
+
+function Ensure-Dependency {
+  param(
+    [string]$Command,
+    [string]$Label,
+    [string]$WingetId,
+    [string]$ChocoId
+  )
+
+  if (Test-Command $Command) {
+    $version = try { & $Command --version 2>$null | Select-Object -First 1 } catch { "(version unavailable)" }
+    Write-Log "$Label present: $version"
+    return
+  }
+
+  $installed = Install-Package -WingetId $WingetId -ChocoId $ChocoId -Label $Label
+  if (Test-Command $Command) {
+    $version = try { & $Command --version 2>$null | Select-Object -First 1 } catch { "(version unavailable)" }
+    Write-Log "$Label installed successfully: $version"
+  } elseif ($installed) {
+    Write-Log "$Label installation attempted but command still missing." "WARN"
   }
 }
 
@@ -88,25 +182,33 @@ $Deps = @(
 )
 
 foreach ($dep in $Deps) {
-  if (Test-Command $dep.Cmd) {
-    Write-Log "$($dep.Label) present: $(& $dep.Cmd --version 2>$null | Select-Object -First 1)"
-  } else {
-    Install-Package -WingetId $dep.Winget -ChocoId $dep.Choco -Label $dep.Label
-  }
+  Ensure-Dependency -Command $dep.Cmd -Label $dep.Label -WingetId $dep.Winget -ChocoId $dep.Choco
 }
+
+function Ensure-Downloader {
+  if (Test-Command 'aria2c' -or Test-Command 'wget' -or Test-Command 'curl') {
+    return
+  }
+  Write-Log "No downloader available after installation attempts." "ERROR"
+}
+
+Ensure-Downloader
 
 function Ensure-GpuTooling {
   param([string]$Mode)
   $modeLower = $Mode.ToLower()
   switch -regex ($modeLower) {
     "nvidia" {
-      Install-Package -WingetId "Nvidia.CUDA" -ChocoId "cuda" -Label "NVIDIA CUDA toolkit"
+      Install-Package -WingetId "Nvidia.CUDA" -ChocoId "cuda" -Label "NVIDIA CUDA toolkit" | Out-Null
+      Write-Log "NVIDIA GPU mode selected. CUDA toolkit install requested."
     }
     "amd" {
-      Install-Package -WingetId "AdvancedMicroDevicesInc.RadeonSoftware" -ChocoId "radeon-software" -Label "AMD Radeon software"
+      Install-Package -WingetId "AdvancedMicroDevicesInc.RadeonSoftware" -ChocoId "radeon-software" -Label "AMD Radeon software" | Out-Null
+      Write-Log "AMD GPU mode selected. Radeon software install requested."
     }
     "intel" {
-      Install-Package -WingetId "Intel.IntelDriverAndSupportAssistant" -ChocoId "intel-dsa" -Label "Intel driver tools"
+      Install-Package -WingetId "Intel.IntelDriverAndSupportAssistant" -ChocoId "intel-dsa" -Label "Intel driver tools" | Out-Null
+      Write-Log "Intel GPU mode selected. Driver support assistant install requested."
     }
     default {
       Write-Log "CPU mode requested; skipping GPU tooling install." "WARN"
@@ -145,7 +247,7 @@ function Provision-Workspace {
     Join-Path $base "ai-hub",
     Join-Path $base "ai-hub/models"
   )
-  foreach ($path in $paths) { Ensure-Path $path }
+  foreach ($path in $paths) { Ensure-Directory $path }
   Write-Log "Provisioned workspace directories under $base"
 }
 
@@ -153,19 +255,56 @@ Provision-Workspace
 
 function Load-Manifests {
   $manifestDir = Join-Path $ProjectRoot "manifests"
-  if (-not (Test-Path $manifestDir)) { return }
+  $manifestIndex = @{}
+  if (-not (Test-Path $manifestDir)) { return $manifestIndex }
   Get-ChildItem $manifestDir -Filter *.json | ForEach-Object {
     try {
       $data = Get-Content $_.FullName -Raw | ConvertFrom-Json
       $count = if ($data.items) { $data.items.Count } else { 0 }
+      $name = [System.IO.Path]::GetFileNameWithoutExtension($_.Name).ToLower()
+      $manifestIndex[$name] = $_.FullName
       Write-Log "Manifest '$($_.Name)' loaded with $count item(s)."
     } catch {
       Write-Log "Failed to parse manifest $($_.Name): $_" "WARN"
     }
   }
+  return $manifestIndex
 }
 
-Load-Manifests
+$ManifestIndex = Load-Manifests
+
+function Resolve-InstallScript {
+  param([string]$Target)
+  if (-not $Target) { return $null }
+  $name = $Target.ToLower()
+  $scriptPath = Join-Path $ProjectRoot "launcher/windows/install_${name}.ps1"
+  if (Test-Path $scriptPath) { return $scriptPath }
+  return $null
+}
+
+function Invoke-InstallTarget {
+  param([string]$Target)
+  $script = Resolve-InstallScript -Target $Target
+  if (-not $script) {
+    if ($ManifestIndex.ContainsKey($Target.ToLower())) {
+      Write-Log "Install target '$Target' has a manifest but no Windows install wrapper; install manually." "WARN"
+    } else {
+      Write-Log "Install target '$Target' not recognized; skipping automatic install." "WARN"
+    }
+    return
+  }
+
+  try {
+    Write-Log "Invoking install target '$Target' via $script"
+    & powershell.exe -ExecutionPolicy Bypass -File $script --headless
+  } catch {
+    Write-Log "Failed to invoke install target '$Target': $_" "ERROR"
+  }
+}
+
+if ($Install) {
+  Invoke-InstallTarget -Target $Install
+}
 
 function New-AIHubShortcut {
   param([string]$Destination, [string]$TargetScript)
@@ -185,8 +324,8 @@ function New-AIHubShortcut {
 
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
 $StartMenuDir = [Environment]::GetFolderPath("Programs")
-Ensure-Path $DesktopDir
-Ensure-Path $StartMenuDir
+Ensure-Directory $DesktopDir
+Ensure-Directory $StartMenuDir
 
 $webLauncher = Join-Path $ProjectRoot "launcher/start_web_launcher.ps1"
 $menuLauncher = Join-Path $ProjectRoot "launcher/aihub_menu.ps1"
@@ -201,11 +340,5 @@ if ($target) {
   Write-Log "No launcher script found; skipping shortcut creation." "WARN"
 }
 
-try {
-  if (-not (Test-Path $ConfigPath)) { New-Item -ItemType File -Path $ConfigPath -Force | Out-Null }
-  Write-Log "Config persisted at $ConfigPath"
-} catch {
-  Write-Log "Unable to persist config at $ConfigPath: $_" "ERROR"
-}
-
+Persist-ConfigFile
 Write-Log "AI Hub installer completed."
