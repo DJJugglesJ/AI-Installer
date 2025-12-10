@@ -17,6 +17,7 @@ import os
 import subprocess
 import threading
 import uuid
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from http import HTTPStatus
@@ -25,6 +26,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
+from modules.config_service import config_service
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
 from modules.runtime.prompt_builder import compiler
@@ -38,6 +40,21 @@ from modules.runtime.video.txt2vid import services as txt2vid_services
 
 
 logger = logging.getLogger(__name__)
+
+
+def _slugify(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
+    return normalized.strip("-")
+
+
+PAIRING_SCHEMA: Dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "loras": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
 
 
 @dataclass
@@ -92,11 +109,12 @@ class InstallJob:
 class WebLauncherAPI:
     """Backend helpers for the web launcher HTTP surface."""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, config_path: Optional[Path] = None):
         self.project_root = project_root
         self.modules_dir = project_root / "modules"
         self.shell_dir = self.modules_dir / "shell"
         self.manifest_dir = project_root / "manifests"
+        self.config_path = config_path or Path(config_service.DEFAULT_CONFIG_PATH)
         self._ui_hooks = UIIntegrationHooks()
         self._card_registry = CharacterCardRegistry()
         self._action_map: Dict[str, ActionSpec] = self._build_action_map()
@@ -163,7 +181,8 @@ class WebLauncherAPI:
         manifest_path = self.manifest_dir / f"{name}.json"
         base_payload = {"source": None, "items": [], "errors": [], "has_errors": False}
         if not manifest_path.exists():
-            return base_payload
+            message = f"Manifest {manifest_path.name} not found"
+            return {**base_payload, "errors": [message], "has_errors": True}
 
         try:
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -186,7 +205,6 @@ class WebLauncherAPI:
             logger.warning(message)
             return {**base_payload, "source": source, "errors": [message], "has_errors": True}
 
-        required_keys = ("name", "model_id", "source")
         validated_items: List[Dict[str, object]] = []
         for idx, item in enumerate(items):
             if not isinstance(item, dict):
@@ -195,17 +213,35 @@ class WebLauncherAPI:
                 errors.append(message)
                 continue
 
-            missing_keys = [key for key in required_keys if not isinstance(item.get(key), str) or not item.get(key)]
-            if missing_keys:
-                message = (
-                    f"{manifest_path.name} items[{idx}] missing or invalid keys: "
-                    f"{', '.join(sorted(missing_keys))}"
-                )
-                logger.warning(message)
-                errors.append(message)
-                continue
+            entry = dict(item)
+            entry.setdefault("tags", [])
+            entry.setdefault("license", "")
+            entry.setdefault("notes", "")
+            entry.setdefault("version", "")
+            entry.setdefault("size_bytes", None)
+            entry.setdefault("checksum", "")
 
-            validated_items.append(item)
+            issues: List[str] = []
+            name_value = entry.get("name")
+            if not isinstance(name_value, str) or not name_value.strip():
+                issues.append("Manifest entries must include a name")
+            entry_slug = entry.get("slug") or (name_value and _slugify(name_value))
+            entry["slug"] = entry_slug or ""
+            if not entry["slug"]:
+                issues.append("Manifest entries must include a slug or valid name")
+
+            if not entry.get("url") and not entry.get("filename"):
+                issues.append("Entries should include a download url or filename")
+            if not isinstance(entry.get("tags"), list):
+                issues.append("tags must be a list")
+                entry["tags"] = []
+
+            entry["health"] = "ok" if not issues else "warning"
+            entry["issues"] = issues
+            if issues:
+                errors.extend([f"{manifest_path.name} {entry['name'] or entry['slug']}: {msg}" for msg in issues])
+
+            validated_items.append(entry)
 
         return {
             "source": source,
@@ -224,6 +260,21 @@ class WebLauncherAPI:
             "errors": errors,
             "has_errors": bool(errors),
         }
+
+    def list_manifest(self, manifest_type: str) -> Dict[str, object]:
+        if manifest_type not in {"models", "loras"}:
+            raise ValueError("Manifest type must be 'models' or 'loras'")
+        manifest = self._load_manifest(manifest_type)
+        manifest["type"] = manifest_type
+        return manifest
+
+    def get_manifest_item(self, manifest_type: str, item_id: str) -> Dict[str, object]:
+        manifest = self.list_manifest(manifest_type)
+        index = {item.get("slug") or _slugify(item.get("name", "")): item for item in manifest.get("items", [])}
+        normalized = _slugify(item_id)
+        if normalized not in index:
+            raise ValueError(f"Manifest item '{item_id}' not found in {manifest_type}")
+        return {"item": index[normalized], "type": manifest_type, "source": manifest.get("source"), "errors": manifest.get("errors", [])}
 
     def _tail_log(self, log_path: Path, lines: int = 20) -> str:
         if not log_path.exists():
@@ -338,6 +389,62 @@ class WebLauncherAPI:
             "jobs": rendered_jobs,
             "history": self._load_history(),
         }
+
+    def _load_config(self) -> Dict[str, object]:
+        loaded = config_service.load_config(str(self.config_path), env_prefix="", overrides=[])
+        if loaded.migrated:
+            config_service.save_config(loaded.data, str(self.config_path))
+        return loaded.data
+
+    def _save_selection(self, selection: Dict[str, object]) -> Dict[str, object]:
+        config = self._load_config()
+        config_service.deep_set(config, "selection", selection)
+        config_service.save_config(config, str(self.config_path))
+        return selection
+
+    def get_pairings(self) -> Dict[str, object]:
+        config = self._load_config()
+        selection = config.get("selection", {})
+        return {
+            "selection": {
+                "model": selection.get("model", ""),
+                "loras": selection.get("loras", []),
+            },
+            "manifests": {
+                "models": self.list_manifest("models"),
+                "loras": self.list_manifest("loras"),
+            },
+        }
+
+    def update_pairings(self, payload: Dict[str, object]) -> Dict[str, object]:
+        errors = config_service.validate_against_schema(payload, PAIRING_SCHEMA)
+        if errors:
+            raise ValueError("; ".join(errors))
+
+        selection_model = str(payload.get("model", "")).strip()
+        selection_loras = payload.get("loras", []) or []
+        if not isinstance(selection_loras, list):
+            raise ValueError("loras must be a list of names")
+
+        manifests = self.get_manifests()
+        model_index = {item.get("name"): item for item in manifests.get("models", {}).get("items", [])}
+        lora_index = {item.get("name"): item for item in manifests.get("loras", {}).get("items", [])}
+
+        if selection_model and selection_model not in model_index:
+            raise ValueError(f"Unknown model '{selection_model}'")
+
+        invalid_loras = [name for name in selection_loras if name not in lora_index]
+        if invalid_loras:
+            raise ValueError(f"Unknown LoRA entries: {', '.join(invalid_loras)}")
+
+        unique_loras = []
+        for name in selection_loras:
+            if name not in unique_loras:
+                unique_loras.append(name)
+
+        selection = {"model": selection_model, "loras": unique_loras}
+        saved = self._save_selection(selection)
+        return {"selection": saved}
 
     def list_characters(self) -> List[Dict[str, object]]:
         cards: List[Dict[str, object]] = []
@@ -457,6 +564,13 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
         if not self._require_auth():
             return
         try:
+            if path.startswith("/api/manifests/"):
+                _, _, manifest_type, *rest = path.strip("/").split("/")
+                if rest:
+                    self._send_json(self.api.get_manifest_item(manifest_type, rest[0]))
+                else:
+                    self._send_json(self.api.list_manifest(manifest_type))
+                return
             if path == "/api/status":
                 self._send_json(self.api.status())
             elif path == "/api/manifests":
@@ -473,6 +587,8 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.list_tasks())
             elif path == "/api/hardware/gpu":
                 self._send_json(self.api.gpu_diagnostics())
+            elif path == "/api/pairings":
+                self._send_json(self.api.get_pairings())
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except Exception as exc:  # pragma: no cover - defensive routing guard
@@ -504,6 +620,10 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 task_payload = payload.get("payload", payload)
                 task = self.api.create_task(tool_id, task_payload)
                 self._send_json({"task": task}, status=HTTPStatus.ACCEPTED)
+            elif path == "/api/pairings":
+                payload = self._read_json_body()
+                result = self.api.update_pairings(payload)
+                self._send_json(result)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except ValueError as exc:

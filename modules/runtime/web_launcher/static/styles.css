@@ -196,6 +196,10 @@ main {
   margin-top: 0.5rem;
 }
 
+.actions-row.space-between {
+  justify-content: space-between;
+}
+
 button {
   background: var(--accent);
   color: #0b1220;
@@ -215,6 +219,14 @@ button.secondary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1rem;
+}
+
+.manifest-detail {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #0b1220;
+  min-height: 180px;
 }
 
 .manifest-list {
@@ -343,6 +355,42 @@ button.secondary {
 
 .manifest-table td.wrap {
   white-space: normal;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.detail-grid strong {
+  display: block;
+}
+
+.pill.inline {
+  display: inline-flex;
+  align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.result-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
 }
 
 .job-card,
