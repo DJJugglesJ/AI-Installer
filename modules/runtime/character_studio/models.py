@@ -13,6 +13,18 @@ CARD_STORAGE_ROOT = Path(__file__).resolve().parent / "character_cards"
 CARD_STORAGE_ROOT.mkdir(exist_ok=True)
 
 
+class CharacterStudioError(Exception):
+    """Base error for Character Studio operations with optional context."""
+
+    def __init__(self, message: str, *, context: Optional[Dict[str, object]] = None) -> None:
+        super().__init__(message)
+        self.context = context or {}
+
+
+class SchemaValidationError(CharacterStudioError):
+    """Raised when Character Cards do not satisfy the shared schema."""
+
+
 # Shared JSON Schema for use by Prompt Builder and other modules.
 CHARACTER_CARD_SCHEMA: Dict[str, object] = {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -43,6 +55,11 @@ CHARACTER_CARD_SCHEMA: Dict[str, object] = {
             "type": "array",
             "items": {"type": "string"},
             "description": "Tags describing anatomy, outfits, accessories, and style cues.",
+        },
+        "wardrobe": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of default outfits or wardrobe descriptors maintained per character.",
         },
         "lora_file": {
             "type": ["string", "null"],
@@ -78,10 +95,33 @@ class CharacterCard:
     default_prompt_snippet: Optional[str] = None
     trigger_token: Optional[str] = None
     anatomy_tags: List[str] = field(default_factory=list)
+    wardrobe: List[str] = field(default_factory=list)
     lora_file: Optional[str] = None
     lora_default_strength: Optional[float] = None
     reference_images: List[str] = field(default_factory=list)
     metadata: Dict[str, str] = field(default_factory=dict)
+
+    def validate(self) -> None:
+        """Validate the Character Card against the shared schema."""
+
+        errors = []
+        if not isinstance(self.id, str) or not self.id.strip():
+            errors.append("id must be a non-empty string")
+        if not isinstance(self.name, str) or not self.name.strip():
+            errors.append("name must be a non-empty string")
+        if not isinstance(self.nsfw_allowed, bool):
+            errors.append("nsfw_allowed must be a boolean")
+        if not isinstance(self.anatomy_tags, list) or not all(
+            isinstance(tag, str) and tag.strip() for tag in self.anatomy_tags
+        ):
+            errors.append("anatomy_tags must be a list of non-empty strings")
+        if not isinstance(self.wardrobe, list) or not all(
+            isinstance(item, str) and item.strip() for item in self.wardrobe
+        ):
+            errors.append("wardrobe must be a list of non-empty strings")
+
+        if errors:
+            raise SchemaValidationError("Character Card validation failed", context={"errors": errors, "card_id": self.id})
 
     def to_dict(self) -> Dict[str, object]:
         """Serialize the CharacterCard into a JSON-compatible dict."""
@@ -101,6 +141,7 @@ class CharacterCard:
             default_prompt_snippet=payload.get("default_prompt_snippet"),
             trigger_token=payload.get("trigger_token"),
             anatomy_tags=list(payload.get("anatomy_tags", []) or []),
+            wardrobe=list(payload.get("wardrobe", []) or []),
             lora_file=payload.get("lora_file"),
             lora_default_strength=payload.get("lora_default_strength"),
             reference_images=list(payload.get("reference_images", []) or []),
@@ -110,6 +151,7 @@ class CharacterCard:
     def save(self, path: Optional[Path] = None) -> Path:
         """Persist the CharacterCard to disk as JSON and return the saved path."""
 
+        self.validate()
         destination = path or CARD_STORAGE_ROOT / self.id / "card.json"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
@@ -121,7 +163,9 @@ class CharacterCard:
 
         source = path or CARD_STORAGE_ROOT / card_id / "card.json"
         payload = json.loads(source.read_text(encoding="utf-8"))
-        return cls.from_dict(payload)
+        card = cls.from_dict(payload)
+        card.validate()
+        return card
 
 
 def apply_feedback_to_character(character_card: CharacterCard, feedback_text: str) -> CharacterCard:

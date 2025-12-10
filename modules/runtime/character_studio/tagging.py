@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shlex
 import subprocess
@@ -10,7 +11,13 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 from . import dataset
-from .models import CharacterCard
+from .models import CharacterCard, CharacterStudioError
+
+logger = logging.getLogger(__name__)
+
+
+class TaggingError(CharacterStudioError):
+    """Raised when tagging operations fail."""
 
 
 def _load_card(character_id: str) -> CharacterCard:
@@ -49,6 +56,10 @@ def auto_tag_images(
     card = _load_card(character_id)
     images = dataset.list_subset_images(character_id, subset_name)
     if not images:
+        logger.warning(
+            "No images available for auto-tagging",
+            extra={"character_id": character_id, "subset": subset_name},
+        )
         return []
 
     base_tags: List[str] = []
@@ -72,12 +83,27 @@ def auto_tag_images(
                     if tag not in tags:
                         tags.append(tag)
             except FileNotFoundError as exc:
-                raise RuntimeError(f"External tagger not found: {cmd[0]}") from exc
+                raise TaggingError(
+                    "External tagger command not found",
+                    context={"character_id": character_id, "subset": subset_name, "command": cmd},
+                ) from exc
             except subprocess.CalledProcessError as exc:
-                raise RuntimeError(f"External tagger failed for {image}: {exc.stderr}") from exc
+                raise TaggingError(
+                    "External tagger failed",
+                    context={
+                        "character_id": character_id,
+                        "subset": subset_name,
+                        "command": cmd,
+                        "stderr": exc.stderr,
+                    },
+                ) from exc
 
         results.append(_write_caption(image, tags))
 
+    logger.info(
+        "Tagged images",
+        extra={"character_id": character_id, "subset": subset_name, "count": len(results)},
+    )
     return results
 
 
@@ -86,7 +112,10 @@ def edit_tags_for_image(image_path: str, new_tags: Optional[List[str]] = None) -
 
     path = Path(image_path)
     if path.suffix.lower() not in dataset.IMAGE_EXTENSIONS:
-        raise ValueError("edit_tags_for_image expects an image path")
+        raise TaggingError(
+            "edit_tags_for_image expects an image path",
+            context={"image_path": image_path, "suffix": path.suffix},
+        )
 
     caption_path = path.with_suffix(".txt")
     existing = caption_path.read_text(encoding="utf-8") if caption_path.exists() else ""
@@ -117,7 +146,10 @@ def bulk_edit_tags(
     """Apply bulk tag edits across multiple images."""
 
     if append_tags and replace_with:
-        raise ValueError("Use either append_tags or replace_with, not both")
+        raise TaggingError(
+            "Use either append_tags or replace_with, not both",
+            context={"append_tags": append_tags, "replace_with": replace_with},
+        )
 
     updated: List[str] = []
     for image_path_str in image_paths:
@@ -134,4 +166,5 @@ def bulk_edit_tags(
         merged = existing_tags + [tag for tag in (append_tags or []) if tag not in existing_tags]
         updated.append(_write_caption(path, merged))
 
+    logger.info("Bulk tag edit complete", extra={"updated": len(updated)})
     return updated
