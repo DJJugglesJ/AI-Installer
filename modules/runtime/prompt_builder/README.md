@@ -65,12 +65,11 @@ See `modules/runtime/prompt_builder/models.py` for the Python data models that m
 
 ## Services and extension hooks
 
-- **Compiler service**: `modules/runtime/prompt_builder/services.py` includes a `PromptCompilerService` placeholder that wraps compiler behavior and can be replaced with an RPC handler later.
-- **UI integration hooks**: `UIIntegrationHooks` validates scenes and writes compiled bundles to disk so UI layers and launcher scripts have a stable place to read prompts.
+- **Compiler service**: `PromptCompilerService` validates `SceneDescription` objects, resolves character cards through the registry, and delegates to `SceneLLMAdapter` to synthesize prompts and LoRA calls. The `compiler.compile_prompt_payload` helper also supports `feedback_text`, which routes through `apply_feedback_to_scene` before rebuilding the prompt assembly.
+- **UI integration hooks**: `UIIntegrationHooks` runs preflight checks to ensure a scene includes characters or extra elements, then writes the compiled bundle to the cache path (`PROMPT_BUNDLE_PATH` or the default under `~/.cache/aihub/prompt_builder/`). Bundles include a `compiled_at` timestamp and the resolved bundle path so launchers can detect freshness.
 
-## Development and next steps
+## Usage and development notes
 
-- Implement the compiler to call LLM abstractions and character registries for enriched prompt generation.
-- Wire launcher-specific adapters that translate `PromptAssembly` into concrete CLI flags or config files.
-- Add unit tests for JSON validation and LoRA routing.
-- Extend `__main__.py` to accept CLI arguments (`--scene path/to/scene.json`) once the compiler is functional.
+- Compile a saved scene JSON and emit the prompt bundle: `python -m modules.runtime.prompt_builder --scene /path/to/scene.json`
+- Apply natural-language feedback before compilation: `python -m modules.runtime.prompt_builder --scene /path/to/scene.json --feedback "make the lighting moodier"`
+- Both commands validate the scene, write the enriched bundle to the cache path, and print the JSON payload to stdout for chaining into other tools.
