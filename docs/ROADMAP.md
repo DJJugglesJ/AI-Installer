@@ -1,149 +1,50 @@
 Roadmap
 
-This roadmap outlines current capabilities and planned milestones for AI-Hub across short-, mid-, and long-term horizons. All module-specific items, including Prompt Builder and Character Studio, are integrated directly into the roadmap to eliminate fragmentation.
+This roadmap summarizes current capabilities and planned milestones for AI-Hub using clear time horizons. Prompt Builder and Character Studio deliverables are integrated directly into the same plan to avoid fragmentation.
 
 Current capabilities
+- Shell-first, modular architecture: installer and launcher helpers live in `modules/shell`, with runtime schemas and utilities (Prompt Builder, Character Studio, manifest validation) in `modules/runtime`.
+- Cross-platform installers: Linux and WSL are first-class, with native Windows wrappers (`.bat`/`.ps1`) that mirror shell flows and shared logging locations.
+- Defensive installation and GPU handling: prerequisite checks, resumable downloads, structured logs, and GPU probes (NVIDIA/AMD/Intel/DirectML) with safe CPU fallbacks.
+- Launcher coverage and parity: YAD desktop launcher plus a Web Launcher that shares install/update/launch flows, manifest access, and pairing workflows.
+- Manifest and runtime validation: curated model/LoRA manifests with hashes, mirrors, and front-end hints; schemas validate manifests, Prompt Builder scenes, Character Cards, and LoRA metadata with structured errors.
+- Quickstart defaults: updated presets for SD1.5/SDXL, GPU hints, and safer defaults for new users.
 
-Modular installer architecture with modules/shell for install/update/launch helpers and modules/runtime for schemas, Prompt Builder, Character Studio, and manifest utilities.
-
-Cross-platform support including Linux, WSL2, and initial native Windows parity via .bat/.ps1 launchers, GPU probes, and consistent logging locations.
-
-Hardened installer with prerequisite checks, safe retries, download resumption, GPU detection (NVIDIA/AMD/Intel/DirectML/CPU fallback), and detailed structured logs.
-
-YAD-based launcher menu for Stable Diffusion WebUI, KoboldAI, SillyTavern, model downloads, LoRA management, and self-update flows.
-
-Early Web Launcher backend exposing install, update, manifest browsing, and runtime endpoints over HTTP.
-
-Curated model and LoRA manifests including size, hashes, tags, front-end suggestions, mirrors, and structured validation to catch malformed entries.
-
-Runtime validation of manifests, Prompt Builder scene descriptions, Character Cards, and LoRA metadata with structured error messages.
-
-Updated quickstarts surfacing SD1.5/SDXL presets, GPU hints, and improved launcher defaults for new users.
-
-Short-term milestones (1–2 releases)
-
-Add a GPU health and diagnostics action (CLI, menu, and Web UI) including VRAM checks, driver info, and ROCm/oneAPI/DirectML hints.
-
-Improve parity between YAD menu and Web Launcher for manifest browsing, LoRA/model pairing workflows, inline descriptions, and default selections matching headless configuration.
-
-Improve download reliability with mirror health checks, checksum diffs, offline bundles, and structured error reporting in the Web Launcher.
-
-Integrate quickstart guidance directly into the Web Launcher for new users.
-
-Finalize Windows launcher parity by completing .bat/.ps1 equivalents for all shell helpers, adding WSL fallbacks and shared logging semantics.
-
-Deliver a cross-platform Web Launcher interface that exposes install, update, launch, and manifest maintenance operations and provides clear loading/error states.
-
-Expand manifest browser with support for tag editing, checksum validation, and metadata updates.
-
-Add a curated model and LoRA browser in both CLI and Web UI with refresh cadence, mirror health indicators, and one-click installs.
-
-Implement unified schema definitions for Prompt Builder and Character Studio models within modules/runtime with consistent validation rules. (Prompt Builder / Character Studio)
-
-Implement core prompt compilation: structured SceneDescription JSON input producing positive_prompt, negative_prompt, and LoRA call list, using an LLM abstraction layer. (Prompt Builder)
-
-Add Guided Scene Builder UI panels (world, setting, mood, camera, characters) and Quick Prompt mode to the Web Launcher. (Prompt Builder)
-
-Implement Character Card editing UI (anatomy tags, wardrobe defaults, trigger tokens, reference images, and nsfw_allowed flag). (Character Studio)
-
-Implement apply-feedback functions that allow LLM-assisted refinement of Scene Descriptions and Character Cards. (Prompt Builder / Character Studio)
+Near-term milestones (1–2 releases)
+- Ship GPU diagnostics across CLI, menu, and Web UI (VRAM checks, driver details, ROCm/oneAPI/DirectML tips).
+- Achieve full Web Launcher parity: manifest browsing, model/LoRA pairing flows, inline quickstart guidance, and clearer loading/error states.
+- Harden download reliability with mirror health checks, checksums, resumable/offline bundles, and structured error reporting in the Web Launcher.
+- Complete Windows launcher parity with `.bat`/`.ps1` wrappers for all shell helpers, WSL fallbacks, and unified logging semantics.
+- Enrich manifest and content browsers: tag editing, checksum validation, metadata updates, refresh cadence, health indicators, and one-click installs for models and LoRAs.
+- Deliver Prompt Builder and Character Studio schemas plus prompt compilation: structured scene inputs produce prompts and LoRA call lists through an LLM abstraction layer.
+- Build UI/editor work: Guided Scene Builder panels (world/setting/mood/camera/characters), Quick Prompt mode, Character Card editing (anatomy, wardrobe, triggers, reference images, `nsfw_allowed`), and apply-feedback functions for refinement.
 
 Mid-term milestones (quarterly)
-
-Expand headless automation: fully configurable install profiles, schema-validated config ingestion, and reproducible environment exports.
-
-Enhance update/self-update reliability with checksums, integrity checks, and safe rollback options.
-
-Add GPU performance toggles (fp16, xformers, DirectML, medvram) with compatibility checks for NVIDIA, AMD, and Intel.
-
-Expand curated model management with licensing notes, version tracking, deprecation warnings, and parity between shell and Web UI workflows.
-
-Improve logging and optional telemetry hooks (opt-in) for install/launch diagnostics across platforms.
-
-Deliver full native Windows installation and launcher parity using PowerShell and batch wrappers, enabling Windows users to operate without WSL unless necessary.
-
-Promote Web Launcher as the primary user interface, with a CLI fallback and remote access capability for headless servers.
-
-Add offline-capable Web Launcher bundles (prebuilt assets, cached schemas) for air-gapped systems.
-
-Add structured Prompt Builder feedback-driven prompt adjustment and prompt history/favorites. (Prompt Builder)
-
-Implement character dataset generation for SFW reference sets using WebUI API, including image selection and auto-captioning using trigger tokens and core tags. (Character Studio)
-
-Add optional NSFW dataset workflows gated by nsfw_allowed, including anatomy/coverage checklists, structured batch generation, selection, and captioning. (Character Studio)
-
-Add a tagging/caption-review UI for dataset refinement with bulk edits and auto-tagging support. (Character Studio)
-
-Add Web Launcher integration for sending compiled prompts directly to Stable Diffusion WebUI txt2img endpoints with result handling. (Prompt Builder)
+- Expand headless automation with fully configurable install profiles, schema-validated config ingestion, reproducible exports, and remote-friendly Web Launcher operation.
+- Strengthen self-update with checksum integrity and safe rollback for installers and launchers.
+- Add GPU performance toggles (fp16, xformers, DirectML, medvram) with compatibility checks across NVIDIA/AMD/Intel and headless presets.
+- Deepen curated model governance with licensing notes, version tracking, deprecation warnings, and parity between shell and Web UI workflows.
+- Provide offline-capable Web Launcher bundles (prebuilt assets, cached schemas) for air-gapped or low-connectivity environments.
+- Add Prompt Builder feedback-driven prompt adjustment, history/favorites, and Character Studio dataset generation with tagging/caption review (including optional NSFW paths gated by `nsfw_allowed`).
+- Integrate Web Launcher send-to-WebUI for compiled prompts (txt2img) with result handling.
 
 Long-term milestones (6+ months)
-
-Introduce a unified configuration schema for installer, launcher, runtime services, and content management with import/export support.
-
-Provide pluggable backend sources for models and LoRAs (community mirrors, local NAS, enterprise registries).
-
-Add automated GPU tuning that adapts installer defaults based on detected hardware and benchmark results.
-
-Deliver accessibility and usability improvements across the Web Launcher and desktop flows, including clearer navigation and device-friendly layouts.
-
-Expand the Web Launcher into a consolidated workspace with optional third-party panels (ComfyUI graph viewer, training dashboards, telemetry tools).
-
-Provide offline/cloud hybrid bundles for environments with intermittent connectivity.
-
-Add dataset-to-LoRA training export including dataset packaging, metadata, training config generation, and an optional trainer wrapper (e.g. kohya). (Character Studio)
-
-Add automated LoRA registration into manifests and Character Cards after training completes. (Character Studio)
-
-Add advanced model-specific prompting presets and LoRA suggestion logic for characters and scenes. (Prompt Builder)
+- Introduce unified configuration for installer, launcher, runtime services, and content management with import/export support.
+- Offer pluggable backends for models and LoRAs (community mirrors, NAS, enterprise registries) plus advanced GPU tuning informed by benchmarks.
+- Maintain accessibility and usability improvements across Web Launcher and desktop flows with device-friendly layouts and remote access.
+- Deliver offline/cloud hybrid bundles for intermittent connectivity and curated governance for model provenance and lifecycle.
+- Provide dataset-to-LoRA training exports (packaging, metadata, training config generation, trainer wrappers) and automated LoRA registration into manifests and Character Cards.
+- Extend advanced prompting features: model-specific presets, LoRA suggestion logic, and Prompt Builder/Character Studio feedback loops.
 
 Feature wishlist
-
-GPU benchmark page accessible from launcher or Web UI.
-
-Improved proxy and caching support for large model downloads.
-
-Scheduled update checks with minimal-disruption behavior.
-
-Rich model and LoRA metadata including thumbnails and version notes.
-
-Preset sharing/import for prompt, model, and LoRA combinations.
-
-Backup and restore for installer configuration, manifests, and downloaded assets.
-
-Conflict detection for LoRA/model incompatibilities in pairing flows.
-
-Reliability and UX improvements
-
-More resilient download retries with clearer progress reporting.
-
-Improved Hugging Face token validation before downloading gated assets.
-
-Contextual help links or tooltips throughout launcher and Web UI.
-
-Safety rails around self-update and git operations to prevent loss of local changes.
-
-GPU and performance goals
-
-Hardware-aware default settings for fp16, xformers, DirectML, ROCm, and oneAPI.
-
-Low-VRAM configurations with documented trade-offs.
-
-Optional benchmark scripts with guidance per frontend.
-
-Automation and configuration targets
-
-CI-friendly, fully unattended install mode with preseeded answers.
-
-Centralized configuration directory with schema validation and automatic backups.
-
-Environment export/import to reproduce installs across machines.
-
-Model and content management expansions
-
-Versioned curated model lists with checksums and metadata validation.
-
-Smarter download scheduling/queuing prioritizing smaller or required files.
-
-Improved LoRA pairing flows with conflict detection and history recall.
-
-Support for external or custom storage locations with free-space checks.
+- GPU benchmark page accessible from launcher or Web UI.
+- Improved proxy and caching support for large model downloads.
+- Scheduled update checks with minimal-disruption behavior.
+- Rich model and LoRA metadata including thumbnails and version notes.
+- Preset sharing/import for prompt, model, and LoRA combinations.
+- Backup and restore for installer configuration, manifests, and downloaded assets.
+- Conflict detection for LoRA/model incompatibilities in pairing flows.
+- Reliability and UX improvements: resilient downloads with progress, Hugging Face token validation, contextual help, and safety rails around self-update/git.
+- GPU and performance goals: hardware-aware defaults for fp16/xformers/DirectML/ROCm/oneAPI, low-VRAM modes, and optional benchmarks.
+- Automation and configuration targets: CI-friendly unattended installs, centralized config with validation and backups, environment export/import.
+- Model and content management expansions: versioned curated lists with checksums, smarter download scheduling, improved LoRA pairing history, and external storage with free-space checks.
