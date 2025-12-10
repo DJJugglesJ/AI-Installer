@@ -173,6 +173,55 @@ async function fetchJson(path, options = {}) {
   return response.json();
 }
 
+function escapeHtml(value) {
+  if (value === undefined || value === null) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function summarizeDetail(detail) {
+  if (detail === undefined || detail === null) return "";
+  if (typeof detail === "object") {
+    try {
+      return JSON.stringify(detail);
+    } catch (err) {
+      return "";
+    }
+  }
+  return String(detail);
+}
+
+function renderEventList(events = []) {
+  if (!events.length) {
+    return '<p class="muted">No structured status yet.</p>';
+  }
+
+  return `
+    <ul class="event-list">
+      ${events
+        .slice(-8)
+        .map((event) => {
+          const detail = summarizeDetail(event.detail);
+          const detailText = detail ? ` — ${escapeHtml(detail)}` : "";
+          return `
+            <li class="${event.level || ""}">
+              <span class="stamp">${escapeHtml(event.timestamp || "")}</span>
+              <span>
+                <span class="event-title">${escapeHtml(event.event || "event")}</span>
+                <span class="muted">${escapeHtml(event.message || "")}${detailText}</span>
+              </span>
+            </li>
+          `;
+        })
+        .join("")}
+    </ul>
+  `;
+}
+
 function renderActions(actions) {
   actionsList.innerHTML = "";
   if (!actions.length) {
@@ -770,29 +819,33 @@ function renderHistory(history) {
 
 function renderJobs(jobs) {
   if (!jobs.length) {
-    return '<p class="muted">No running installers.</p>';
-  }
+      return '<p class="muted">No running installers.</p>';
+    }
 
-  return jobs
-    .map(
-      (job) => `
-        <div class="job-card">
-          <div class="job-header">
-            <div>
-              <strong>${job.id}</strong>
-              <p class="muted">${job.status}${job.returncode !== null ? ` (code ${job.returncode})` : ""}</p>
+    return jobs
+      .map(
+        (job) => `
+          <div class="job-card">
+            <div class="job-header">
+              <div>
+                <strong>${job.id}</strong>
+                <p class="muted">${job.status}${job.returncode !== null ? ` (code ${job.returncode})` : ""}</p>
+              </div>
+              <span class="pill ${job.status}">${job.status}</span>
             </div>
-            <span class="pill ${job.status}">${job.status}</span>
+            <p class="muted">${job.started_at}${job.completed_at ? ` → ${job.completed_at}` : ""}</p>
+            <p>Models: ${(job.models || []).join(", ") || "—"}</p>
+            <p>LoRAs: ${(job.loras || []).join(", ") || "—"}</p>
+            <pre>${(job.log_tail || "").trim() || "(no log output yet)"}</pre>
+            <div class="job-events">
+              <p class="muted">Download status</p>
+              ${renderEventList(job.events || [])}
+            </div>
           </div>
-          <p class="muted">${job.started_at}${job.completed_at ? ` → ${job.completed_at}` : ""}</p>
-          <p>Models: ${(job.models || []).join(", ") || "—"}</p>
-          <p>LoRAs: ${(job.loras || []).join(", ") || "—"}</p>
-          <pre>${(job.log_tail || "").trim() || "(no log output yet)"}</pre>
-        </div>
-      `,
-    )
-    .join("");
-}
+        `,
+      )
+      .join("");
+  }
 
 async function refreshInstallations(showLoading = false) {
   if (showLoading) {

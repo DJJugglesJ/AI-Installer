@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
@@ -10,13 +11,17 @@ MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 HEADLESS="${HEADLESS:-0}"
 FORCE_CURATED_SELECTION=0
+DOWNLOAD_LOG_FILE="$LOG_FILE"
+DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
+
+source "$SCRIPT_DIR/downloads/download_helpers.sh"
 
 if [ -n "${CURATED_MODEL_NAMES:-}" ]; then
   FORCE_CURATED_SELECTION=1
 fi
 
 log_msg() {
-  echo "$(date): $1" >> "$LOG_FILE"
+  download_log "$1"
 }
 
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
@@ -89,43 +94,6 @@ ensure_downloader() {
   fi
 }
 
-run_downloader() {
-  local tool="$1" url="$2" dest="$3" header="$4" label="$5"
-  log_msg "Downloader start [$label]: $tool -> $url"
-  case "$tool" in
-    aria2c)
-      local args=(
-        --continue=true
-        --max-tries=3
-        --retry-wait=5
-        --auto-file-renaming=false
-        --allow-overwrite=true
-        --max-resume-failure-tries=5
-        --dir="$(dirname "$dest")"
-        --out="$(basename "$dest")"
-      )
-      [ -n "$header" ] && args+=(--header="$header")
-      aria2c "${args[@]}" "$url"
-      ;;
-    wget)
-      local args=(
-        --continue
-        --show-progress
-        --tries=3
-        --retry-connrefused
-        --waitretry=5
-        --timeout=30
-        -O "$dest"
-      )
-      [ -n "$header" ] && args+=(--header="$header")
-      wget "${args[@]}" "$url"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 human_size() {
   local size_bytes="$1"
   local units=(B KB MB GB TB)
@@ -173,94 +141,6 @@ offer_backup() {
   fi
 }
 
-verify_checksum() {
-  local file="$1" expected="$2"
-  if [ -z "$expected" ] || [ "$expected" = "null" ]; then
-    log_msg "Checksum not provided for $(basename "$file"); skipping verification"
-    return 0
-  fi
-  local actual
-  actual=$(sha256sum "$file" | awk '{print $1}')
-  if [ "$actual" != "$expected" ]; then
-    notify error "Checksum mismatch" "The downloaded file $(basename "$file") failed verification. Expected $expected but found $actual."
-    log_msg "Checksum mismatch for $file (expected: $expected, got: $actual); removing corrupt download"
-    rm -f "$file"
-    return 1
-  fi
-  log_msg "Checksum verified for $(basename "$file")"
-  return 0
-}
-
-download_with_retries() {
-  local url="$1" dest="$2" header="$3" expected_checksum="$4" mirror_list="$5"
-  local downloaders=()
-  local max_attempts=3
-  local backoff_start=5
-  local urls=("$url")
-  local current_url=""
-  local failures=()
-
-  if [[ -n "$mirror_list" ]]; then
-    while IFS= read -r mirror; do
-      [[ -n "$mirror" ]] && urls+=("$mirror")
-    done <<< "$mirror_list"
-  fi
-
-  command -v aria2c >/dev/null 2>&1 && downloaders+=(aria2c)
-  command -v wget >/dev/null 2>&1 && downloaders+=(wget)
-
-  for idx in "${!urls[@]}"; do
-    current_url="${urls[$idx]}"
-    local mirror_label="mirror $((idx + 1))/${#urls[@]}"
-    log_msg "Starting download: $dest from $current_url using ${downloaders[*]} (${mirror_label})"
-
-    for ((i = 0; i < ${#downloaders[@]}; i++)); do
-      local downloader="${downloaders[$i]}"
-      local attempt=1
-      local backoff=$backoff_start
-
-      while [ $attempt -le $max_attempts ]; do
-        local attempt_label="$mirror_label attempt $attempt via $downloader"
-        if [ $attempt -gt 1 ]; then
-          notify info "Retrying download" "Attempt $attempt of $max_attempts for $(basename "$dest") using $downloader"
-          log_msg "Retry $attempt_label for $dest (url: $current_url)"
-          sleep $backoff
-          backoff=$((backoff * 2))
-        else
-          log_msg "Initiating $attempt_label for $dest"
-        fi
-
-        if run_downloader "$downloader" "$current_url" "$dest" "$header" "$attempt_label"; then
-          if verify_checksum "$dest" "$expected_checksum"; then
-            log_msg "Download succeeded with $downloader from $current_url (${mirror_label})"
-            return 0
-          else
-            failures+=("Checksum failed via $downloader at $current_url")
-          fi
-        else
-          failures+=("Downloader error via $downloader at $current_url (attempt $attempt)")
-        fi
-
-        attempt=$((attempt + 1))
-      done
-
-      if [ $((i + 1)) -lt ${#downloaders[@]} ]; then
-        notify warning "Switching downloader" "Initial attempts with $downloader failed. Trying ${downloaders[$((i + 1))]} as a fallback."
-        log_msg "$downloader exhausted; switching to ${downloaders[$((i + 1))]} for $current_url"
-      fi
-    done
-
-    if (( idx + 1 < ${#urls[@]} )); then
-      notify warning "Trying mirror" "Switching to next mirror for $(basename "$dest")"
-      log_msg "Primary URL failed for $dest; moving to mirror $((idx + 2))"
-    fi
-  done
-
-  notify error "Download failed" "Unable to download $(basename "$dest") after trying mirrors and downloaders.\nCheck connectivity or replace the URL."
-  log_msg "Download failed after attempting ${downloaders[*]} and mirrors: $dest (failures: ${failures[*]})"
-  return 1
-}
-
 download_manifest_model() {
   local item="$1"
   local name url filename checksum size mirrors
@@ -283,6 +163,7 @@ download_manifest_model() {
     return 0
   fi
 
+  notify error "Download failed" "Unable to download $filename from available mirrors. Check connectivity or replace the URL."
   log_msg "Failed to download curated model $filename"
   return 1
 }
