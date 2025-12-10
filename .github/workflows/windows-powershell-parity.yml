@@ -1,0 +1,23 @@
+name: Windows PowerShell parity
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows-parity:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run PowerShell parity helpers
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          . tools/windows.ps1
+          Invoke-AIHubSetup
+          Invoke-AIHubLint -SkipInstall
+          Invoke-AIHubTests -SkipInstall
