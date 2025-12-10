@@ -28,6 +28,12 @@ from urllib.parse import urlparse
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.services import UIIntegrationHooks
+from modules.runtime.registry import get_tool, list_tools, load_default_tools
+from modules.runtime.models.tasks import serialize_task, Task
+from modules.runtime.audio.tts import services as tts_services
+from modules.runtime.audio.asr import services as asr_services
+from modules.runtime.video.img2vid import services as img2vid_services
+from modules.runtime.video.txt2vid import services as txt2vid_services
 
 
 logger = logging.getLogger(__name__)
@@ -98,7 +104,9 @@ class WebLauncherAPI:
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._history_path.parent.mkdir(parents=True, exist_ok=True)
         self._install_jobs: Dict[str, InstallJob] = {}
+        self._tasks: Dict[str, Task] = {}
         self._lock = threading.Lock()
+        load_default_tools()
 
     def _build_action_map(self) -> Dict[str, ActionSpec]:
         actions: Iterable[Tuple[str, str, str, str]] = (
@@ -338,6 +346,38 @@ class WebLauncherAPI:
                 cards.append(card.to_dict())
         return cards
 
+    def list_tools(self) -> Dict[str, object]:
+        tools = [tool.to_dict() for tool in list_tools()]
+        available = [tool for tool in tools if tool.get("available")]
+        return {"items": tools, "available_count": len(available), "total": len(tools)}
+
+    def create_task(self, tool_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        tool = get_tool(tool_id)
+        if not tool:
+            raise ValueError(f"Unknown tool: {tool_id}")
+        if not tool.available:
+            raise ValueError(tool.availability_error or f"Tool {tool_id} is unavailable")
+
+        if tool_id == "tts":
+            task = tts_services.run_text_to_speech_from_payload(payload)
+        elif tool_id == "asr":
+            task = asr_services.run_asr_from_payload(payload)
+        elif tool_id == "img2vid":
+            task = img2vid_services.run_img2vid_from_payload(payload)
+        elif tool_id == "txt2vid":
+            task = txt2vid_services.run_txt2vid_from_payload(payload)
+        else:
+            raise ValueError(f"Tool {tool_id} is not yet wired to the launcher")
+
+        with self._lock:
+            self._tasks[task.id] = task
+        return serialize_task(task)
+
+    def list_tasks(self) -> Dict[str, object]:
+        with self._lock:
+            tasks = [serialize_task(task) for task in self._tasks.values()]
+        return {"items": tasks}
+
     def compile_prompt(self, scene_json: Dict[str, object]) -> Dict[str, object]:
         assembly = compiler.build_prompt_from_scene(scene_json)
         payload = assembly.to_payload()
@@ -353,6 +393,7 @@ class WebLauncherAPI:
                 "loras": len(manifests.get("loras", {}).get("items", [])),
             },
             "characters": len(self.list_characters()),
+            "tools": self.list_tools(),
         }
 
 
@@ -422,6 +463,10 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"items": self.api.list_actions()})
             elif path == "/api/installations":
                 self._send_json(self.api.list_installations())
+            elif path == "/api/tools":
+                self._send_json(self.api.list_tools())
+            elif path == "/api/tasks":
+                self._send_json(self.api.list_tasks())
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except Exception as exc:  # pragma: no cover - defensive routing guard
@@ -447,6 +492,12 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 loras = payload.get("loras", [])
                 jobs = self.api.start_installation(models=models, loras=loras)
                 self._send_json({"jobs": jobs}, status=HTTPStatus.ACCEPTED)
+            elif path == "/api/tasks":
+                payload = self._read_json_body()
+                tool_id = payload.get("tool")
+                task_payload = payload.get("payload", payload)
+                task = self.api.create_task(tool_id, task_payload)
+                self._send_json({"task": task}, status=HTTPStatus.ACCEPTED)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except ValueError as exc:

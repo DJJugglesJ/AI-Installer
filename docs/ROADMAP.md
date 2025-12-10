@@ -9,6 +9,8 @@ Current capabilities
 - Launcher coverage and parity: YAD desktop launcher plus a Web Launcher that shares install/update/launch flows, manifest access, and pairing workflows.
 - Manifest and runtime validation: curated model/LoRA manifests with hashes, mirrors, and front-end hints; schemas validate manifests, Prompt Builder scenes, Character Cards, and LoRA metadata with structured errors.
 - Quickstart defaults: updated presets for SD1.5/SDXL, GPU hints, and safer defaults for new users.
+- Modular media agents: audio (TTS/ASR/voice profiles) and video (img2vid/txt2vid) runtime packages share a global registry and
+  the common `Task` dataclass, with JSON CLIs and shell wrappers so the web launcher can discover and trigger them safely.
 
 Near-term milestones (1–2 releases)
 - Ship GPU diagnostics across CLI, menu, and Web UI (VRAM checks, driver details, ROCm/oneAPI/DirectML tips).
