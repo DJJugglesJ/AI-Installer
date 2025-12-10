@@ -71,12 +71,14 @@ class ActionSpec:
 def _shell_command(script_base: str) -> List[str]:
     script_name = script_base if script_base.endswith(".sh") else f"{script_base}.sh"
     if IS_WINDOWS:
+        ps_path = WINDOWS_SHELL_DIR / f"{Path(script_name).stem}.ps1"
         return [
             "powershell",
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
-            str(WINDOWS_SHELL_DIR / f"{Path(script_name).stem}.ps1"),
+            "-File",
+            str(ps_path),
         ]
     return ["bash", str(SHELL_DIR / script_name)]
 
@@ -339,10 +341,7 @@ def run_action(action_id: str, headless: bool = True) -> int:
     log_line(f"Starting action '{action_id}' with command: {' '.join(cmd)}")
     process = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     assert process.stdout is not None
-    should_log_output = not (
-        IS_WINDOWS and spec.command and Path(spec.command[0]).name.lower() == "powershell"
-    )
-    log_file_handle = LOG_PATH.open("a", encoding="utf-8") if should_log_output else None
+    log_file_handle = LOG_PATH.open("a", encoding="utf-8")
     try:
         for line in process.stdout:
             decoded = line.decode(errors="ignore")
