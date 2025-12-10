@@ -32,12 +32,14 @@ function Invoke-AIHubShellAction {
   param(
     [string]$ActionName,
     [string]$ScriptName,
-    [string[]]$AdditionalArgs = @()
+    [string[]]$AdditionalArgs = @(),
   )
 
   $projectRoot = Resolve-Path "$PSScriptRoot/../.."
   $scriptPath = Join-Path $projectRoot "modules/shell/$ScriptName"
   $logPath = Get-AIHubLogPath
+  # Preserve caller-provided AIHUB_LOG_PATH overrides so log redirection is
+  # consistent across shell and PowerShell entry points.
   $Env:AIHUB_LOG_PATH = $logPath
   Ensure-Path $logPath
 
@@ -52,15 +54,11 @@ function Invoke-AIHubShellAction {
     return 1
   }
 
-  if (-not $Env:HEADLESS) {
-    $Env:HEADLESS = "1"
-  }
-
   Write-LogLine "Starting $ActionName via $ScriptName" "INFO" -LogPath $logPath
 
   Push-Location $projectRoot
   try {
-    & $bash.Source $scriptPath @AdditionalArgs 2>&1 | ForEach-Object {
+    & $bash.Path $scriptPath @AdditionalArgs 2>&1 | ForEach-Object {
       $msg = $_
       if ($msg -ne $null) { Write-LogLine $msg "STREAM" -LogPath $logPath }
     }
