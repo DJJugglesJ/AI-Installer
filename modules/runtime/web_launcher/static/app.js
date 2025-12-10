@@ -26,6 +26,8 @@ const asrResult = document.getElementById("asr-result");
 const img2vidResult = document.getElementById("img2vid-result");
 const txt2vidResult = document.getElementById("txt2vid-result");
 const taskList = document.getElementById("task-list");
+const gpuDiagnosticsBody = document.getElementById("gpu-diagnostics-body");
+const gpuRefresh = document.getElementById("refresh-gpu");
 
 let manifestItems = [];
 const selectedModels = new Set();
@@ -59,6 +61,68 @@ function setPanelError(container, message, retryHandler) {
   }
 
   container.appendChild(banner);
+}
+
+function renderGpuDiagnostics(payload) {
+  if (!gpuDiagnosticsBody) return;
+  gpuDiagnosticsBody.innerHTML = "";
+
+  const summary = payload.summary || {};
+  const gpus = payload.gpus || [];
+  const backend = summary.backends || {};
+
+  const summaryRow = document.createElement("div");
+  summaryRow.className = "gpu-summary";
+  summaryRow.innerHTML = `
+    <strong>${summary.platform || "unknown"}</strong>
+    <span class="tagline">Backends → ROCm: ${backend.rocm ? "ready" : "inactive"} • oneAPI: ${
+      backend.oneapi ? "ready" : "inactive"
+    } • DirectML: ${backend.directml ? "available" : "inactive"}</span>
+  `;
+  gpuDiagnosticsBody.appendChild(summaryRow);
+
+  if (!gpus.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No GPUs were reported by the diagnostics helper.";
+    gpuDiagnosticsBody.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement("ul");
+  list.className = "manifest-list";
+
+  gpus.forEach((gpu) => {
+    const item = document.createElement("li");
+    const memLabel = gpu.memory_mb ? `${gpu.memory_mb} MB VRAM` : "VRAM unknown";
+    const driver = gpu.driver ? ` • Driver ${gpu.driver}` : "";
+    const backendNotes = [];
+    const hints = gpu.backend_hints || {};
+    if (hints.rocm) backendNotes.push("ROCm");
+    if (hints.oneapi) backendNotes.push("oneAPI");
+    if (hints.directml) backendNotes.push("DirectML");
+    item.innerHTML = `
+      <strong>${gpu.vendor || "GPU"} — ${gpu.name || "Unknown"}</strong>
+      <span>${memLabel}${driver}</span>
+      <span class="tagline">Backends: ${backendNotes.join(", ") || "None detected"}</span>
+    `;
+    list.appendChild(item);
+  });
+
+  gpuDiagnosticsBody.appendChild(list);
+}
+
+async function loadGpuDiagnostics(initial = false) {
+  if (!gpuDiagnosticsBody) return;
+  if (initial) {
+    setPanelLoading(gpuDiagnosticsBody, "Loading GPU diagnostics…");
+  }
+  try {
+    const diagnostics = await fetchJson("/api/hardware/gpu");
+    renderGpuDiagnostics(diagnostics);
+  } catch (err) {
+    setPanelError(gpuDiagnosticsBody, `Failed to load GPU diagnostics: ${err.message}`, loadGpuDiagnostics);
+  }
 }
 
 function setAuthToken(value) {
@@ -344,6 +408,7 @@ async function bootstrap() {
   initAuthForm();
   bindLabForms();
   statusPill.textContent = "Loading…";
+  setPanelLoading(gpuDiagnosticsBody, "Loading GPU diagnostics…");
   setPanelLoading(actionsList, "Loading actions…");
   setPanelLoading(manifestTable, "Loading manifests…");
   setPanelLoading(installProgress, "Loading installers…");
@@ -354,6 +419,12 @@ async function bootstrap() {
 
   let actionsCount = 0;
   let hasError = false;
+
+  try {
+    await loadGpuDiagnostics(true);
+  } catch (err) {
+    hasError = true;
+  }
 
   try {
     const status = await fetchJson("/api/status");
@@ -644,6 +715,9 @@ manifestSearch.addEventListener("input", renderManifestTable);
 filterModels.addEventListener("change", renderManifestTable);
 filterLoras.addEventListener("change", renderManifestTable);
 installButton.addEventListener("click", installSelected);
+if (gpuRefresh) {
+  gpuRefresh.addEventListener("click", () => loadGpuDiagnostics(true));
+}
 setInterval(() => {
   refreshInstallations().catch(() => {});
 }, 5000);

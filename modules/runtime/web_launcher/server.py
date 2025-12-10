@@ -26,6 +26,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from modules.runtime.character_studio.registry import CharacterCardRegistry
+from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.services import UIIntegrationHooks
 from modules.runtime.registry import get_tool, list_tools, load_default_tools
@@ -396,6 +397,9 @@ class WebLauncherAPI:
             "tools": self.list_tools(),
         }
 
+    def gpu_diagnostics(self) -> Dict[str, object]:
+        return collect_gpu_diagnostics()
+
 
 class LauncherRequestHandler(SimpleHTTPRequestHandler):
     """Serve static assets and JSON APIs for the web launcher."""
@@ -467,6 +471,8 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.list_tools())
             elif path == "/api/tasks":
                 self._send_json(self.api.list_tasks())
+            elif path == "/api/hardware/gpu":
+                self._send_json(self.api.gpu_diagnostics())
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except Exception as exc:  # pragma: no cover - defensive routing guard

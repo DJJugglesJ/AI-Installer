@@ -231,6 +231,14 @@ button.secondary {
   background: #0b1220;
 }
 
+.gpu-summary {
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  background: rgba(59, 130, 246, 0.06);
+}
+
 .placeholder {
   display: inline-flex;
   align-items: center;
