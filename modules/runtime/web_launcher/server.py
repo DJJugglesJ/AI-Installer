@@ -8,8 +8,6 @@
   processes, and reads manifest/character data for display in the UI.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging
