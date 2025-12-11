@@ -232,11 +232,11 @@ function escapeHtml(value) {
 function summarizeDetail(detail) {
   if (detail === undefined || detail === null) return "";
   if (typeof detail === "object") {
-    try {
-      return JSON.stringify(detail);
-    } catch (err) {
-      return "";
-    }
+    const entries = Object.entries(detail || {});
+    if (!entries.length) return "";
+    return entries
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(" • ");
   }
   return String(detail);
 }
@@ -266,6 +266,40 @@ function renderEventList(events = []) {
         .join("")}
     </ul>
   `;
+}
+
+function summarizeDownloadStatus(events = [], lastError = null, lastMirror = null) {
+  const reversed = [...events].reverse();
+  const mirrorEvent = lastMirror || reversed.find((ev) => ev.event === "mirror_selected");
+  const resumeEvent = reversed.find((ev) => ev.event === "resume");
+  const offlineEvent = reversed.find((ev) => ev.event === "offline_used");
+  const retryCount = events.filter((ev) => ev.event === "retry").length;
+  const fallbackCount = events.filter((ev) => ev.event === "mirror_fallback").length;
+
+  const parts = [];
+  if (mirrorEvent) {
+    const detail = mirrorEvent.detail || {};
+    const label = detail.label || detail.url || mirrorEvent.message || "mirror";
+    const url = detail.url || "";
+    parts.push(`Mirror: ${label}${url ? ` (${url})` : ""}`);
+  }
+
+  if (offlineEvent) parts.push("Used offline bundle");
+
+  if (resumeEvent) {
+    const bytesPresent = (resumeEvent.detail && resumeEvent.detail.bytes_present) || 0;
+    parts.push(`Resumed download (${bytesPresent} bytes already present)`);
+  }
+
+  if (fallbackCount) parts.push(`Mirror fallbacks: ${fallbackCount}`);
+  if (retryCount) parts.push(`Retries: ${retryCount}`);
+
+  if (lastError) {
+    const lastDetail = summarizeDetail(lastError.detail) || lastError.message || lastError.event || "download error";
+    parts.push(`Last error: ${lastDetail}`);
+  }
+
+  return parts.join(" • ");
 }
 
 function renderActions(actions) {
@@ -885,6 +919,10 @@ function renderJobs(jobs) {
             <pre>${(job.log_tail || "").trim() || "(no log output yet)"}</pre>
             <div class="job-events">
               <p class="muted">Download status</p>
+              ${(() => {
+                const summary = summarizeDownloadStatus(job.events || [], job.last_error, job.last_mirror);
+                return summary ? `<p class="muted">${escapeHtml(summary)}</p>` : "";
+              })()}
               ${renderEventList(job.events || [])}
             </div>
           </div>

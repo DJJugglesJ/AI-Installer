@@ -16,6 +16,7 @@ FORCE_CURATED_SELECTION=0
 HEADLESS="${HEADLESS:-0}"
 DOWNLOAD_LOG_FILE="$LOG_FILE"
 DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
+DOWNLOAD_OFFLINE_BUNDLE="${LORA_OFFLINE_BUNDLE:-${AIHUB_OFFLINE_BUNDLE:-${DOWNLOAD_OFFLINE_BUNDLE:-}}}"
 
 [ -n "${CURATED_LORA_NAMES:-}" ] && FORCE_CURATED_SELECTION=1
 
@@ -45,7 +46,32 @@ log_msg() {
   download_log "$1"
 }
 
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --offline-bundle)
+        DOWNLOAD_OFFLINE_BUNDLE="$2"
+        shift 2
+        ;;
+      --offline-bundle=*)
+        DOWNLOAD_OFFLINE_BUNDLE="${1#*=}"
+        shift 1
+        ;;
+      *)
+        shift 1
+        ;;
+    esac
+  done
+}
+
+parse_args "$@"
+export DOWNLOAD_OFFLINE_BUNDLE
+
 log_msg "LoRA installer starting; logging to $LOG_FILE"
+if [ -n "$DOWNLOAD_OFFLINE_BUNDLE" ]; then
+  log_msg "Offline bundle path set to $DOWNLOAD_OFFLINE_BUNDLE (will attempt reuse before downloading)"
+  emit_status_event "info" "offline_configured" "Offline bundle provided" "$DOWNLOAD_OFFLINE_BUNDLE"
+fi
 
 human_size() {
   local size_bytes="$1"
