@@ -3,6 +3,7 @@ set -euo pipefail
 
 DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
 DOWNLOAD_LOG_FILE="${DOWNLOAD_LOG_FILE:-${LOG_FILE:-}}"
+DOWNLOAD_OFFLINE_BUNDLE="${DOWNLOAD_OFFLINE_BUNDLE:-${AIHUB_OFFLINE_BUNDLE:-${OFFLINE_BUNDLE_PATH:-}}}"
 
 # Write a message to the installer log or stdout.
 download_log() {
@@ -17,7 +18,7 @@ download_log() {
 
 # Emit a structured status line for the web launcher to consume.
 emit_status_event() {
-  local level="$1" event="$2" message="$3" detail="${4:-}"
+  local level="$1" event="$2" message="$3" detail="${4:-}" detail_json="${5:-}"
   [ -z "$DOWNLOAD_STATUS_FILE" ] && return 0
 
   mkdir -p "$(dirname "$DOWNLOAD_STATUS_FILE")"
@@ -29,7 +30,8 @@ emit_status_event() {
     --arg ev "$event" \
     --arg msg "$message" \
     --arg detail "$detail" \
-    '{timestamp:$ts, level:$lvl, event:$ev, message:$msg, detail:($detail // "")}' >> "$DOWNLOAD_STATUS_FILE"
+    --arg detail_json "$detail_json" \
+    '{timestamp:$ts, level:$lvl, event:$ev, message:$msg, detail: ((($detail_json | select(length>0) | try fromjson catch $detail) // $detail) // "")}' >> "$DOWNLOAD_STATUS_FILE"
 }
 
 check_mirror_health() {
@@ -97,7 +99,7 @@ run_downloader() {
 }
 
 verify_checksum() {
-  local file="$1" expected="$2"
+  local file="$1" expected="$2" remove_on_fail="${3:-1}"
   if [ -z "$expected" ] || [ "$expected" = "null" ]; then
     download_log "Checksum not provided for $(basename "$file"); skipping verification"
     emit_status_event "info" "checksum_skipped" "Checksum not provided for $(basename "$file")"
@@ -109,7 +111,9 @@ verify_checksum() {
   if [ "$actual" != "$expected" ]; then
     emit_status_event "error" "checksum_failed" "Checksum mismatch for $(basename "$file")" "$actual"
     download_log "Checksum mismatch for $file (expected: $expected, got: $actual); removing corrupt download"
-    rm -f "$file"
+    if [ "$remove_on_fail" -eq 1 ]; then
+      rm -f "$file"
+    fi
     return 1
   fi
 
@@ -141,6 +145,33 @@ download_with_retries() {
   local urls=("$url")
   local current_url=""
   local failures=()
+  local offline_bundle="$DOWNLOAD_OFFLINE_BUNDLE"
+  local dest_basename
+  dest_basename="$(basename "$dest")"
+
+  if [ -n "$offline_bundle" ] && [ -d "$offline_bundle" ]; then
+    offline_bundle="$offline_bundle/$dest_basename"
+  fi
+
+  if [ -f "$dest" ] && verify_checksum "$dest" "$expected_checksum"; then
+    emit_status_event "info" "already_present" "Existing file verified; skipping download" "" "{\"path\": \"$dest\"}"
+    download_log "Existing file already matches expected checksum: $dest"
+    return 0
+  fi
+
+  if [ -n "$offline_bundle" ] && [ -f "$offline_bundle" ]; then
+    emit_status_event "info" "offline_candidate" "Validating offline bundle for $dest_basename" "" "{\"source\": \"$offline_bundle\"}"
+    if verify_checksum "$offline_bundle" "$expected_checksum" 0; then
+      mkdir -p "$(dirname "$dest")"
+      cp "$offline_bundle" "$dest"
+      emit_status_event "info" "offline_used" "Used offline bundle for $dest_basename" "" "{\"source\": \"$offline_bundle\", \"dest\": \"$dest\"}"
+      download_log "Copied $offline_bundle to $dest (checksum verified)"
+      return 0
+    else
+      emit_status_event "warning" "offline_invalid" "Offline bundle checksum mismatch" "$offline_bundle"
+      download_log "Offline bundle failed checksum for $dest_basename; continuing with remote download"
+    fi
+  fi
 
   if [[ -n "$mirror_list" ]]; then
     while IFS= read -r mirror; do
@@ -154,18 +185,28 @@ download_with_retries() {
   for idx in "${!urls[@]}"; do
     current_url="${urls[$idx]}"
     local mirror_label="mirror $((idx + 1))/${#urls[@]}"
+    local detail_json
+    detail_json=$(jq -nc --arg url "$current_url" --arg label "$mirror_label" --argjson index "$((idx + 1))" --argjson total "${#urls[@]}" '{url:$url,label:$label,index:$index,total:$total}')
 
     if ! check_mirror_health "$current_url" "$mirror_label"; then
       failures+=("Health check failed for $current_url")
+      emit_status_event "warning" "mirror_unhealthy" "Skipping mirror after failed probe" "" "$detail_json"
+      if (( idx + 1 < ${#urls[@]} )); then
+        emit_status_event "warning" "mirror_fallback" "Switching to next mirror for $(basename "$dest")" "$current_url" "$detail_json"
+      fi
       continue
     fi
+
+    emit_status_event "info" "mirror_selected" "Using mirror $mirror_label" "" "$detail_json"
 
     emit_status_event "info" "download_start" "Starting download for $(basename "$dest")" "$current_url"
     download_log "Starting download: $dest from $current_url using ${downloaders[*]} (${mirror_label})"
 
     if [ -f "$dest" ]; then
-      emit_status_event "info" "resume" "Resuming existing file $(basename "$dest")" "$current_url"
-      download_log "Resuming existing file $dest"
+      local existing_size
+      existing_size=$(stat -c%s "$dest" 2>/dev/null || echo 0)
+      emit_status_event "info" "resume" "Resuming existing file $(basename "$dest")" "$current_url" "{\"bytes_present\": $existing_size}"
+      download_log "Resuming existing file $dest ($existing_size bytes present)"
     fi
 
     for ((i = 0; i < ${#downloaders[@]}; i++)); do

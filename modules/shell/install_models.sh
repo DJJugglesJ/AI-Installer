@@ -13,6 +13,7 @@ HEADLESS="${HEADLESS:-0}"
 FORCE_CURATED_SELECTION=0
 DOWNLOAD_LOG_FILE="$LOG_FILE"
 DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
+DOWNLOAD_OFFLINE_BUNDLE="${MODEL_OFFLINE_BUNDLE:-${AIHUB_OFFLINE_BUNDLE:-${DOWNLOAD_OFFLINE_BUNDLE:-}}}"
 
 source "$SCRIPT_DIR/downloads/download_helpers.sh"
 
@@ -24,11 +25,36 @@ log_msg() {
   download_log "$1"
 }
 
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --offline-bundle)
+        DOWNLOAD_OFFLINE_BUNDLE="$2"
+        shift 2
+        ;;
+      --offline-bundle=*)
+        DOWNLOAD_OFFLINE_BUNDLE="${1#*=}"
+        shift 1
+        ;;
+      *)
+        shift 1
+        ;;
+    esac
+  done
+}
+
+parse_args "$@"
+export DOWNLOAD_OFFLINE_BUNDLE
+
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 mkdir -p "$(dirname "$LOG_FILE")" "$MODEL_DIR"
 touch "$LOG_FILE"
 log_msg "Model installer starting; logging to $LOG_FILE"
+if [ -n "$DOWNLOAD_OFFLINE_BUNDLE" ]; then
+  log_msg "Offline bundle path set to $DOWNLOAD_OFFLINE_BUNDLE (will attempt reuse before downloading)"
+  emit_status_event "info" "offline_configured" "Offline bundle provided" "$DOWNLOAD_OFFLINE_BUNDLE"
+fi
 
 notify() {
   local level="$1" title="$2" message="$3"

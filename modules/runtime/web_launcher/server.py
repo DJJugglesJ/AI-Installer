@@ -443,12 +443,17 @@ class WebLauncherAPI:
                 if job.returncode is not None and job.completed_at is None:
                     job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
                     self._record_history(job)
-            rendered_jobs.append(
-                job.to_dict(
-                    log_tail=self._tail_log(job.log_path),
-                    events=self._load_status_events(job.status_path),
-                )
+            events = self._load_status_events(job.status_path)
+            job_dict = job.to_dict(
+                log_tail=self._tail_log(job.log_path),
+                events=events,
             )
+            job_dict["last_error"] = next((ev for ev in reversed(events) if ev.get("level") == "error"), None)
+            job_dict["last_mirror"] = next(
+                (ev for ev in reversed(events) if ev.get("event") in {"mirror_selected", "offline_used"}),
+                None,
+            )
+            rendered_jobs.append(job_dict)
 
         return {
             "jobs": rendered_jobs,
