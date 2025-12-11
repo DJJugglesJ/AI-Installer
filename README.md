@@ -16,6 +16,18 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
 3. Pick **Web Launcher** or **YAD Menu** when prompted. The installer records logs to `~/.config/aihub/install.log` and creates OS-appropriate shortcuts.
 4. Launch again anytime with `./aihub_menu.sh` (Linux/WSL) or `launcher/aihub_menu.ps1` (Windows). Use `./launcher/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
 
+### Windows 10 quick start
+1. Install and open **Git Bash** (or use **WSL2 with Ubuntu**) so the repo can be cloned and bash-compatible paths resolve correctly.
+2. Ensure a Windows package manager is available (`winget` or Chocolatey) for dependency installs triggered by the launcher wrappers.
+3. From a **PowerShell** terminal in the repo root, run either the batch or PowerShell installer:
+   ```powershell
+   .\install.bat
+   # or
+   .\install.ps1
+   ```
+4. The installer logs to `%LOCALAPPDATA%\AIHub\logs\install.log`, and shortcuts are created under the Start Menu and Desktop (matching `.lnk`, `.bat`, and `.ps1` wrappers called by the launchers).
+5. Re-launch anytime via `launcher\aihub_menu.ps1` (menu) or `launcher\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`). Linux instructions above remain unchanged for WSL.
+
 > **Need a hands-free run?** `./install.sh --headless --install webui --gpu nvidia` mirrors the guided flow without dialogs. Add `--config <file>` to feed a JSON/env config (see [`docs/headless_config.md`](docs/headless_config.md)).
 
 ## Project architecture
