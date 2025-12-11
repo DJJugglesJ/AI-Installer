@@ -35,6 +35,7 @@ from modules.runtime.registry import get_tool, list_tools, load_default_tools
 from modules.runtime.models.tasks import serialize_task, Task
 from modules.runtime.audio.tts import services as tts_services
 from modules.runtime.audio.asr import services as asr_services
+from modules.runtime.audio.voice_profiles import services as voice_profiles_services
 from modules.runtime.video.img2vid import services as img2vid_services
 from modules.runtime.video.txt2vid import services as txt2vid_services
 
@@ -540,6 +541,8 @@ class WebLauncherAPI:
             task = tts_services.run_text_to_speech_from_payload(payload)
         elif tool_id == "asr":
             task = asr_services.run_asr_from_payload(payload)
+        elif tool_id == "voice_profiles":
+            task = voice_profiles_services.list_voice_profiles()
         elif tool_id == "img2vid":
             task = img2vid_services.run_img2vid_from_payload(payload)
         elif tool_id == "txt2vid":
