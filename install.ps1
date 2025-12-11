@@ -218,17 +218,67 @@ function Install-Package {
   }
 }
 
+function Get-CommandVersionLine {
+  param([string]$Command)
+  try {
+    $output = & $Command --version 2>$null
+    if ($output -is [array]) { return $output[0] }
+    return $output
+  } catch {
+    return $null
+  }
+}
+
+function Parse-VersionFromString {
+  param([string]$Text)
+  if (-not $Text) { return $null }
+  $match = [regex]::Match($Text, '\d+(\.\d+)+')
+  if (-not $match.Success) { return $null }
+
+  $parsedVersion = $null
+  if ([System.Version]::TryParse($match.Value, [ref]$parsedVersion)) {
+    return $parsedVersion
+  }
+  return $null
+}
+
 function Ensure-Dependency {
   param(
     [string]$Command,
     [string]$Label,
     [string]$WingetId,
-    [string]$ChocoId
+    [string]$ChocoId,
+    [string]$MinVersion
   )
 
   if (Test-Command $Command) {
-    $version = try { & $Command --version 2>$null | Select-Object -First 1 } catch { "(version unavailable)" }
-    Write-Log "$Label present: $version"
+    $versionLine = Get-CommandVersionLine -Command $Command
+    $versionDisplay = if ($versionLine) { $versionLine } else { "(version unavailable)" }
+    Write-Log "$Label present: $versionDisplay"
+
+    if ($MinVersion) {
+      $detectedVersion = Parse-VersionFromString -Text $versionDisplay
+      $requiredVersion = $null
+      $requiredParsed = [System.Version]::TryParse($MinVersion, [ref]$requiredVersion)
+
+      if ($detectedVersion -and $requiredParsed) {
+        if ($detectedVersion -lt $requiredVersion) {
+          Write-Log "$Label version $($detectedVersion.ToString()) is below required $($requiredVersion.ToString()); reinstalling via $PackageManager." "WARN"
+          $reinstalled = Install-Package -WingetId $WingetId -ChocoId $ChocoId -Label $Label
+          if (Test-Command $Command) {
+            $updatedVersionLine = Get-CommandVersionLine -Command $Command
+            $updatedVersion = Parse-VersionFromString -Text $updatedVersionLine
+            $updatedDisplay = if ($updatedVersionLine) { $updatedVersionLine } else { "(version unavailable)" }
+            $versionSummary = if ($updatedVersion) { $updatedVersion.ToString() } else { $updatedDisplay }
+            Write-Log "$Label reinstalled to enforce minimum version: $versionSummary"
+          } elseif ($reinstalled) {
+            Write-Log "$Label reinstall attempted but command now missing after upgrade." "WARN"
+          }
+        }
+      } else {
+        Write-Log "Unable to parse version for $Label (detected '$versionDisplay', required '$MinVersion'); skipping version enforcement." "WARN"
+      }
+    }
     return
   }
 
@@ -243,7 +293,7 @@ function Ensure-Dependency {
 
 $Deps = @(
   @{ Cmd = "git"; Label = "Git"; Winget = "Git.Git"; Choco = "git" },
-  @{ Cmd = "python"; Label = "Python"; Winget = "Python.Python.3"; Choco = "python" },
+  @{ Cmd = "python"; Label = "Python"; Winget = "Python.Python.3"; Choco = "python"; MinVersion = "3.10" },
   @{ Cmd = "node"; Label = "Node.js"; Winget = "OpenJS.NodeJS.LTS"; Choco = "nodejs-lts" },
   @{ Cmd = "npm"; Label = "npm"; Winget = "OpenJS.NodeJS.LTS"; Choco = "nodejs-lts" },
   @{ Cmd = "aria2c"; Label = "aria2"; Winget = "aria2.aria2"; Choco = "aria2" },
@@ -252,7 +302,7 @@ $Deps = @(
 
 function Run-DependencyChecks {
   foreach ($dep in $Deps) {
-    Ensure-Dependency -Command $dep.Cmd -Label $dep.Label -WingetId $dep.Winget -ChocoId $dep.Choco
+    Ensure-Dependency -Command $dep.Cmd -Label $dep.Label -WingetId $dep.Winget -ChocoId $dep.Choco -MinVersion $dep.MinVersion
   }
 }
 
