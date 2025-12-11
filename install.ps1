@@ -51,7 +51,7 @@ if ($extra.ContainsKey('Gpu')) { $Gpu = $extra['Gpu'] }
 if ($Help) { Show-Usage; exit 0 }
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectRoot = Resolve-Path "$ScriptDir"
+$ProjectRoot = (Resolve-Path "$ScriptDir").ProviderPath
 $PathsModule = Join-Path $ProjectRoot "launcher/windows/paths.ps1"
 . $PathsModule
 $ConfigDir = Get-AIHubConfigRoot
