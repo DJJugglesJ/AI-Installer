@@ -109,7 +109,7 @@ function Persist-ConfigFile {
       New-Item -ItemType File -Path $ConfigPath -Force | Out-Null
       Write-Log "Created default config placeholder at $ConfigPath"
     } catch {
-      Write-Log "Unable to create config file at $ConfigPath: $_" "ERROR"
+      Write-Log "Unable to create config file at ${ConfigPath}: $_" "ERROR"
     }
   } else {
     Write-Log "Using existing config at $ConfigPath"
@@ -241,15 +241,15 @@ function Provision-Workspace {
   $base = Join-Path $Env:USERPROFILE "AI"
   $paths = @(
     $base,
-    Join-Path $base "WebUI",
-    Join-Path $base "KoboldAI",
-    Join-Path $base "SillyTavern",
-    Join-Path $base "LoRAs",
-    Join-Path $base "oobabooga",
-    Join-Path $base "oobabooga/lora",
-    Join-Path $base "oobabooga/models",
-    Join-Path $base "ai-hub",
-    Join-Path $base "ai-hub/models"
+    (Join-Path $base "WebUI"),
+    (Join-Path $base "KoboldAI"),
+    (Join-Path $base "SillyTavern"),
+    (Join-Path $base "LoRAs"),
+    (Join-Path $base "oobabooga"),
+    (Join-Path $base "oobabooga/lora"),
+    (Join-Path $base "oobabooga/models"),
+    (Join-Path $base "ai-hub"),
+    (Join-Path $base "ai-hub/models")
   )
   foreach ($path in $paths) { Ensure-Directory $path }
   Write-Log "Provisioned workspace directories under $base"
@@ -316,13 +316,13 @@ function New-AIHubShortcut {
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($Destination)
     $shortcut.TargetPath = "powershell.exe"
-    $shortcut.Arguments = "-ExecutionPolicy Bypass -File \"$TargetScript\""
+    $shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$TargetScript`""
     $shortcut.WorkingDirectory = $ProjectRoot
     $shortcut.IconLocation = "shell32.dll,220"
     $shortcut.Save()
     Write-Log "Shortcut created at $Destination"
   } catch {
-    Write-Log "Failed to create shortcut at $Destination: $_" "ERROR"
+    Write-Log "Failed to create shortcut at ${Destination}: $_" "ERROR"
   }
 }
 
