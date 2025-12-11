@@ -137,7 +137,7 @@ function Install-Winget {
     return $false
   } finally {
     if (Test-Path $tempFile) {
-      try { Remove-Item $tempFile -Force -ErrorAction Stop } catch { Write-Log "Failed to remove temporary file $tempFile: $_" "WARN" }
+      try { Remove-Item $tempFile -Force -ErrorAction Stop } catch { Write-Log "Failed to remove temporary file ${tempFile}: $_" "WARN" }
     }
   }
 }
@@ -270,7 +270,13 @@ function Ensure-Dependency {
             $updatedVersion = Parse-VersionFromString -Text $updatedVersionLine
             $updatedDisplay = if ($updatedVersionLine) { $updatedVersionLine } else { "(version unavailable)" }
             $versionSummary = if ($updatedVersion) { $updatedVersion.ToString() } else { $updatedDisplay }
-            Write-Log "$Label reinstalled to enforce minimum version: $versionSummary"
+            if ($updatedVersion -and $requiredParsed -and $updatedVersion -lt $requiredVersion) {
+              Write-Log "$Label reinstalled but version $versionSummary remains below required $($requiredVersion.ToString()); check PATH or reinstall manually." "WARN"
+            } elseif (-not $updatedVersion -and $requiredParsed) {
+              Write-Log "$Label reinstalled but unable to parse version output '$updatedDisplay'; verify minimum version $($requiredVersion.ToString()) is installed." "WARN"
+            } else {
+              Write-Log "$Label reinstalled to enforce minimum version: $versionSummary"
+            }
           } elseif ($reinstalled) {
             Write-Log "$Label reinstall attempted but command now missing after upgrade." "WARN"
           }
