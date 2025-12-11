@@ -122,9 +122,74 @@ function Get-PackageManager {
   return $null
 }
 
-$PackageManager = Get-PackageManager
+function Install-Winget {
+  $wingetUrl = "https://aka.ms/getwinget"
+  $tempFile = Join-Path ([System.IO.Path]::GetTempPath()) "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+  try {
+    Write-Log "Downloading App Installer (winget) from $wingetUrl ..." "WARN"
+    Invoke-WebRequest -Uri $wingetUrl -OutFile $tempFile -UseBasicParsing -ErrorAction Stop
+    Write-Log "Installing App Installer package..." "WARN"
+    Add-AppxPackage -Path $tempFile -ForceApplicationShutdown -ErrorAction Stop | Out-Null
+    Write-Log "App Installer (winget) installed successfully." "INFO"
+    return $true
+  } catch {
+    Write-Log "Failed to install App Installer/winget: $_" "ERROR"
+    return $false
+  } finally {
+    if (Test-Path $tempFile) {
+      try { Remove-Item $tempFile -Force -ErrorAction Stop } catch { Write-Log "Failed to remove temporary file $tempFile: $_" "WARN" }
+    }
+  }
+}
+
+function Install-Chocolatey {
+  try {
+    Write-Log "Installing Chocolatey via official bootstrap script..." "WARN"
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+    $chocoScript = Invoke-WebRequest https://community.chocolatey.org/install.ps1 -UseBasicParsing -ErrorAction Stop
+    Invoke-Expression $chocoScript.Content
+    Write-Log "Chocolatey installation script executed." "INFO"
+    return $true
+  } catch {
+    Write-Log "Failed to install Chocolatey: $_" "ERROR"
+    return $false
+  }
+}
+
+function Ensure-PackageManager {
+  $manager = Get-PackageManager
+  if ($manager) { return $manager }
+
+  Write-Log "Neither winget nor choco found. Attempting to install winget/App Installer." "WARN"
+  $wingetInstalled = Install-Winget
+  $manager = Get-PackageManager
+  if ($manager) { return $manager }
+
+  if ($wingetInstalled) {
+    Write-Log "Winget installation completed, but command is still unavailable." "WARN"
+  }
+
+  if (-not $Headless) {
+    $response = Read-Host "Chocolatey not found. Install it now? (Y/N)"
+    if ($response -match '^(y|yes)$') {
+      Install-Chocolatey | Out-Null
+    } else {
+      Write-Log "User declined Chocolatey installation." "WARN"
+    }
+  } else {
+    Write-Log "Headless mode: attempting Chocolatey installation." "WARN"
+    Install-Chocolatey | Out-Null
+  }
+
+  return Get-PackageManager
+}
+
+$ExistingPackageManager = Get-PackageManager
+$PackageManager = if ($ExistingPackageManager) { $ExistingPackageManager } else { Ensure-PackageManager }
+$PackageManagerInstalled = (-not $ExistingPackageManager) -and $PackageManager
 if (-not $PackageManager) {
-  Write-Log "Neither winget nor choco found. Please install one of them and re-run." "ERROR"
+  Write-Log "No package manager available after installation attempts. Please install winget or Chocolatey and re-run." "ERROR"
   exit 1
 }
 Write-Log "Using package manager: $PackageManager"
@@ -185,9 +250,17 @@ $Deps = @(
   @{ Cmd = "wget"; Label = "wget"; Winget = "GnuWin32.Wget"; Choco = "wget" }
 )
 
-foreach ($dep in $Deps) {
-  Ensure-Dependency -Command $dep.Cmd -Label $dep.Label -WingetId $dep.Winget -ChocoId $dep.Choco
+function Run-DependencyChecks {
+  foreach ($dep in $Deps) {
+    Ensure-Dependency -Command $dep.Cmd -Label $dep.Label -WingetId $dep.Winget -ChocoId $dep.Choco
+  }
 }
+
+if ($PackageManagerInstalled) {
+  Write-Log "Package manager installed during this run. Re-running dependency checks with $PackageManager." "INFO"
+}
+
+Run-DependencyChecks
 
 function Ensure-Downloader {
   if (Test-Command 'aria2c' -or Test-Command 'wget' -or Test-Command 'curl') {
