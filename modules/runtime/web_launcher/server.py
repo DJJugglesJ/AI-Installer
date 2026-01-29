@@ -15,7 +15,6 @@ import os
 import subprocess
 import threading
 import uuid
-import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from http import HTTPStatus
@@ -27,6 +26,7 @@ from urllib.parse import urlparse
 from modules.config_service import config_service
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
+from modules.runtime.manifests import helpers as manifest_helpers
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.services import UIIntegrationHooks
 from modules.runtime.registry import get_tool, list_tools, load_default_tools
@@ -39,11 +39,6 @@ from modules.runtime.video.txt2vid import services as txt2vid_services
 
 
 logger = logging.getLogger(__name__)
-
-
-def _slugify(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
-    return normalized.strip("-")
 
 
 PAIRING_SCHEMA: Dict[str, object] = {
@@ -117,17 +112,20 @@ class WebLauncherAPI:
         config_path: Optional[Path] = None,
         log_dir: Optional[Path] = None,
         history_path: Optional[Path] = None,
+        manifest_dir: Optional[Path] = None,
+        install_dirs: Optional[Dict[str, Path]] = None,
     ):
         self.project_root = project_root
         self.modules_dir = project_root / "modules"
         self.shell_dir = self.modules_dir / "shell"
-        self.manifest_dir = project_root / "manifests"
+        self.manifest_dir = manifest_dir or project_root / "manifests"
         self.config_path = config_path or Path(config_service.DEFAULT_CONFIG_PATH)
         self._ui_hooks = UIIntegrationHooks()
         self._card_registry = CharacterCardRegistry()
         self._action_map: Dict[str, ActionSpec] = self._build_action_map()
         self._log_dir = log_dir or Path.home() / ".cache/aihub/web_launcher/logs"
         self._history_path = history_path or Path.home() / ".cache/aihub/web_launcher/selection_history.json"
+        self._install_dirs = install_dirs
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._history_path.parent.mkdir(parents=True, exist_ok=True)
         self._install_jobs: Dict[str, InstallJob] = {}
@@ -185,82 +183,13 @@ class WebLauncherAPI:
             "started_at": timestamp,
         }
 
-    def _load_manifest(self, name: str) -> Dict[str, object]:
-        manifest_path = self.manifest_dir / f"{name}.json"
-        base_payload = {"source": None, "items": [], "errors": [], "has_errors": False}
-        if not manifest_path.exists():
-            message = f"Manifest {manifest_path.name} not found"
-            return {**base_payload, "errors": [message], "has_errors": True}
-
-        try:
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            message = f"Failed to parse {manifest_path.name}: {exc}"
-            logger.warning(message)
-            return {**base_payload, "errors": [message], "has_errors": True}
-
-        if not isinstance(payload, dict):
-            message = f"Manifest {manifest_path.name} must be a JSON object"
-            logger.warning(message)
-            return {**base_payload, "errors": [message], "has_errors": True}
-
-        errors: List[str] = []
-        source = payload.get("source")
-        items = payload.get("items", [])
-
-        if not isinstance(items, list):
-            message = f"Manifest {manifest_path.name} items must be a list"
-            logger.warning(message)
-            return {**base_payload, "source": source, "errors": [message], "has_errors": True}
-
-        validated_items: List[Dict[str, object]] = []
-        for idx, item in enumerate(items):
-            if not isinstance(item, dict):
-                message = f"{manifest_path.name} items[{idx}] is not an object"
-                logger.warning(message)
-                errors.append(message)
-                continue
-
-            entry = dict(item)
-            entry.setdefault("tags", [])
-            entry.setdefault("license", "")
-            entry.setdefault("notes", "")
-            entry.setdefault("version", "")
-            entry.setdefault("size_bytes", None)
-            entry.setdefault("checksum", "")
-
-            issues: List[str] = []
-            name_value = entry.get("name")
-            if not isinstance(name_value, str) or not name_value.strip():
-                issues.append("Manifest entries must include a name")
-            entry_slug = entry.get("slug") or (name_value and _slugify(name_value))
-            entry["slug"] = entry_slug or ""
-            if not entry["slug"]:
-                issues.append("Manifest entries must include a slug or valid name")
-
-            if not entry.get("url") and not entry.get("filename"):
-                issues.append("Entries should include a download url or filename")
-            if not isinstance(entry.get("tags"), list):
-                issues.append("tags must be a list")
-                entry["tags"] = []
-
-            entry["health"] = "ok" if not issues else "warning"
-            entry["issues"] = issues
-            if issues:
-                errors.extend([f"{manifest_path.name} {entry['name'] or entry['slug']}: {msg}" for msg in issues])
-
-            validated_items.append(entry)
-
-        return {
-            "source": source,
-            "items": validated_items,
-            "errors": errors,
-            "has_errors": bool(errors),
-        }
-
     def get_manifests(self) -> Dict[str, object]:
-        models_manifest = self._load_manifest("models")
-        loras_manifest = self._load_manifest("loras")
+        models_manifest = manifest_helpers.load_manifest_payload(
+            self.manifest_dir, "models", install_dirs=self._install_dirs
+        )
+        loras_manifest = manifest_helpers.load_manifest_payload(
+            self.manifest_dir, "loras", install_dirs=self._install_dirs
+        )
         errors = models_manifest.get("errors", []) + loras_manifest.get("errors", [])
         return {
             "models": models_manifest,
@@ -272,17 +201,66 @@ class WebLauncherAPI:
     def list_manifest(self, manifest_type: str) -> Dict[str, object]:
         if manifest_type not in {"models", "loras"}:
             raise ValueError("Manifest type must be 'models' or 'loras'")
-        manifest = self._load_manifest(manifest_type)
-        manifest["type"] = manifest_type
-        return manifest
+        return manifest_helpers.load_manifest_payload(
+            self.manifest_dir,
+            manifest_type,
+            install_dirs=self._install_dirs,
+        )
 
     def get_manifest_item(self, manifest_type: str, item_id: str) -> Dict[str, object]:
         manifest = self.list_manifest(manifest_type)
-        index = {item.get("slug") or _slugify(item.get("name", "")): item for item in manifest.get("items", [])}
-        normalized = _slugify(item_id)
+        index = {
+            item.get("slug") or manifest_helpers.slugify(item.get("name", "")): item
+            for item in manifest.get("items", [])
+        }
+        normalized = manifest_helpers.slugify(item_id)
         if normalized not in index:
             raise ValueError(f"Manifest item '{item_id}' not found in {manifest_type}")
-        return {"item": index[normalized], "type": manifest_type, "source": manifest.get("source"), "errors": manifest.get("errors", [])}
+        detailed = manifest_helpers.load_manifest_payload(
+            self.manifest_dir,
+            manifest_type,
+            install_dirs=self._install_dirs,
+            validate_checksums=True,
+        )
+        item_index = {
+            item.get("slug") or manifest_helpers.slugify(item.get("name", "")): item
+            for item in detailed.get("items", [])
+        }
+        return {
+            "item": item_index.get(normalized, index[normalized]),
+            "type": manifest_type,
+            "source": manifest.get("source"),
+            "errors": manifest.get("errors", []),
+        }
+
+    def refresh_manifests(self) -> Dict[str, object]:
+        return self.get_manifests()
+
+    def validate_manifest_checksums(self, manifest_type: Optional[str] = None) -> Dict[str, object]:
+        if manifest_type and manifest_type not in {"models", "loras"}:
+            raise ValueError("Manifest type must be 'models' or 'loras'")
+        return manifest_helpers.validate_manifest_checksums(
+            self.manifest_dir, manifest_type=manifest_type, install_dirs=self._install_dirs
+        )
+
+    def update_manifest_item(self, manifest_type: str, item_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        if manifest_type not in {"models", "loras"}:
+            raise ValueError("Manifest type must be 'models' or 'loras'")
+        if not isinstance(payload, dict):
+            raise ValueError("Payload must be a JSON object")
+        updated = manifest_helpers.update_manifest_item(self.manifest_dir, manifest_type, item_id, payload)
+        detailed = manifest_helpers.load_manifest_payload(
+            self.manifest_dir,
+            manifest_type,
+            install_dirs=self._install_dirs,
+            validate_checksums=True,
+        )
+        item_index = {
+            item.get("slug") or manifest_helpers.slugify(item.get("name", "")): item
+            for item in detailed.get("items", [])
+        }
+        normalized = manifest_helpers.slugify(item_id)
+        return {"item": item_index.get(normalized, updated), "type": manifest_type}
 
     def _tail_log(self, log_path: Path, lines: int = 20) -> str:
         if not log_path.exists():
@@ -700,6 +678,21 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
         if not self._require_auth():
             return
         try:
+            if path == "/api/manifests/refresh":
+                self._send_json(self.api.refresh_manifests())
+            elif path == "/api/manifests/validate":
+                self._send_json(self.api.validate_manifest_checksums())
+            elif path.startswith("/api/manifests/"):
+                parts = path.strip("/").split("/")
+                manifest_type = parts[2] if len(parts) > 2 else ""
+                if len(parts) == 4 and parts[3] == "validate":
+                    self._send_json(self.api.validate_manifest_checksums(manifest_type))
+                elif len(parts) >= 4:
+                    payload = self._read_json_body()
+                    self._send_json(self.api.update_manifest_item(manifest_type, parts[3], payload))
+                else:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Unsupported manifest action")
+                return
             if path == "/api/actions":
                 payload = self._read_json_body()
                 action_id = payload.get("action")
