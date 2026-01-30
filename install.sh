@@ -42,17 +42,6 @@ require_command() {
   fi
 }
 
-require_command uname "Install coreutils or ensure 'uname' is available."
-require_command grep "Install grep via your package manager."
-require_command tee "Logging requires 'tee' (coreutils)."
-
-CONFIG_HELPERS="$MODULE_DIR/config_service/config_helpers.sh"
-if [[ ! -r "$CONFIG_HELPERS" ]]; then
-  fatal "Config helpers not found or unreadable at $CONFIG_HELPERS. Ensure the repository checkout is complete."
-fi
-
-source "$CONFIG_HELPERS"
-
 HEADLESS_MODE=false
 INSTALL_TARGET=""
 GPU_MODE_OVERRIDE=""
@@ -112,6 +101,19 @@ detect_platform() {
   DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-Unknown}}"
   log_msg "Platform detected: ${PLATFORM_KIND} (desktop=${DESKTOP_ENVIRONMENT})"
 }
+
+detect_platform
+
+require_command uname "Install coreutils or ensure 'uname' is available."
+require_command grep "Install grep via your package manager."
+require_command tee "Logging requires 'tee' (coreutils)."
+
+CONFIG_HELPERS="$MODULE_DIR/config_service/config_helpers.sh"
+if [[ ! -r "$CONFIG_HELPERS" ]]; then
+  fatal "Config helpers not found or unreadable at $CONFIG_HELPERS. Ensure the repository checkout is complete."
+fi
+
+source "$CONFIG_HELPERS"
 
 select_launcher_command() {
   local web_launcher="$INSTALL_PATH/launcher/start_web_launcher.sh"
@@ -623,9 +625,23 @@ if [[ "$RUN_ARTIFACT_MAINT" == true ]]; then
   exit 0
 fi
 
+GUI_EXPECTED=false
+if [[ "$HEADLESS_MODE" != true && "$PLATFORM_KIND" == "linux" ]]; then
+  if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+    GUI_EXPECTED=true
+  fi
+fi
+
+GPU_TOOLING_REQUIRED=false
+if [[ "$PLATFORM_KIND" == "linux" ]]; then
+  if [[ -z "$GPU_MODE_OVERRIDE" && -z "${AIHUB_GPU_MODE:-}" ]]; then
+    GPU_TOOLING_REQUIRED=true
+  fi
+fi
+
 notify_prereq() {
   local message="$1"
-  if command -v yad >/dev/null 2>&1; then
+  if [[ "$GUI_EXPECTED" == true ]] && command -v yad >/dev/null 2>&1; then
     yad --error --title="Missing Prerequisite" --text="$message" --width=400 --tooltip="See installer docs for remediation"
   else
     echo "[!] $message" >&2
@@ -660,7 +676,14 @@ require_commands() {
 if [[ "$AIHUB_SKIP_INSTALL_STEPS" == "1" ]]; then
   log_msg "AIHUB_SKIP_INSTALL_STEPS set; skipping prerequisite validation."
 else
-  require_commands bash sudo lspci lsmod yad
+  prereqs=(bash sudo)
+  if [[ "$GPU_TOOLING_REQUIRED" == true ]]; then
+    prereqs+=(lspci lsmod)
+  fi
+  if [[ "$GUI_EXPECTED" == true ]]; then
+    prereqs+=(yad)
+  fi
+  require_commands "${prereqs[@]}"
 fi
 
 mkdir -p "$INSTALL_PATH"
@@ -836,8 +859,6 @@ apply_headless_config() {
 
 apply_headless_config
 export GPU_MODE_OVERRIDE
-
-detect_platform
 
 if [[ "$PLATFORM_KIND" == "wsl" || "$PLATFORM_KIND" == "windows" ]]; then
   require_command powershell.exe "PowerShell is required for Windows integration from ${PLATFORM_KIND^^}. Install it or add it to the PATH."
