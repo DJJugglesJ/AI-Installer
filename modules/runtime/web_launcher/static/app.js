@@ -433,6 +433,25 @@ function parseListField(value) {
     .filter(Boolean);
 }
 
+function buildCharacterPayload(formData) {
+  return {
+    id: formData.get("id"),
+    name: formData.get("name"),
+    age: formData.get("age") || undefined,
+    nsfw_allowed: formData.get("nsfw_allowed") === "on",
+    description: formData.get("description") || undefined,
+    default_prompt_snippet: formData.get("default_prompt_snippet") || undefined,
+    trigger_tokens: parseListField(formData.get("trigger_tokens")),
+    anatomy_tags: parseListField(formData.get("anatomy_tags")),
+    wardrobe: parseListField(formData.get("wardrobe")),
+    reference_images: parseListField(formData.get("reference_images")),
+    lora_file: formData.get("lora_file") || undefined,
+    lora_default_strength: formData.get("lora_default_strength")
+      ? Number(formData.get("lora_default_strength"))
+      : undefined,
+  };
+}
+
 function fillCharacterEditor(card) {
   if (!characterEditor) return;
   characterEditor.querySelector("[name=id]").value = card.id || "";
@@ -456,22 +475,7 @@ async function submitCharacterEditor(event) {
   if (!characterEditor) return;
   characterEditorResult.textContent = "Saving character card…";
   const formData = new FormData(characterEditor);
-  const payload = {
-    id: formData.get("id"),
-    name: formData.get("name"),
-    age: formData.get("age") || undefined,
-    nsfw_allowed: formData.get("nsfw_allowed") === "on",
-    description: formData.get("description") || undefined,
-    default_prompt_snippet: formData.get("default_prompt_snippet") || undefined,
-    trigger_tokens: parseListField(formData.get("trigger_tokens")),
-    anatomy_tags: parseListField(formData.get("anatomy_tags")),
-    wardrobe: parseListField(formData.get("wardrobe")),
-    reference_images: parseListField(formData.get("reference_images")),
-    lora_file: formData.get("lora_file") || undefined,
-    lora_default_strength: formData.get("lora_default_strength")
-      ? Number(formData.get("lora_default_strength"))
-      : undefined,
-  };
+  const payload = buildCharacterPayload(formData);
 
   try {
     const result = await fetchJson("/api/characters", {
@@ -1149,36 +1153,176 @@ async function refreshInstallations(showLoading = false) {
   }
 }
 
-bootstrap();
-addCharacterRow();
+function initCharacterStudioPage() {
+  const cardList = document.getElementById("cs-card-list");
+  const cardDetail = document.getElementById("cs-card-detail");
+  const cardForm = document.getElementById("cs-card-form");
+  const cardStatus = document.getElementById("cs-card-status");
+  const tabButtons = document.querySelectorAll("[data-tab]");
+  const tabPanels = document.querySelectorAll("[data-panel]");
 
-document.getElementById("add-character").addEventListener("click", () => addCharacterRow({ slot_id: `slot-${Date.now()}` }));
-document.getElementById("compile-prompt").addEventListener("click", compilePrompt);
-if (quickPromptForm) {
-  quickPromptForm.addEventListener("submit", submitQuickPrompt);
-}
-if (promptHistoryRefresh) {
-  promptHistoryRefresh.addEventListener("click", () => refreshPromptHistory(true));
-}
-if (characterEditor) {
-  characterEditor.addEventListener("submit", submitCharacterEditor);
-}
-manifestSearch.addEventListener("input", renderManifestTable);
-filterModels.addEventListener("change", renderManifestTable);
-filterLoras.addEventListener("change", renderManifestTable);
-installButton.addEventListener("click", installSelected);
-if (pairButton) {
-  pairButton.addEventListener("click", pairSelection);
-}
-if (gpuRefresh) {
-  gpuRefresh.addEventListener("click", () => loadGpuDiagnostics(true));
-}
-if (characterStudioLink) {
-  characterStudioLink.addEventListener("click", () => {
-    if (!characterStudioSection) return;
-    characterStudioSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!cardList || !cardDetail || !cardForm) {
+    return;
+  }
+
+  initAuthForm();
+
+  const renderCardDetail = (card) => {
+    if (!card) {
+      cardDetail.innerHTML = '<p class="muted">Select a card to see details.</p>';
+      return;
+    }
+    const triggers = (card.trigger_tokens || []).join(", ") || card.trigger_token || "none";
+    const referenceImages = (card.reference_images || []).join(", ") || "none";
+    cardDetail.innerHTML = `
+      <div class="detail-header">
+        <div>
+          <strong>${escapeHtml(card.name || "Unnamed")}</strong>
+          <span class="muted">${escapeHtml(card.id || "")}</span>
+        </div>
+        <span class="pill inline ${card.nsfw_allowed ? "warning" : "ok"}">${card.nsfw_allowed ? "NSFW" : "SFW"}</span>
+      </div>
+      <div class="detail-grid">
+        <div><span class="muted">Age</span><strong>${escapeHtml(card.age || "—")}</strong></div>
+        <div><span class="muted">LoRA</span><strong>${escapeHtml(card.lora_file || "—")}</strong></div>
+        <div><span class="muted">Strength</span><strong>${card.lora_default_strength ?? "—"}</strong></div>
+        <div><span class="muted">Tokens</span><strong>${escapeHtml(triggers)}</strong></div>
+      </div>
+      <p class="muted">${escapeHtml(card.description || "No description provided.")}</p>
+      <p class="tagline">Anatomy: ${escapeHtml((card.anatomy_tags || []).join(", ") || "none")}</p>
+      <p class="tagline">Wardrobe: ${escapeHtml((card.wardrobe || []).join(", ") || "none")}</p>
+      <p class="tagline">Reference images: ${escapeHtml(referenceImages)}</p>
+    `;
+  };
+
+  const renderCardList = (cards) => {
+    cardList.innerHTML = "";
+    if (!cards.length) {
+      cardList.innerHTML = '<li class="muted">No cards available.</li>';
+      renderCardDetail(null);
+      return;
+    }
+
+    cards.forEach((card) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "cs-list-item";
+      button.innerHTML = `<strong>${escapeHtml(card.name || "Unnamed")}</strong><span>${escapeHtml(
+        card.id || "",
+      )}</span>`;
+      button.addEventListener("click", () => {
+        cardList.querySelectorAll(".cs-list-item").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        fillCharacterForm(card);
+        renderCardDetail(card);
+      });
+      cardList.appendChild(button);
+    });
+
+    const first = cards[0];
+    const firstButton = cardList.querySelector(".cs-list-item");
+    if (firstButton) {
+      firstButton.classList.add("active");
+    }
+    fillCharacterForm(first);
+    renderCardDetail(first);
+  };
+
+  const fillCharacterForm = (card) => {
+    if (!card) return;
+    cardForm.querySelector("[name=id]").value = card.id || "";
+    cardForm.querySelector("[name=name]").value = card.name || "";
+    cardForm.querySelector("[name=age]").value = card.age || "";
+    cardForm.querySelector("[name=nsfw_allowed]").checked = Boolean(card.nsfw_allowed);
+    cardForm.querySelector("[name=description]").value = card.description || "";
+    cardForm.querySelector("[name=default_prompt_snippet]").value = card.default_prompt_snippet || "";
+    cardForm.querySelector("[name=trigger_tokens]").value =
+      (card.trigger_tokens || []).join(", ") || card.trigger_token || "";
+    cardForm.querySelector("[name=anatomy_tags]").value = (card.anatomy_tags || []).join(", ");
+    cardForm.querySelector("[name=wardrobe]").value = (card.wardrobe || []).join(", ");
+    cardForm.querySelector("[name=reference_images]").value = (card.reference_images || []).join(", ");
+    cardForm.querySelector("[name=lora_file]").value = card.lora_file || "";
+    cardForm.querySelector("[name=lora_default_strength]").value =
+      card.lora_default_strength !== null && card.lora_default_strength !== undefined ? card.lora_default_strength : "";
+  };
+
+  const refreshCards = async () => {
+    setPanelLoading(cardList, "Loading character cards…");
+    try {
+      const payload = await fetchJson("/api/characters");
+      renderCardList(payload.items || []);
+    } catch (err) {
+      setPanelError(cardList, `Failed to load cards: ${err.message}`, refreshCards);
+    }
+  };
+
+  cardForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    cardStatus.textContent = "Saving card…";
+    const formData = new FormData(cardForm);
+    const payload = buildCharacterPayload(formData);
+    try {
+      const response = await fetchJson("/api/characters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      cardStatus.textContent = `Saved ${response.item.name} (${response.item.id}).`;
+      await refreshCards();
+    } catch (err) {
+      cardStatus.textContent = `Failed to save card: ${err.message}`;
+    }
   });
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      tabButtons.forEach((tab) => tab.classList.remove("active"));
+      button.classList.add("active");
+      tabPanels.forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.panel === button.dataset.tab);
+      });
+    });
+  });
+
+  refreshCards();
 }
-setInterval(() => {
-  refreshInstallations().catch(() => {});
-}, 5000);
+
+function initMainPage() {
+  bootstrap();
+  addCharacterRow();
+
+  document
+    .getElementById("add-character")
+    .addEventListener("click", () => addCharacterRow({ slot_id: `slot-${Date.now()}` }));
+  document.getElementById("compile-prompt").addEventListener("click", compilePrompt);
+  if (quickPromptForm) {
+    quickPromptForm.addEventListener("submit", submitQuickPrompt);
+  }
+  if (promptHistoryRefresh) {
+    promptHistoryRefresh.addEventListener("click", () => refreshPromptHistory(true));
+  }
+  if (characterEditor) {
+    characterEditor.addEventListener("submit", submitCharacterEditor);
+  }
+  manifestSearch.addEventListener("input", renderManifestTable);
+  filterModels.addEventListener("change", renderManifestTable);
+  filterLoras.addEventListener("change", renderManifestTable);
+  installButton.addEventListener("click", installSelected);
+  if (pairButton) {
+    pairButton.addEventListener("click", pairSelection);
+  }
+  if (gpuRefresh) {
+    gpuRefresh.addEventListener("click", () => loadGpuDiagnostics(true));
+  }
+  setInterval(() => {
+    refreshInstallations().catch(() => {});
+  }, 5000);
+}
+
+window.AIHub = window.AIHub || {};
+window.AIHub.initCharacterStudioPage = initCharacterStudioPage;
+
+const isMainPage = Boolean(document.getElementById("actions-list"));
+if (isMainPage) {
+  initMainPage();
+}
