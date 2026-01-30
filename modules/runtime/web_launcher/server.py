@@ -801,7 +801,10 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
         raw_body = self.rfile.read(content_length) if content_length else b""
         if not raw_body:
             return {}
-        return json.loads(raw_body.decode("utf-8"))
+        try:
+            return json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid JSON body") from exc
 
     def _send_json(self, payload: Dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         response = json.dumps(payload, indent=2).encode("utf-8")
@@ -964,6 +967,9 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
             details = exc.context or {"errors": [str(exc)]}
             self._send_json({"error": str(exc), "details": details}, status=HTTPStatus.BAD_REQUEST)
         except ValueError as exc:
+            if str(exc) == "Invalid JSON body":
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
             if path == "/api/characters":
                 self._send_json(
                     {"error": str(exc), "details": {"errors": [str(exc)]}},
