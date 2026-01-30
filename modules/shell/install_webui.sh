@@ -1,28 +1,17 @@
 #!/bin/bash
+set -euo pipefail
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-LOG_FILE="$HOME/.config/aihub/install.log"
 INSTALL_DIR="$HOME/AI/WebUI"
 LORA_SOURCE="$HOME/AI/LoRAs"
 LORA_TARGET="$INSTALL_DIR/models/Lora"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/logging.sh"
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
-
-log_error() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [error] $message" | tee -a "$LOG_FILE" >&2
-}
 
 run_with_retry() {
   local description="$1"
@@ -103,7 +92,7 @@ else
 fi
 if [ ! -d "venv" ]; then
   python3 -m venv venv
-  echo "$(date): Created Python virtual environment." >> "$LOG_FILE"
+  log_msg "Created Python virtual environment."
 fi
 
 source venv/bin/activate
@@ -121,7 +110,7 @@ mkdir -p "$LORA_SOURCE"
 mkdir -p "$(dirname "$LORA_TARGET")"
 rm -f "$LORA_TARGET"
 ln -s "$LORA_SOURCE" "$LORA_TARGET"
-echo "$(date): Linked LoRA directory ($LORA_SOURCE → $LORA_TARGET)" >> "$LOG_FILE"
+log_msg "Linked LoRA directory ($LORA_SOURCE → $LORA_TARGET)"
 
 # Update config
 config_set "state.webui_installed" "true"

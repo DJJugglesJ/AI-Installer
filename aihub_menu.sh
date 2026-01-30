@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # AI Hub menu launcher
 # - Purpose: present a YAD-driven control panel for installs/launchers using recorded config state.
@@ -10,7 +11,6 @@ MODULE_DIR="$SCRIPT_DIR/modules"
 LAUNCHER_DIR="$SCRIPT_DIR/launcher"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
-LOG_FILE="$HOME/.config/aihub/install.log"
 source "$MODULE_DIR/shell/logging.sh"
 QUICKSTART_DOC="$SCRIPT_DIR/docs/quickstart_models.md"
 

@@ -10,7 +10,13 @@ download_log() {
   local message="$1"
   if [ -n "$DOWNLOAD_LOG_FILE" ]; then
     mkdir -p "$(dirname "$DOWNLOAD_LOG_FILE")"
-    echo "$(date): $message" >> "$DOWNLOAD_LOG_FILE"
+    local ts
+    ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    local escaped
+    escaped=${message//\\/\\\\}
+    escaped=${escaped//\"/\\\"}
+    escaped=${escaped//$'\n'/ }
+    printf '{"ts":"%s","level":"info","message":"%s"}\n' "$ts" "$escaped" >> "$DOWNLOAD_LOG_FILE"
   else
     echo "$message"
   fi

@@ -3,7 +3,6 @@ set -euo pipefail
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-LOG_FILE="$HOME/.config/aihub/install.log"
 MODEL_DIR="$HOME/ai-hub/models"
 WEBUI_SD_DIR="$HOME/AI/WebUI/models/Stable-diffusion"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,6 +10,7 @@ MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 HEADLESS="${HEADLESS:-0}"
 FORCE_CURATED_SELECTION=0
+source "$SCRIPT_DIR/logging.sh"
 DOWNLOAD_LOG_FILE="$LOG_FILE"
 DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
 DOWNLOAD_OFFLINE_BUNDLE="${MODEL_OFFLINE_BUNDLE:-${AIHUB_OFFLINE_BUNDLE:-${DOWNLOAD_OFFLINE_BUNDLE:-}}}"
@@ -48,8 +48,7 @@ export DOWNLOAD_OFFLINE_BUNDLE
 
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
-mkdir -p "$(dirname "$LOG_FILE")" "$MODEL_DIR"
-touch "$LOG_FILE"
+mkdir -p "$MODEL_DIR"
 log_msg "Model installer starting; logging to $LOG_FILE"
 if [ -n "$DOWNLOAD_OFFLINE_BUNDLE" ]; then
   log_msg "Offline bundle path set to $DOWNLOAD_OFFLINE_BUNDLE (will attempt reuse before downloading)"

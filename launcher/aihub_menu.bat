@@ -3,12 +3,17 @@ setlocal
 set SCRIPT_DIR=%~dp0
 set PROJECT_ROOT=%SCRIPT_DIR%..
 set LOG_PATH=%AIHUB_LOG_PATH%
-if "%LOG_PATH%"=="" (
-  if not "%LOCALAPPDATA%"=="" (
-    set LOG_PATH=%LOCALAPPDATA%\AIHub\logs\install.log
+set LOG_DIR=%AIHUB_LOG_DIR%
+if "%LOG_DIR%"=="" (
+  if not "%APPDATA%"=="" (
+    set LOG_DIR=%APPDATA%\AIHub\logs
   ) else (
-    set LOG_PATH=%USERPROFILE%\.config\aihub\install.log
+    set LOG_DIR=%USERPROFILE%\.config\aihub\logs
   )
+)
+if "%LOG_PATH%"=="" (
+  for /f %%I in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().ToString(''yyyyMMdd'')"') do set LOG_DATE=%%I
+  set LOG_PATH=%LOG_DIR%\install-%LOG_DATE%.log
 )
 
 set AIHUB_CONFIG_DIR=%AIHUB_CONFIG_DIR%
@@ -36,10 +41,10 @@ if errorlevel 1 (
   )
 )
 
-for %%D in ("%LOG_PATH%") do set LOG_DIR=%%~dpD
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%LOG_PATH%" type NUL >> "%LOG_PATH%"
 set AIHUB_LOG_PATH=%LOG_PATH%
+set AIHUB_LOG_DIR=%LOG_DIR%
 
 where wsl.exe >NUL 2>&1
 if errorlevel 1 (

@@ -3,6 +3,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path "$ScriptDir/.."
 . "$ProjectRoot/launcher/windows/paths.ps1"
 $Env:AIHUB_LOG_PATH = Get-AIHubLogPath
+$Env:AIHUB_LOG_DIR = Get-AIHubLogRoot
 $Env:AIHUB_CONFIG_DIR = Get-AIHubConfigRoot
 $Env:CONFIG_FILE = Get-AIHubConfigFile
 $Env:CONFIG_STATE_FILE = Get-AIHubStatePath

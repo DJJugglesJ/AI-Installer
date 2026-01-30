@@ -1,15 +1,14 @@
 #!/bin/bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_FILE="$HOME/.config/aihub/install.log"
+source "$SCRIPT_DIR/logging.sh"
 
 BACKUP_DIR="$HOME/.config/aihub/backups"
 BACKUP_FILE=""
 LOCAL_HEAD=""
 REMOTE_HEAD=""
-
-mkdir -p "$(dirname "$LOG_FILE")"
 
 HEADLESS_MODE=false
 
@@ -19,17 +18,13 @@ fi
 
 if ! command -v yad >/dev/null 2>&1; then
   HEADLESS_MODE=true
-  echo "YAD not found. Falling back to CLI mode." >> "$LOG_FILE"
+  log_msg "YAD not found. Falling back to CLI mode."
 fi
 
-if [[ -z "$DISPLAY" && "$HEADLESS_MODE" = false ]]; then
+if [[ -z "${DISPLAY:-}" && "$HEADLESS_MODE" = false ]]; then
   HEADLESS_MODE=true
-  echo "DISPLAY not set. Falling back to CLI mode." >> "$LOG_FILE"
+  log_msg "DISPLAY not set. Falling back to CLI mode."
 fi
-
-log_msg() {
-  echo "$(date): $1" >> "$LOG_FILE"
-}
 
 safe_exit() {
   log_msg "$1"

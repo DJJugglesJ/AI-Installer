@@ -1,7 +1,7 @@
 #!/bin/bash
+set -euo pipefail
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
-LOG_FILE="$HOME/.config/aihub/install.log"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/logging.sh"

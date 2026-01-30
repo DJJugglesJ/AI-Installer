@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-LOG_FILE="$HOME/.config/aihub/install.log"
 TMP_FILTERED="/tmp/civitai_loras.json"
 TMP_SELECTED_TAGS="/tmp/lora_selected_tags.txt"
 TMP_MATCHES="/tmp/lora_filtered_results.txt"
@@ -14,6 +13,7 @@ MANIFEST_DIR="$SCRIPT_DIR/../manifests"
 LORA_MANIFEST="$MANIFEST_DIR/loras.json"
 FORCE_CURATED_SELECTION=0
 HEADLESS="${HEADLESS:-0}"
+source "$SCRIPT_DIR/logging.sh"
 DOWNLOAD_LOG_FILE="$LOG_FILE"
 DOWNLOAD_STATUS_FILE="${DOWNLOAD_STATUS_FILE:-}"
 DOWNLOAD_OFFLINE_BUNDLE="${LORA_OFFLINE_BUNDLE:-${AIHUB_OFFLINE_BUNDLE:-${DOWNLOAD_OFFLINE_BUNDLE:-}}}"
@@ -294,7 +294,7 @@ if [ "$SOURCE" = "curated" ]; then
   if [ "$FORCE_CURATED_SELECTION" -eq 1 ]; then
     if install_curated_loras_by_name "$(echo "$CURATED_LORA_NAMES" | tr ',' '\n')"; then
       config_set "state.loras_installed" "true"
-      echo "$(date): Curated LoRA download completed." >> "$LOG_FILE"
+      log_msg "Curated LoRA download completed."
       notify info "LoRA Download Complete" "✅ Selected curated LoRAs downloaded to $INSTALL_DIR"
       exit 0
     else
@@ -306,7 +306,7 @@ if [ "$SOURCE" = "curated" ]; then
     SOURCE="civitai"
   elif choose_curated_loras; then
     config_set "state.loras_installed" "true"
-    echo "$(date): Curated LoRA download completed." >> "$LOG_FILE"
+    log_msg "Curated LoRA download completed."
     notify info "LoRA Download Complete" "✅ Selected curated LoRAs downloaded to $INSTALL_DIR"
     exit 0
   else
@@ -316,10 +316,8 @@ if [ "$SOURCE" = "curated" ]; then
 fi
 
 mkdir -p "$(dirname "$CONFIG_FILE")"
-mkdir -p "$(dirname "$LOG_FILE")"
 mkdir -p "$INSTALL_DIR"
 touch "$CONFIG_FILE"
-touch "$LOG_FILE"
 
 # Run tag filter and LoRA filter
 if ! bash "$SCRIPT_DIR/tag_filter_dynamic.sh"; then
@@ -394,23 +392,23 @@ for NAME in "${NAMES[@]}"; do
   [ -z "$NAME" ] && continue
   JSON=$(jq -c --arg name "$NAME" 'select(.name == $name)' "$TMP_MATCHES" | head -n 1)
   if [ -z "$JSON" ]; then
-    echo "$(date): Skipped $NAME — metadata not found." >> "$LOG_FILE"
+    log_msg "Skipped $NAME — metadata not found."
     continue
   fi
   ID=$(echo "$JSON" | jq -r .id)
   if [ -z "$ID" ] || [ "$ID" = "null" ]; then
-    echo "$(date): Skipped $NAME — missing model ID." >> "$LOG_FILE"
+    log_msg "Skipped $NAME — missing model ID."
     continue
   fi
   if ! MODEL_DATA=$(curl -fsS "https://civitai.com/api/v1/model-versions/$ID"); then
     notify error "Download Failed" "Could not fetch metadata for $NAME."
-    echo "$(date): Failed to fetch metadata for $NAME (ID: $ID)." >> "$LOG_FILE"
+    log_msg "Failed to fetch metadata for $NAME (ID: $ID)."
     continue
   fi
   URL=$(echo "$MODEL_DATA" | jq -r '.files[] | select(.type == "Model" and (.name | test("\\.(safetensors|ckpt)$"))) | .downloadUrl' | head -n 1)
   if [ -z "$URL" ] || [ "$URL" = "null" ]; then
     notify error "Download Failed" "No downloadable file found for $NAME."
-    echo "$(date): No downloadable file for $NAME (ID: $ID)." >> "$LOG_FILE"
+    log_msg "No downloadable file for $NAME (ID: $ID)."
     continue
   fi
   CHECKSUM=$(echo "$MODEL_DATA" | jq -r '.files[] | select(.type == "Model" and (.name | test("\\.(safetensors|ckpt)$"))) | .hashes.SHA256' | head -n 1)
@@ -421,10 +419,10 @@ for NAME in "${NAMES[@]}"; do
   log_msg "Downloading $OUTNAME.$EXT"
   if ! download_with_retries "$URL" "$DEST" "$CHECKSUM" ""; then
     notify error "Download Failed" "Unable to download $OUTNAME.$EXT from CivitAI."
-    echo "$(date): Download failed for $OUTNAME.$EXT" >> "$LOG_FILE"
+    log_msg "Download failed for $OUTNAME.$EXT"
     continue
   fi
-  echo "$(date): Downloaded $OUTNAME.$EXT" >> "$LOG_FILE"
+  log_msg "Downloaded $OUTNAME.$EXT"
 done
 
 # Update config
@@ -434,5 +432,5 @@ if [[ -x "$SCRIPT_DIR/artifact_manager.sh" ]]; then
   HEADLESS=1 bash "$SCRIPT_DIR/artifact_manager.sh" --scan --verify-links --rotate-logs
 fi
 
-echo "$(date): LoRA selection and download completed." >> "$LOG_FILE"
+log_msg "LoRA selection and download completed."
 notify info "LoRA Download Complete" "✅ Selected LoRAs downloaded to $INSTALL_DIR"
