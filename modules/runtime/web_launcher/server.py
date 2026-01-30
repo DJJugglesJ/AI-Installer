@@ -25,6 +25,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from modules.config_service import config_service
+from modules.runtime.character_studio.models import CharacterStudioError
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.character_studio import services as character_services
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
@@ -823,8 +824,17 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"item": result})
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
+        except CharacterStudioError as exc:
+            details = exc.context or {"errors": [str(exc)]}
+            self._send_json({"error": str(exc), "details": details}, status=HTTPStatus.BAD_REQUEST)
         except ValueError as exc:
-            self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            if path == "/api/characters":
+                self._send_json(
+                    {"error": str(exc), "details": {"errors": [str(exc)]}},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+            else:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:  # pragma: no cover - defensive routing guard
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 

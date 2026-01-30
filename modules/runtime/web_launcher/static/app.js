@@ -17,6 +17,7 @@ const pairResult = document.getElementById("pair-result");
 const pairButton = document.getElementById("pair-selection");
 const installProgress = document.getElementById("install-progress");
 const characterList = document.getElementById("character-list");
+const characterSearch = document.getElementById("character-search");
 const characterTableBody = document.querySelector("#character-table tbody");
 const promptResult = document.getElementById("prompt-result");
 const promptHistory = document.getElementById("prompt-history");
@@ -47,6 +48,7 @@ const selectedModels = new Set();
 const selectedLoras = new Set();
 const activeTags = new Set();
 let authToken = localStorage.getItem("aihubAuthToken") || "";
+let characterItems = [];
 
 function setPanelLoading(container, message) {
   container.innerHTML = `<div class="placeholder"><span class="spinner" aria-hidden="true"></span> ${message}</div>`;
@@ -219,10 +221,23 @@ async function fetchJson(path, options = {}) {
 
   const response = await fetch(path, config);
   if (!response.ok) {
-    const message = await response.text();
+    const bodyText = await response.text();
+    let payload = null;
+    if (bodyText) {
+      try {
+        payload = JSON.parse(bodyText);
+      } catch (err) {
+        payload = null;
+      }
+    }
     const reason =
       response.status === 401 ? "Unauthorized: set the API token above." : `Request failed with ${response.status}`;
-    throw new Error(message || reason);
+    const message = (payload && payload.error) || bodyText || reason;
+    const error = new Error(message || reason);
+    if (payload && payload.details) {
+      error.details = payload.details;
+    }
+    throw error;
   }
   return response.json();
 }
@@ -360,13 +375,14 @@ async function triggerAction(actionId) {
 }
 
 function renderCharacters(characters) {
+  const filtered = filterCharacters(characters, characterSearch ? characterSearch.value : "");
   characterList.innerHTML = "";
-  if (!characters.length) {
+  if (!filtered.length) {
     characterList.innerHTML = '<li class="muted">No characters found.</li>';
     return;
   }
 
-  characters.forEach((card) => {
+  filtered.forEach((card) => {
     const li = document.createElement("li");
     const nsfw = card.nsfw_allowed ? "NSFW allowed" : "SFW";
     const triggers = (card.trigger_tokens || []).join(", ") || card.trigger_token || "none";
@@ -389,6 +405,111 @@ function addCharacterRow(data = {}) {
   `;
   row.querySelector("button").addEventListener("click", () => row.remove());
   characterTableBody.appendChild(row);
+}
+
+function filterCharacters(cards, query) {
+  const search = (query || "").trim().toLowerCase();
+  if (!search) return cards;
+  return cards.filter((card) => {
+    const haystack = [
+      card.name,
+      card.id,
+      card.description,
+      card.trigger_token,
+      ...(card.trigger_tokens || []),
+      ...(card.anatomy_tags || []),
+      ...(card.wardrobe || []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(search);
+  });
+}
+
+function clearFieldErrors(form) {
+  if (!form) return;
+  form.querySelectorAll(".field-error").forEach((node) => node.remove());
+}
+
+function appendFieldError(input, message) {
+  if (!input) return;
+  const label = input.closest("label");
+  if (!label) return;
+  const error = document.createElement("span");
+  error.className = "field-error";
+  error.textContent = message;
+  label.appendChild(error);
+}
+
+function splitCharacterErrors(errors = []) {
+  const fieldErrors = {};
+  const bannerErrors = [];
+  const fieldNames = [
+    "id",
+    "name",
+    "age",
+    "nsfw_allowed",
+    "description",
+    "default_prompt_snippet",
+    "trigger_token",
+    "trigger_tokens",
+    "anatomy_tags",
+    "wardrobe",
+    "reference_images",
+    "lora_file",
+    "lora_default_strength",
+  ];
+
+  errors.forEach((message) => {
+    const normalized = String(message || "");
+    const lower = normalized.toLowerCase();
+    const field = fieldNames.find((name) =>
+      new RegExp(`(^|\\W)${name.split("_").join("[_ ]")}(\\W|$)`).test(lower),
+    );
+    if (field) {
+      fieldErrors[field] = fieldErrors[field] || [];
+      fieldErrors[field].push(normalized);
+    } else if (normalized) {
+      bannerErrors.push(normalized);
+    }
+  });
+
+  return { fieldErrors, bannerErrors };
+}
+
+function renderCharacterError(resultEl, form, err) {
+  clearFieldErrors(form);
+  const details = err && err.details ? err.details : {};
+  const errors = Array.isArray(details.errors) && details.errors.length ? details.errors : [err.message];
+  const { fieldErrors, bannerErrors } = splitCharacterErrors(errors);
+
+  Object.entries(fieldErrors).forEach(([field, messages]) => {
+    const input = form.querySelector(`[name="${field}"]`);
+    if (!input) return;
+    appendFieldError(input, messages.join(" "));
+  });
+
+  const bannerMessages = bannerErrors.length ? bannerErrors : [];
+  const resultMessage =
+    bannerMessages.length || Object.keys(fieldErrors).length
+      ? "Please review the highlighted fields."
+      : err.message || "Failed to save character.";
+  const banner = document.createElement("div");
+  banner.className = "banner error";
+  banner.innerHTML = `<strong>Save failed</strong><span>${escapeHtml(resultMessage)}</span>`;
+  if (bannerMessages.length) {
+    const list = document.createElement("ul");
+    list.className = "note-list";
+    bannerMessages.forEach((message) => {
+      const item = document.createElement("li");
+      item.textContent = message;
+      list.appendChild(item);
+    });
+    banner.appendChild(list);
+  }
+  resultEl.innerHTML = "";
+  resultEl.appendChild(banner);
 }
 
 async function compilePrompt() {
@@ -473,6 +594,7 @@ function fillCharacterEditor(card) {
 async function submitCharacterEditor(event) {
   event.preventDefault();
   if (!characterEditor) return;
+  clearFieldErrors(characterEditor);
   characterEditorResult.textContent = "Saving character card…";
   const formData = new FormData(characterEditor);
   const payload = buildCharacterPayload(formData);
@@ -486,7 +608,7 @@ async function submitCharacterEditor(event) {
     characterEditorResult.textContent = `Saved ${result.item.name} (${result.item.id}).`;
     await refreshCharacters();
   } catch (err) {
-    characterEditorResult.textContent = `Failed to save character: ${err.message}`;
+    renderCharacterError(characterEditorResult, characterEditor, err);
   }
 }
 
@@ -627,7 +749,8 @@ async function refreshTasks(initial = false) {
 async function refreshCharacters() {
   try {
     const characters = await fetchJson("/api/characters");
-    renderCharacters(characters.items || []);
+    characterItems = characters.items || [];
+    renderCharacters(characterItems);
   } catch (err) {
     setPanelError(characterList, `Failed to load characters: ${err.message}`, refreshCharacters);
   }
@@ -1158,8 +1281,10 @@ function initCharacterStudioPage() {
   const cardDetail = document.getElementById("cs-card-detail");
   const cardForm = document.getElementById("cs-card-form");
   const cardStatus = document.getElementById("cs-card-status");
+  const cardSearch = document.getElementById("cs-card-search");
   const tabButtons = document.querySelectorAll("[data-tab]");
   const tabPanels = document.querySelectorAll("[data-panel]");
+  let cardItems = [];
 
   if (!cardList || !cardDetail || !cardForm) {
     return;
@@ -1196,14 +1321,15 @@ function initCharacterStudioPage() {
   };
 
   const renderCardList = (cards) => {
+    const filtered = filterCharacters(cards, cardSearch ? cardSearch.value : "");
     cardList.innerHTML = "";
-    if (!cards.length) {
+    if (!filtered.length) {
       cardList.innerHTML = '<li class="muted">No cards available.</li>';
       renderCardDetail(null);
       return;
     }
 
-    cards.forEach((card) => {
+    filtered.forEach((card) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "cs-list-item";
@@ -1219,7 +1345,7 @@ function initCharacterStudioPage() {
       cardList.appendChild(button);
     });
 
-    const first = cards[0];
+    const first = filtered[0];
     const firstButton = cardList.querySelector(".cs-list-item");
     if (firstButton) {
       firstButton.classList.add("active");
@@ -1250,7 +1376,8 @@ function initCharacterStudioPage() {
     setPanelLoading(cardList, "Loading character cards…");
     try {
       const payload = await fetchJson("/api/characters");
-      renderCardList(payload.items || []);
+      cardItems = payload.items || [];
+      renderCardList(cardItems);
     } catch (err) {
       setPanelError(cardList, `Failed to load cards: ${err.message}`, refreshCards);
     }
@@ -1258,6 +1385,7 @@ function initCharacterStudioPage() {
 
   cardForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    clearFieldErrors(cardForm);
     cardStatus.textContent = "Saving card…";
     const formData = new FormData(cardForm);
     const payload = buildCharacterPayload(formData);
@@ -1270,7 +1398,7 @@ function initCharacterStudioPage() {
       cardStatus.textContent = `Saved ${response.item.name} (${response.item.id}).`;
       await refreshCards();
     } catch (err) {
-      cardStatus.textContent = `Failed to save card: ${err.message}`;
+      renderCharacterError(cardStatus, cardForm, err);
     }
   });
 
@@ -1283,6 +1411,10 @@ function initCharacterStudioPage() {
       });
     });
   });
+
+  if (cardSearch) {
+    cardSearch.addEventListener("input", () => renderCardList(cardItems));
+  }
 
   refreshCards();
 }
@@ -1303,6 +1435,9 @@ function initMainPage() {
   }
   if (characterEditor) {
     characterEditor.addEventListener("submit", submitCharacterEditor);
+  }
+  if (characterSearch) {
+    characterSearch.addEventListener("input", () => renderCharacters(characterItems));
   }
   manifestSearch.addEventListener("input", renderManifestTable);
   filterModels.addEventListener("change", renderManifestTable);
