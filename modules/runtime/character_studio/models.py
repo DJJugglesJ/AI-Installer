@@ -107,6 +107,14 @@ class CharacterCard:
     reference_images: List[str] = field(default_factory=list)
     metadata: Dict[str, str] = field(default_factory=dict)
 
+    def normalize_triggers(self) -> None:
+        """Normalize trigger token fields to keep them consistent."""
+
+        self.trigger_token, self.trigger_tokens = _normalize_trigger_fields(
+            self.trigger_token,
+            self.trigger_tokens,
+        )
+
     def validate(self) -> None:
         """Validate the Character Card against the shared schema."""
 
@@ -123,6 +131,8 @@ class CharacterCard:
             isinstance(token, str) and token.strip() for token in self.trigger_tokens
         ):
             errors.append("trigger_tokens must be a list of non-empty strings")
+        if self.trigger_token and self.trigger_token not in self.trigger_tokens:
+            errors.append("trigger_token must be included in trigger_tokens")
         if not isinstance(self.anatomy_tags, list) or not all(
             isinstance(tag, str) and tag.strip() for tag in self.anatomy_tags
         ):
@@ -143,10 +153,11 @@ class CharacterCard:
         """Serialize the CharacterCard into a JSON-compatible dict."""
 
         payload = asdict(self)
-        trigger_token = payload.get("trigger_token")
-        trigger_tokens = list(payload.get("trigger_tokens", []) or [])
-        if trigger_token and trigger_token not in trigger_tokens:
-            trigger_tokens.insert(0, trigger_token)
+        trigger_token, trigger_tokens = _normalize_trigger_fields(
+            payload.get("trigger_token"),
+            payload.get("trigger_tokens", []),
+        )
+        payload["trigger_token"] = trigger_token
         payload["trigger_tokens"] = trigger_tokens
         return payload
 
@@ -154,10 +165,10 @@ class CharacterCard:
     def from_dict(cls, payload: Dict[str, object]) -> "CharacterCard":
         """Create a CharacterCard from a JSON-compatible dict."""
 
-        trigger_tokens = list(payload.get("trigger_tokens", []) or [])
-        trigger_token = payload.get("trigger_token")
-        if trigger_token and trigger_token not in trigger_tokens:
-            trigger_tokens.insert(0, trigger_token)
+        trigger_token, trigger_tokens = _normalize_trigger_fields(
+            payload.get("trigger_token"),
+            payload.get("trigger_tokens", []),
+        )
 
         return cls(
             id=str(payload.get("id")),
@@ -166,7 +177,7 @@ class CharacterCard:
             nsfw_allowed=bool(payload.get("nsfw_allowed", False)),
             description=payload.get("description"),
             default_prompt_snippet=payload.get("default_prompt_snippet"),
-            trigger_token=trigger_token or (trigger_tokens[0] if trigger_tokens else None),
+            trigger_token=trigger_token,
             trigger_tokens=trigger_tokens,
             anatomy_tags=list(payload.get("anatomy_tags", []) or []),
             wardrobe=list(payload.get("wardrobe", []) or []),
@@ -179,6 +190,7 @@ class CharacterCard:
     def save(self, path: Optional[Path] = None) -> Path:
         """Persist the CharacterCard to disk as JSON and return the saved path."""
 
+        self.normalize_triggers()
         self.validate()
         destination = path or CARD_STORAGE_ROOT / self.id / "card.json"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -246,3 +258,32 @@ def apply_feedback_to_character(character_card: CharacterCard, feedback_text: st
             updated.metadata[metadata_key] = value
 
     return updated
+
+
+def _normalize_trigger_fields(
+    trigger_token: Optional[object],
+    trigger_tokens: object,
+) -> tuple[Optional[str], List[str]]:
+    normalized_token = None
+    if isinstance(trigger_token, str) and trigger_token.strip():
+        normalized_token = trigger_token.strip()
+
+    tokens_source = trigger_tokens if isinstance(trigger_tokens, list) else []
+    normalized_tokens: List[str] = []
+    seen = set()
+    for token in tokens_source:
+        if not isinstance(token, str):
+            continue
+        cleaned = token.strip()
+        if not cleaned or cleaned in seen:
+            continue
+        normalized_tokens.append(cleaned)
+        seen.add(cleaned)
+
+    if normalized_token:
+        if normalized_token not in seen:
+            normalized_tokens.insert(0, normalized_token)
+    elif normalized_tokens:
+        normalized_token = normalized_tokens[0]
+
+    return normalized_token, normalized_tokens
