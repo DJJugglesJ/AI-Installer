@@ -142,7 +142,13 @@ class CharacterCard:
     def to_dict(self) -> Dict[str, object]:
         """Serialize the CharacterCard into a JSON-compatible dict."""
 
-        return asdict(self)
+        payload = asdict(self)
+        trigger_token = payload.get("trigger_token")
+        trigger_tokens = list(payload.get("trigger_tokens", []) or [])
+        if trigger_token and trigger_token not in trigger_tokens:
+            trigger_tokens.insert(0, trigger_token)
+        payload["trigger_tokens"] = trigger_tokens
+        return payload
 
     @classmethod
     def from_dict(cls, payload: Dict[str, object]) -> "CharacterCard":
