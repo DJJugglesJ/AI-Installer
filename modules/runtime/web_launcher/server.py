@@ -371,8 +371,11 @@ class WebLauncherAPI:
     def _monitor_job(self, job: InstallJob) -> None:
         if not job.process:
             return
-        job.returncode = job.process.wait()
-        job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        returncode = job.process.wait()
+        completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        with self._lock:
+            job.returncode = returncode
+            job.completed_at = completed_at
         if job.status_path:
             level = "info" if job.returncode == 0 else "error"
             message = "Installer completed successfully" if job.returncode == 0 else "Installer failed"
@@ -452,11 +455,20 @@ class WebLauncherAPI:
 
         rendered_jobs: List[Dict[str, object]] = []
         for job in jobs:
+            completed_at: Optional[str] = None
+            returncode: Optional[int] = None
             if job.process and job.returncode is None:
-                job.returncode = job.process.poll()
-                if job.returncode is not None and job.completed_at is None:
-                    job.completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-                    self._record_history(job)
+                returncode = job.process.poll()
+                if returncode is not None and job.completed_at is None:
+                    completed_at = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                if returncode is not None:
+                    with self._lock:
+                        if job.returncode is None:
+                            job.returncode = returncode
+                        if completed_at and job.completed_at is None:
+                            job.completed_at = completed_at
+            if completed_at:
+                self._record_history(job)
             events = self._load_status_events(job.status_path)
             job_dict = job.to_dict(
                 log_tail=self._tail_log(job.log_path),
