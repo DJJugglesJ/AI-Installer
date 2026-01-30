@@ -16,6 +16,7 @@ MANIFEST_UPDATE_SCHEMA: Dict[str, object] = {
     "properties": {
         "tags": {"type": "array", "items": {"type": "string"}},
         "notes": {"type": "string"},
+        "description": {"type": "string"},
     },
     "additionalProperties": False,
 }
@@ -110,6 +111,7 @@ def _normalize_item(entry: Dict[str, object]) -> Dict[str, object]:
         normalized["tags"] = []
     if not isinstance(normalized.get("notes"), str):
         normalized["notes"] = str(normalized.get("notes") or "")
+    normalized["description"] = normalized.get("notes") or ""
     return normalized
 
 
@@ -224,8 +226,9 @@ def update_manifest_item(
             continue
         if "tags" in updates:
             entry["tags"] = _normalize_tags(updates.get("tags", []))
-        if "notes" in updates:
-            entry["notes"] = str(updates.get("notes") or "")
+        if "notes" in updates or "description" in updates:
+            notes_value = updates.get("notes") if "notes" in updates else updates.get("description")
+            entry["notes"] = str(notes_value or "")
         updated_item = entry
         break
 
@@ -242,7 +245,7 @@ def validate_manifest_checksums(
     install_dirs: Optional[Dict[str, Path]] = None,
 ) -> Dict[str, object]:
     manifest_types = [manifest_type] if manifest_type else ["models", "loras"]
-    results: Dict[str, object] = {"items": {}, "summary": {}}
+    results: Dict[str, object] = {"items": {}, "summary": {}, "errors": {}}
 
     for entry_type in manifest_types:
         payload = load_manifest_payload(
@@ -261,5 +264,6 @@ def validate_manifest_checksums(
         }
         results["items"][entry_type] = items
         results["summary"][entry_type] = summary
+        results["errors"][entry_type] = payload.get("errors", [])
 
     return results
