@@ -540,6 +540,24 @@ button.secondary {
   margin-top: 6px;
 }
 
+.history-panel {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.form-grid label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.form-grid label.checkbox input {
+  width: auto;
+  margin: 0;
+}
+
 @media (max-width: 720px) {
   header {
     flex-direction: column;

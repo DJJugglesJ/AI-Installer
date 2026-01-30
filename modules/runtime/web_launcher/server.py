@@ -26,8 +26,10 @@ from urllib.parse import urlparse
 
 from modules.config_service import config_service
 from modules.runtime.character_studio.registry import CharacterCardRegistry
+from modules.runtime.character_studio import services as character_services
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
 from modules.runtime.prompt_builder import compiler
+from modules.runtime.prompt_builder.history import PromptHistoryStore
 from modules.runtime.prompt_builder.services import UIIntegrationHooks
 from modules.runtime.registry import get_tool, list_tools, load_default_tools
 from modules.runtime.models.tasks import serialize_task, Task
@@ -128,6 +130,7 @@ class WebLauncherAPI:
         self._action_map: Dict[str, ActionSpec] = self._build_action_map()
         self._log_dir = log_dir or Path.home() / ".cache/aihub/web_launcher/logs"
         self._history_path = history_path or Path.home() / ".cache/aihub/web_launcher/selection_history.json"
+        self._prompt_history = PromptHistoryStore()
         self._log_dir.mkdir(parents=True, exist_ok=True)
         self._history_path.parent.mkdir(parents=True, exist_ok=True)
         self._install_jobs: Dict[str, InstallJob] = {}
@@ -523,6 +526,17 @@ class WebLauncherAPI:
                 cards.append(card.to_dict())
         return cards
 
+    def get_character(self, card_id: str) -> Dict[str, object]:
+        card = self._card_registry.find(card_id)
+        if not card:
+            raise ValueError(f"Unknown character: {card_id}")
+        return card.to_dict()
+
+    def upsert_character(self, payload: Dict[str, object]) -> Dict[str, object]:
+        card = character_services.upsert_character_card(payload)
+        self._card_registry._cache.pop(card.id, None)
+        return card.to_dict()
+
     def list_tools(self) -> Dict[str, object]:
         tools = [tool.to_dict() for tool in list_tools()]
         available = [tool for tool in tools if tool.get("available")]
@@ -563,17 +577,60 @@ class WebLauncherAPI:
         if feedback is not None and not isinstance(feedback, str):
             raise ValueError("feedback must be a string when provided")
 
-        compiled_scene = scene_json if feedback is None else compiler.apply_feedback_to_scene(scene_json, feedback)
-        assembly = compiler.build_prompt_from_scene(compiled_scene)
+        scene = compiler.parse_scene_description(scene_json)
+        if feedback:
+            scene = compiler.apply_feedback_to_scene(scene_json, feedback)
+            scene = compiler.parse_scene_description(scene)
+        assembly = compiler.build_prompt_from_scene(asdict(scene))
         assembly_payload = assembly.to_payload()
         published = self._ui_hooks.publish_prompt(assembly)
-        return {"assembly": assembly_payload, "published": published}
+        history_entry = self._prompt_history.add_entry(
+            asdict(scene),
+            assembly_payload,
+            metadata={"published": published},
+        )
+        return {"assembly": assembly_payload, "published": published, "history": history_entry.to_dict()}
+
+    def compile_guided_prompt(self, scene_json: Dict[str, object]) -> Dict[str, object]:
+        if not isinstance(scene_json, dict):
+            raise ValueError("scene must be a JSON object")
+        scene = compiler.parse_scene_description(scene_json)
+        assembly = compiler.build_prompt_from_scene(asdict(scene))
+        assembly_payload = assembly.to_payload()
+        published = self._ui_hooks.publish_prompt(assembly)
+        history_entry = self._prompt_history.add_entry(
+            asdict(scene),
+            assembly_payload,
+            metadata={"published": published},
+        )
+        return {"assembly": assembly_payload, "published": published, "history": history_entry.to_dict()}
+
+    def compile_quick_prompt(self, payload: Dict[str, object]) -> Dict[str, object]:
+        scene = compiler.build_scene_from_quick_prompt(payload)
+        assembly = compiler.build_prompt_from_scene(asdict(scene))
+        assembly_payload = assembly.to_payload()
+        published = self._ui_hooks.publish_prompt(assembly)
+        history_entry = self._prompt_history.add_entry(
+            asdict(scene),
+            assembly_payload,
+            metadata={"published": published},
+        )
+        return {"scene": asdict(scene), "assembly": assembly_payload, "published": published, "history": history_entry.to_dict()}
 
     def apply_feedback(self, scene_json: Dict[str, object], feedback: str) -> Dict[str, object]:
         if not isinstance(scene_json, dict):
             raise ValueError("scene must be a JSON object")
         updated = compiler.apply_feedback_to_scene(scene_json, feedback)
         return {"scene": updated}
+
+    def list_prompt_history(self) -> Dict[str, object]:
+        entries = [entry.to_dict() for entry in self._prompt_history.list_entries()]
+        favorites = [entry.to_dict() for entry in self._prompt_history.list_favorites()]
+        return {"items": entries, "favorites": favorites}
+
+    def set_prompt_favorite(self, entry_id: str, favorite: bool) -> Dict[str, object]:
+        entry = self._prompt_history.set_favorite(entry_id, favorite)
+        return {"item": entry.to_dict()}
 
     def status(self) -> Dict[str, object]:
         manifests = self.get_manifests()
@@ -679,6 +736,12 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.get_manifests())
             elif path == "/api/characters":
                 self._send_json({"items": self.api.list_characters()})
+            elif path.startswith("/api/characters/"):
+                _, _, card_id = path.partition("/api/characters/")
+                if not card_id:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Character id required")
+                    return
+                self._send_json({"item": self.api.get_character(card_id)})
             elif path == "/api/actions":
                 self._send_json({"items": self.api.list_actions()})
             elif path == "/api/installations":
@@ -691,6 +754,8 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.gpu_diagnostics())
             elif path == "/api/pairings":
                 self._send_json(self.api.get_pairings())
+            elif path == "/api/prompt/history":
+                self._send_json(self.api.list_prompt_history())
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except Exception as exc:  # pragma: no cover - defensive routing guard
@@ -711,11 +776,30 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 feedback = payload.get("feedback")
                 result = self.api.compile_prompt(scene_payload, feedback)
                 self._send_json(result)
+            elif path == "/api/prompt/guided":
+                payload = self._read_json_body()
+                scene_payload = payload.get("scene", payload)
+                result = self.api.compile_guided_prompt(scene_payload)
+                self._send_json(result)
+            elif path == "/api/prompt/quick":
+                payload = self._read_json_body()
+                result = self.api.compile_quick_prompt(payload)
+                self._send_json(result)
             elif path == "/api/prompt/feedback":
                 payload = self._read_json_body()
                 scene_payload = payload.get("scene", payload)
                 feedback = payload.get("feedback", "")
                 result = self.api.apply_feedback(scene_payload, feedback)
+                self._send_json(result)
+            elif path == "/api/prompt/history/favorite":
+                payload = self._read_json_body()
+                entry_id = payload.get("entry_id")
+                favorite = payload.get("favorite", True)
+                if not isinstance(entry_id, str) or not entry_id.strip():
+                    raise ValueError("entry_id is required")
+                if not isinstance(favorite, bool):
+                    raise ValueError("favorite must be a boolean")
+                result = self.api.set_prompt_favorite(entry_id, favorite)
                 self._send_json(result)
             elif path == "/api/installations":
                 payload = self._read_json_body()
@@ -733,6 +817,10 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 payload = self._read_json_body()
                 result = self.api.update_pairings(payload)
                 self._send_json(result)
+            elif path == "/api/characters":
+                payload = self._read_json_body()
+                result = self.api.upsert_character(payload)
+                self._send_json({"item": result})
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
         except ValueError as exc:

@@ -132,3 +132,31 @@ def test_apply_feedback_updates_scene_fields():
 def test_apply_feedback_requires_text():
     with pytest.raises(ValueError):
         compiler.apply_feedback_to_scene({}, None)
+
+
+def test_compile_quick_prompt_payload_builds_scene(tmp_path):
+    card = CharacterCard(
+        id="quick-hero",
+        name="Quick Hero",
+        nsfw_allowed=False,
+        description="quick hero",
+        default_prompt_snippet="sharp focus",
+        trigger_token="qhero",
+        trigger_tokens=["qhero", "alias"],
+        anatomy_tags=["cape"],
+        lora_file="quick.safetensors",
+        lora_default_strength=0.5,
+    )
+    card.save(path=tmp_path / "quick-hero" / "card.json")
+
+    payload = {
+        "prompt": "heroic pose",
+        "character_ids": ["quick-hero"],
+        "style": "cinematic",
+    }
+
+    result = compiler.compile_quick_prompt_payload(payload)
+
+    assert result["scene"]["style"] == "cinematic"
+    assert any("heroic pose" in part for part in result["assembly"]["positive_prompt"])
+    assert result["assembly"]["lora_calls"][0]["name"] == "quick.safetensors"

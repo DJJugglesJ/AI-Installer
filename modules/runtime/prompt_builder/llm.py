@@ -132,11 +132,18 @@ class SceneLLMAdapter:
         override_snippet = character.override_prompt_snippet
         parts: List[str] = []
         if card:
-            if card.trigger_token:
-                parts.append(card.trigger_token)
+            trigger_tokens = []
+            if card.trigger_tokens:
+                trigger_tokens.extend(card.trigger_tokens)
+            if card.trigger_token and card.trigger_token not in trigger_tokens:
+                trigger_tokens.insert(0, card.trigger_token)
+            if trigger_tokens:
+                parts.append(" ".join(trigger_tokens))
             parts.extend(filter(None, [override_snippet or card.default_prompt_snippet, card.description]))
             if card.anatomy_tags:
                 parts.append(", ".join(card.anatomy_tags))
+            if card.wardrobe:
+                parts.append("wardrobe: " + ", ".join(card.wardrobe))
         else:
             parts.append(character.character_id)
             if override_snippet:
