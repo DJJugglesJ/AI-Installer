@@ -372,6 +372,13 @@ button.secondary {
   color: #fff;
 }
 
+.field-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #fca5a5;
+}
+
 .manifest-list span {
   display: block;
 }
