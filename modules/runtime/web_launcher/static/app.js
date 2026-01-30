@@ -10,6 +10,9 @@ const manifestSearch = document.getElementById("manifest-search");
 const filterModels = document.getElementById("filter-models");
 const filterLoras = document.getElementById("filter-loras");
 const tagFilters = document.getElementById("tag-filters");
+const refreshManifestsButton = document.getElementById("refresh-manifests");
+const validateManifestsButton = document.getElementById("validate-manifests");
+const manifestActionResult = document.getElementById("manifest-action-result");
 const installButton = document.getElementById("install-selected");
 const installResult = document.getElementById("install-result");
 const pairingState = document.getElementById("pairing-state");
@@ -41,6 +44,7 @@ const characterEditor = document.getElementById("character-editor");
 const characterEditorResult = document.getElementById("character-editor-result");
 
 let manifestItems = [];
+let currentManifestItem = null;
 const selectedModels = new Set();
 const selectedLoras = new Set();
 const activeTags = new Set();
@@ -788,18 +792,52 @@ async function bootstrap() {
 }
 
 function hydrateManifests(manifests) {
+  setManifestItems(manifests.models.items || [], manifests.loras.items || []);
+}
+
+function setManifestItems(models, loras) {
   manifestItems = [
-    ...(manifests.models.items || []).map((item) => ({ ...item, type: "Model" })),
-    ...(manifests.loras.items || []).map((item) => ({ ...item, type: "LoRA" })),
+    ...models.map((item) => ({ ...item, type: "Model" })),
+    ...loras.map((item) => ({ ...item, type: "LoRA" })),
   ];
   renderTagFilters();
   renderManifestTable();
+  if (currentManifestItem) {
+    const found = findManifestItem(currentManifestItem.slug, currentManifestItem.type);
+    if (found) {
+      loadManifestDetail(found);
+    }
+  }
+}
+
+function findManifestItem(slug, manifestType) {
+  const label = manifestType === "models" ? "Model" : "LoRA";
+  return manifestItems.find(
+    (item) => (item.slug || item.name) === slug && item.type === label,
+  );
 }
 
 function renderHealthPill(status) {
   const pill = document.createElement("span");
   pill.className = `pill inline ${status || "ok"}`;
   pill.textContent = status === "warning" ? "Needs attention" : "Healthy";
+  return pill;
+}
+
+function renderChecksumPill(status) {
+  const pill = document.createElement("span");
+  const normalized = status || "unknown";
+  pill.className = `pill inline checksum ${normalized}`;
+  const labels = {
+    verified: "Verified",
+    mismatch: "Mismatch",
+    missing: "Missing",
+    unchecked: "Unchecked",
+    "no-checksum": "No checksum",
+    "no-filename": "No filename",
+    unknown: "Unknown",
+  };
+  pill.textContent = labels[normalized] || normalized;
   return pill;
 }
 
@@ -812,6 +850,7 @@ function renderManifestDetail(detail) {
   }
 
   const item = detail.item;
+  currentManifestItem = { slug: item.slug || item.name, type: detail.type };
   const header = document.createElement("div");
   header.className = "detail-header";
   const title = document.createElement("div");
@@ -830,6 +869,17 @@ function renderManifestDetail(detail) {
   `;
   manifestDetail.appendChild(meta);
 
+  const checksumRow = document.createElement("div");
+  checksumRow.className = "detail-actions";
+  checksumRow.appendChild(renderChecksumPill(item.checksum_status));
+  const checksumText = document.createElement("span");
+  checksumText.className = "muted";
+  const localValue = item.checksum_local ? `Local: ${item.checksum_local}` : "";
+  const fileValue = item.file_path ? `File: ${item.file_path}` : "";
+  checksumText.textContent = [localValue, fileValue].filter(Boolean).join(" • ");
+  checksumRow.appendChild(checksumText);
+  manifestDetail.appendChild(checksumRow);
+
   const tags = document.createElement("div");
   tags.className = "tags";
   (item.tags || []).forEach((tag) => {
@@ -844,6 +894,35 @@ function renderManifestDetail(detail) {
   notes.className = "muted wrap";
   notes.textContent = item.notes || "";
   manifestDetail.appendChild(notes);
+
+  const editForm = document.createElement("div");
+  editForm.className = "detail-form";
+  editForm.innerHTML = `
+    <label>
+      Tags (comma separated)
+      <input id="manifest-tags" type="text" value="${escapeHtml((item.tags || []).join(", "))}" />
+    </label>
+    <label class="full">
+      Description / Notes
+      <textarea id="manifest-notes" rows="3">${escapeHtml(item.notes || "")}</textarea>
+    </label>
+  `;
+  manifestDetail.appendChild(editForm);
+
+  const actions = document.createElement("div");
+  actions.className = "detail-actions";
+  const typeLabel = detail.type === "models" ? "Model" : "LoRA";
+  actions.innerHTML = `
+    <button id="manifest-install" type="button">Install ${typeLabel}</button>
+    <button id="manifest-save" type="button" class="secondary">Save Tags & Notes</button>
+    <div id="manifest-save-result" class="result"></div>
+  `;
+  manifestDetail.appendChild(actions);
+
+  const installButton = actions.querySelector("#manifest-install");
+  installButton.addEventListener("click", () => installSingleItem(item, detail.type));
+  const saveButton = actions.querySelector("#manifest-save");
+  saveButton.addEventListener("click", () => saveManifestMetadata(item, detail.type));
 
   if (detail.errors && detail.errors.length) {
     const warning = document.createElement("div");
@@ -923,7 +1002,7 @@ function renderManifestTable() {
   const table = document.createElement("table");
   table.innerHTML = `
     <thead>
-      <tr><th>Select</th><th>Type</th><th>Name</th><th>Version</th><th>Size</th><th>License</th><th>Health</th><th>Tags</th><th>Notes</th><th>Actions</th></tr>
+      <tr><th>Select</th><th>Type</th><th>Name</th><th>Version</th><th>Size</th><th>License</th><th>Health</th><th>Checksum</th><th>Tags</th><th>Notes</th><th>Actions</th></tr>
     </thead>
     <tbody></tbody>
   `;
@@ -940,9 +1019,13 @@ function renderManifestTable() {
       <td>${formatBytes(item.size_bytes)}</td>
       <td>${item.license || ""}</td>
       <td></td>
+      <td></td>
       <td>${(item.tags || []).join(", ")}</td>
       <td class="wrap">${item.notes || ""}</td>
-      <td><button type="button" class="secondary" data-detail>Details</button></td>
+      <td>
+        <button type="button" class="secondary" data-detail>Details</button>
+        <button type="button" data-install>Install</button>
+      </td>
     `;
 
     row.querySelector("input").addEventListener("change", (event) => {
@@ -954,7 +1037,13 @@ function renderManifestTable() {
     const healthCell = row.querySelectorAll("td")[6];
     healthCell.appendChild(renderHealthPill(item.health));
 
+    const checksumCell = row.querySelectorAll("td")[7];
+    checksumCell.appendChild(renderChecksumPill(item.checksum_status));
+
     row.querySelector("button[data-detail]").addEventListener("click", () => loadManifestDetail(item));
+    row.querySelector("button[data-install]").addEventListener("click", () =>
+      installSingleItem(item, item.type === "Model" ? "models" : "loras"),
+    );
 
     tbody.appendChild(row);
   });
@@ -988,6 +1077,91 @@ async function installSelected() {
     await refreshInstallations(true);
   } catch (err) {
     installResult.textContent = `Failed to start installers: ${err.message}`;
+  }
+}
+
+async function installSingleItem(item, manifestType) {
+  const result = document.getElementById("manifest-save-result");
+  if (result) {
+    result.textContent = `Starting install for ${item.name}…`;
+  }
+  const payload = manifestType === "models" ? { models: [item.name], loras: [] } : { models: [], loras: [item.name] };
+  try {
+    const response = await fetchJson("/api/installations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (result) {
+      result.textContent = `Installer started (${response.jobs.map((job) => job.id).join(", ")}).`;
+    }
+    await refreshInstallations(true);
+  } catch (err) {
+    if (result) {
+      result.textContent = `Failed to start installer: ${err.message}`;
+    }
+  }
+}
+
+async function saveManifestMetadata(item, manifestType) {
+  const tagsInput = document.getElementById("manifest-tags");
+  const notesInput = document.getElementById("manifest-notes");
+  const result = document.getElementById("manifest-save-result");
+  if (!tagsInput || !notesInput) return;
+
+  const tags = tagsInput.value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  const notes = notesInput.value || "";
+
+  if (result) result.textContent = "Saving metadata…";
+  try {
+    const response = await fetchJson(`/api/manifests/${manifestType}/${encodeURIComponent(item.slug || item.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags, notes }),
+    });
+    const updated = response.item || {};
+    manifestItems = manifestItems.map((entry) => {
+      if ((entry.slug || entry.name) === (updated.slug || updated.name)) {
+        return { ...entry, tags: updated.tags || [], notes: updated.notes || "" };
+      }
+      return entry;
+    });
+    renderTagFilters();
+    renderManifestTable();
+    if (result) result.textContent = "Saved manifest metadata.";
+  } catch (err) {
+    if (result) result.textContent = `Failed to save metadata: ${err.message}`;
+  }
+}
+
+async function refreshManifests() {
+  if (manifestActionResult) manifestActionResult.textContent = "Refreshing manifests…";
+  try {
+    const manifests = await fetchJson("/api/manifests/refresh", { method: "POST" });
+    hydrateManifests(manifests);
+    if (manifestActionResult) manifestActionResult.textContent = "Manifests refreshed.";
+  } catch (err) {
+    if (manifestActionResult) manifestActionResult.textContent = `Refresh failed: ${err.message}`;
+  }
+}
+
+async function validateManifests() {
+  if (manifestActionResult) manifestActionResult.textContent = "Validating checksums…";
+  try {
+    const response = await fetchJson("/api/manifests/validate", { method: "POST" });
+    const models = response.items?.models || [];
+    const loras = response.items?.loras || [];
+    setManifestItems(models, loras);
+    const summary = response.summary || {};
+    const summaryText = Object.entries(summary)
+      .map(([key, stats]) => `${key}: ${stats.verified || 0} verified, ${stats.mismatch || 0} mismatch, ${stats.missing || 0} missing`)
+      .join(" • ");
+    if (manifestActionResult) manifestActionResult.textContent = summaryText || "Checksum validation complete.";
+  } catch (err) {
+    if (manifestActionResult) manifestActionResult.textContent = `Validation failed: ${err.message}`;
   }
 }
 
@@ -1167,6 +1341,12 @@ filterLoras.addEventListener("change", renderManifestTable);
 installButton.addEventListener("click", installSelected);
 if (pairButton) {
   pairButton.addEventListener("click", pairSelection);
+}
+if (refreshManifestsButton) {
+  refreshManifestsButton.addEventListener("click", refreshManifests);
+}
+if (validateManifestsButton) {
+  validateManifestsButton.addEventListener("click", validateManifests);
 }
 if (gpuRefresh) {
   gpuRefresh.addEventListener("click", () => loadGpuDiagnostics(true));
