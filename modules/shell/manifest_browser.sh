@@ -5,23 +5,18 @@
 # - Presents filterable UI for selections and streams progress while invoking installers
 # - Records a history of selections and provides error handling/logging
 
-set -o errexit
-set -o pipefail
-set -o nounset
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MANIFEST_DIR="$ROOT_DIR/manifests"
 MODEL_MANIFEST="$MANIFEST_DIR/models.json"
 LORA_MANIFEST="$MANIFEST_DIR/loras.json"
-LOG_FILE="$HOME/.config/aihub/install.log"
+source "$SCRIPT_DIR/logging.sh"
 HISTORY_FILE="$HOME/.config/aihub/manifest_history.tsv"
 
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
 log_msg() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" >> "$LOG_FILE"
+  log_event "info" app=manifest_browser message="$1"
 }
 
 require_commands() {

@@ -20,8 +20,17 @@ function Get-AIHubStatePath {
 
 function Get-AIHubLogPath {
   if ($Env:AIHUB_LOG_PATH) { return $Env:AIHUB_LOG_PATH }
-  if ($IsWindows -and $Env:LOCALAPPDATA) {
-    return (Join-Path $Env:LOCALAPPDATA "AIHub/logs/install.log")
+  $logRoot = Get-AIHubLogRoot
+  $logDate = if ($Env:AIHUB_LOG_DATE) { $Env:AIHUB_LOG_DATE } else { (Get-Date).ToUniversalTime().ToString("yyyyMMdd") }
+  return (Join-Path $logRoot "install-$logDate.log")
+}
+
+function Get-AIHubLogRoot {
+  if ($Env:AIHUB_LOG_DIR) { return $Env:AIHUB_LOG_DIR }
+  $configRoot = Get-AIHubConfigRoot
+  $parent = Split-Path $configRoot -Parent
+  if ((Split-Path $configRoot -Leaf) -eq "config") {
+    return (Join-Path $parent "logs")
   }
-  return (Join-Path (Get-AIHubConfigRoot) "install.log")
+  return (Join-Path $configRoot "logs")
 }

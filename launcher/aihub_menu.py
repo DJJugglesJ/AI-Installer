@@ -30,6 +30,7 @@ from modules.path_utils import (
     ensure_file_path,
     get_config_file,
     get_config_root,
+    get_log_dir,
     get_log_path,
     get_state_path,
 )
@@ -42,6 +43,7 @@ MANIFEST_DIR = PROJECT_ROOT / "manifests"
 IS_WINDOWS = platform.system().lower().startswith("windows")
 LOG_PATH = ensure_file_path(get_log_path())
 os.environ.setdefault("AIHUB_LOG_PATH", str(LOG_PATH))
+os.environ.setdefault("AIHUB_LOG_DIR", str(get_log_dir()))
 os.environ.setdefault("AIHUB_CONFIG_DIR", str(get_config_root()))
 os.environ.setdefault("CONFIG_FILE", str(get_config_file()))
 os.environ.setdefault("CONFIG_STATE_FILE", str(get_state_path()))
@@ -81,6 +83,21 @@ def _shell_command(script_base: str) -> List[str]:
 
 
 ACTION_MAP: Dict[str, ActionSpec] = {
+    "install_webui": ActionSpec(
+        "install_webui",
+        "Install or update Stable Diffusion WebUI",
+        _shell_command("install_webui"),
+    ),
+    "install_kobold": ActionSpec(
+        "install_kobold",
+        "Install or update KoboldAI",
+        _shell_command("install_kobold"),
+    ),
+    "install_sillytavern": ActionSpec(
+        "install_sillytavern",
+        "Install or update SillyTavern",
+        _shell_command("install_sillytavern"),
+    ),
     "run_webui": ActionSpec(
         "run_webui",
         "Launch Stable Diffusion WebUI from the default workspace",
@@ -94,6 +111,26 @@ ACTION_MAP: Dict[str, ActionSpec] = {
     "run_kobold": ActionSpec("run_kobold", "Launch KoboldAI", _shell_command("run_kobold")),
     "run_sillytavern": ActionSpec(
         "run_sillytavern", "Launch SillyTavern", _shell_command("run_sillytavern")
+    ),
+    "run_asr": ActionSpec(
+        "run_asr",
+        "Run ASR (speech-to-text) helper",
+        _shell_command("run_asr"),
+    ),
+    "run_tts": ActionSpec(
+        "run_tts",
+        "Run TTS (text-to-speech) helper",
+        _shell_command("run_tts"),
+    ),
+    "run_txt2vid": ActionSpec(
+        "run_txt2vid",
+        "Run text-to-video helper",
+        _shell_command("run_txt2vid"),
+    ),
+    "run_img2vid": ActionSpec(
+        "run_img2vid",
+        "Run image-to-video helper",
+        _shell_command("run_img2vid"),
     ),
     "install_loras": ActionSpec(
         "install_loras",
@@ -151,10 +188,11 @@ ACTION_MAP: Dict[str, ActionSpec] = {
 
 def log_line(message: str) -> None:
     timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    entry = f"{timestamp} {message}\n"
+    payload = {"ts": timestamp, "level": "info", "message": message}
+    entry = json.dumps(payload, ensure_ascii=False)
     with LOG_PATH.open("a", encoding="utf-8") as handle:
-        handle.write(entry)
-    print(entry, end="")
+        handle.write(f"{entry}\n")
+    print(entry)
 
 
 def _check_output(cmd: List[str]) -> str:

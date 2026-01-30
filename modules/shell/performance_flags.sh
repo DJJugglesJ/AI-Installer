@@ -1,21 +1,19 @@
 #!/bin/bash
+set -euo pipefail
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-LOG_FILE="$HOME/.config/aihub/install.log"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/logging.sh"
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
-mkdir -p "$(dirname "$LOG_FILE")"
 : "${gpu_mode:=Unknown}"
-
-touch "$LOG_FILE"
 
 action_log() {
   local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+  log_msg "$message"
 }
 
 normalize_bool() {

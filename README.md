@@ -13,7 +13,7 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    chmod +x install.sh
    ./install.sh
    ```
-3. Pick **Web Launcher** or **YAD Menu** when prompted. The installer records logs to `~/.config/aihub/install.log` and creates OS-appropriate shortcuts.
+3. Pick **Web Launcher** or **YAD Menu** when prompted. The installer records logs to `~/.config/aihub/logs/install-YYYYMMDD.log` and creates OS-appropriate shortcuts.
 4. Launch again anytime with `./aihub_menu.sh` (Linux/WSL) or `launcher/aihub_menu.ps1` (Windows). Use `./launcher/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
 
 ### Windows 10 quick start
@@ -25,8 +25,8 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    # or
    .\install.ps1
    ```
-4. The installer logs to `%LOCALAPPDATA%\AIHub\logs\install.log`, and shortcuts are created under the Start Menu and Desktop (matching `.lnk`, `.bat`, and `.ps1` wrappers called by the launchers).
-5. Re-launch anytime via `launcher\aihub_menu.ps1` (menu) or `launcher\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`). Linux instructions above remain unchanged for WSL.
+4. The installer logs to `%APPDATA%\AIHub\logs\install-YYYYMMDD.log`, and shortcuts are created under the Start Menu and Desktop (matching `.lnk`, `.bat`, and `.ps1` wrappers called by the launchers).
+5. Re-launch anytime via `launcher\aihub_menu.ps1` (menu), `launcher\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`), or the dedicated action wrappers like `launcher\install_webui.ps1` and `launcher\run_webui.ps1`. Linux instructions above remain unchanged for WSL.
 
 > **Need a hands-free run?** `./install.sh --headless --install webui --gpu nvidia` mirrors the guided flow without dialogs. Add `--config <file>` to feed a JSON/env config (see [`docs/headless_config.md`](docs/headless_config.md)).
 
@@ -105,18 +105,19 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 ### Command-line shortcuts
 - Headless install: `./install.sh --headless --gpu <nvidia|amd|intel|cpu> --install <webui|kobold|sillytavern|loras|models>`
 - Use `--config <file>` for repeatable unattended runs (JSON or env-style). See [`docs/headless_config.md`](docs/headless_config.md).
-- After install, re-run launchers directly (e.g., `./launcher/start_webui.sh`, `./launcher/start_kobold.sh`) or use menu buttons.
+- After install, re-run launchers directly (e.g., `./launcher/start_webui.sh`, `./launcher/start_kobold.sh`) or use menu buttons. On Windows, the matching `.ps1`/`.bat` wrappers are available (for example, `launcher\install_webui.ps1`, `launcher\run_kobold.bat`, `launcher\health_summary.ps1`).
 
 ## Advanced options and setup
 - **Performance flags:** FP16 defaults on NVIDIA; xFormers is offered for NVIDIA; DirectML toggles apply on Windows/WSL for AMD/Intel; low-VRAM mode adds `--medvram` for WebUI. Details in [`docs/performance_flags.md`](docs/performance_flags.md).
 - **GPU guidance:** Detected GPUs are logged and surfaced during install; AMD notes point to ROCm; Intel notes point to oneAPI/OpenVINO; CPU mode remains available.
 - **Shortcuts:** Linux `.desktop`, Windows `.lnk`/`.bat`/`.ps1`, macOS `.command`/app bundle. Locations and cleanup steps in [`docs/shortcuts.md`](docs/shortcuts.md).
-- **Logs:** All installers and launchers write to `~/.config/aihub/install.log` (or `%LOCALAPPDATA%\AIHub\logs` on Windows). Menu/web flows reuse the same log for troubleshooting.
+- **Logs:** All installers and launchers write to `~/.config/aihub/logs/install-YYYYMMDD.log` (or `%APPDATA%\AIHub\logs\install-YYYYMMDD.log` on Windows). Menu/web flows reuse the same log for troubleshooting.
 - **Environment variables:**
   - `AIHUB_WEB_HOST`/`AIHUB_WEB_PORT` – bind address/port for web launcher.
   - `AIHUB_WEB_TOKEN` – bearer token required by web APIs.
   - `AIHUB_PYTHON` – override Python interpreter for Windows wrappers.
   - `AIHUB_LOG_PATH` – custom log destination when needed.
+  - `AIHUB_LOG_DIR` – custom log directory for wrapper/log helpers.
 
 ## Models and LoRAs
 - Base models live in `$HOME/ai-hub/models/`; SD v1.5 is fetched by default. LoRAs and curated presets land in `~/AI/LoRAs`.

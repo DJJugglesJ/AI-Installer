@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # AI Hub launcher status panel
 # - Purpose: assemble an at-a-glance status report for installed apps and share it via clipboard-friendly dialog.
@@ -7,14 +8,12 @@
 
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-LOG_FILE="$HOME/.config/aihub/install.log"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../modules/shell/logging.sh"
 source "$SCRIPT_DIR/../modules/config_service/config_helpers.sh"
 
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
 
 # Use best-effort clipboard helpers so the dialog can export without assuming a desktop environment.
 copy_to_clipboard() {

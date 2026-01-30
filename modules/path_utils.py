@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import platform
+from datetime import datetime
 from pathlib import Path
 
 
@@ -52,6 +53,21 @@ def get_state_path() -> Path:
     return get_config_root() / "config.yaml"
 
 
+def get_log_dir() -> Path:
+    """Return the directory used for log files."""
+
+    override = os.environ.get("AIHUB_LOG_DIR")
+    if override:
+        return Path(override).expanduser()
+
+    log_path_override = os.environ.get("AIHUB_LOG_PATH")
+    if log_path_override:
+        return Path(log_path_override).expanduser().parent
+
+    config_root = get_config_root()
+    return config_root.parent / "logs" if config_root.name == "config" else config_root / "logs"
+
+
 def get_log_path() -> Path:
     """Return the primary installer log path."""
 
@@ -59,12 +75,9 @@ def get_log_path() -> Path:
     if override:
         return Path(override).expanduser()
 
-    if _is_windows():
-        local_appdata = os.environ.get("LOCALAPPDATA")
-        if local_appdata:
-            return Path(local_appdata) / "AIHub" / "logs" / "install.log"
-
-    return get_config_root() / "install.log"
+    log_dir = get_log_dir()
+    log_date = os.environ.get("AIHUB_LOG_DATE") or datetime.utcnow().strftime("%Y%m%d")
+    return log_dir / f"install-{log_date}.log"
 
 
 def ensure_file_path(path: Path) -> Path:

@@ -1,8 +1,9 @@
 #!/bin/bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="$HOME/.config/aihub"
-LOG_FILE="$CONFIG_DIR/install.log"
+CONFIG_DIR="${AIHUB_CONFIG_DIR:-$HOME/.config/aihub}"
+export AIHUB_CONFIG_DIR="$CONFIG_DIR"
 STATE_FILE="$CONFIG_DIR/artifacts.json"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$CONFIG_DIR/config.yaml}"
 CONFIG_ENV_FILE="${CONFIG_ENV_FILE:-$CONFIG_DIR/installer.conf}"
@@ -17,11 +18,11 @@ ARTIFACT_RECORD_TYPE=""
 ARTIFACT_RECORD_PATH=""
 SCHEDULE_DAYS=""
 
+source "$SCRIPT_DIR/logging.sh"
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
 CONFIG_ENV_FILE="$CONFIG_ENV_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load 2>/dev/null
 
 mkdir -p "$CONFIG_DIR"
-touch "$LOG_FILE"
 
 MODEL_DIRS=("${aihub_model_dir:-$HOME/ai-hub/models}" "$HOME/AI/WebUI/models/Stable-diffusion")
 LORA_DIRS=("${aihub_lora_dir:-$HOME/AI/LoRAs}" "$HOME/AI/oobabooga/loras")
@@ -31,9 +32,6 @@ CACHE_RETENTION_DAYS="${artifacts_cache_retention_days:-7}"
 MODEL_THRESHOLD_GB="${artifacts_model_threshold_gb:-150}"
 LORA_THRESHOLD_GB="${artifacts_lora_threshold_gb:-60}"
 
-log_msg() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
-}
 
 human_size() {
   local size_bytes="$1"
@@ -146,7 +144,7 @@ rotate_logs() {
   done
   mv "$LOG_FILE" "$LOG_FILE.1"
   touch "$LOG_FILE"
-  log_msg "Rotated install.log (previous size $(human_size "$current_size"))."
+  log_msg "Rotated $(basename "$LOG_FILE") (previous size $(human_size "$current_size"))."
 }
 
 verify_symlinks() {
