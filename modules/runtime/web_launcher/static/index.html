@@ -49,7 +49,7 @@
 
       <section id="prompt-builder" class="card">
         <div class="card-header">
-          <h2>Prompt Builder</h2>
+          <h2>Guided Scene Builder</h2>
           <p>Compile structured scenes into prompts and write the latest bundle for launchers.</p>
         </div>
         <form id="prompt-form" class="form-grid">
@@ -74,9 +74,38 @@
           </table>
         </div>
         <div class="actions-row">
-          <button id="compile-prompt" type="button">Compile Prompt</button>
+          <button id="compile-prompt" type="button">Compile Guided Scene</button>
           <div id="prompt-result" class="result"></div>
         </div>
+        <div class="history-panel">
+          <div class="card-subheader">
+            <h3>Prompt History</h3>
+            <button id="refresh-prompt-history" type="button" class="secondary">Refresh</button>
+          </div>
+          <div id="prompt-history" class="manifest-list"></div>
+        </div>
+      </section>
+
+      <section id="quick-prompt" class="card">
+        <div class="card-header">
+          <h2>Quick Prompt</h2>
+          <p>Generate prompts quickly with minimal structure and optional character IDs.</p>
+        </div>
+        <form id="quick-prompt-form" class="form-grid">
+          <label class="full">Prompt<input type="text" name="prompt" placeholder="Describe the scene in one line" required /></label>
+          <label>World<input type="text" name="world" placeholder="Optional world" /></label>
+          <label>Setting<input type="text" name="setting" placeholder="Optional setting" /></label>
+          <label>Mood<input type="text" name="mood" placeholder="Optional mood" /></label>
+          <label>Style<input type="text" name="style" placeholder="Optional style" /></label>
+          <label>Camera<input type="text" name="camera" placeholder="Optional camera" /></label>
+          <label>NSFW Level<input type="text" name="nsfw_level" placeholder="safe / soft / adult" /></label>
+          <label class="full">Character IDs<input type="text" name="character_ids" placeholder="hero, sidekick" /></label>
+          <label class="full">Extra Elements<textarea name="extra_elements" rows="2" placeholder="fog, rain, floating lanterns"></textarea></label>
+          <div class="actions-row">
+            <button type="submit">Compile Quick Prompt</button>
+            <div id="quick-prompt-result" class="result"></div>
+          </div>
+        </form>
       </section>
 
       <section id="audio-lab" class="card">
@@ -203,6 +232,24 @@
           <h2>Character Studio</h2>
           <p>Registry entries shared with Prompt Builder.</p>
         </div>
+        <form id="character-editor" class="form-grid">
+          <label>ID<input type="text" name="id" placeholder="hero" required /></label>
+          <label>Name<input type="text" name="name" placeholder="Hero Name" required /></label>
+          <label>Age<input type="text" name="age" placeholder="Optional age" /></label>
+          <label class="checkbox"><input type="checkbox" name="nsfw_allowed" /> NSFW allowed</label>
+          <label class="full">Description<textarea name="description" rows="2" placeholder="Character description"></textarea></label>
+          <label class="full">Default Prompt Snippet<input type="text" name="default_prompt_snippet" placeholder="cinematic lighting" /></label>
+          <label class="full">Trigger Tokens<input type="text" name="trigger_tokens" placeholder="token1, token2" /></label>
+          <label class="full">Anatomy Tags<input type="text" name="anatomy_tags" placeholder="silver eyes, cape" /></label>
+          <label class="full">Wardrobe<input type="text" name="wardrobe" placeholder="cloak, armor" /></label>
+          <label class="full">Reference Images<input type="text" name="reference_images" placeholder="hero/ref1.png, hero/ref2.png" /></label>
+          <label>LoRA File<input type="text" name="lora_file" placeholder="hero.safetensors" /></label>
+          <label>LoRA Strength<input type="number" name="lora_default_strength" step="0.05" min="0" /></label>
+          <div class="actions-row">
+            <button type="submit">Save Character Card</button>
+            <div id="character-editor-result" class="result"></div>
+          </div>
+        </form>
         <ul id="character-list" class="manifest-list">
           <li class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading characters…</li>
         </ul>

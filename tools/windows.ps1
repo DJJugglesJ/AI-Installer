@@ -5,6 +5,8 @@ param(
   [string[]]$TaskArgs = @()
 )
 
+$script:AIHubProjectRoot = $null
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

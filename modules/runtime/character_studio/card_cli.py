@@ -39,6 +39,18 @@ def _parse_wardrobe(wardrobe_text: str | None) -> List[str]:
     return [item.strip() for item in wardrobe_text.split(",") if item.strip()]
 
 
+def _parse_trigger_tokens(trigger_text: str | None) -> List[str]:
+    if not trigger_text:
+        return []
+    return [token.strip() for token in trigger_text.split(",") if token.strip()]
+
+
+def _parse_reference_images(reference_text: str | None) -> List[str]:
+    if not reference_text:
+        return []
+    return [path.strip() for path in reference_text.split(",") if path.strip()]
+
+
 def _load_existing_card(card_id: str) -> CharacterCard:
     card_path = _get_card_path(card_id)
     if not card_path.exists():
@@ -48,6 +60,9 @@ def _load_existing_card(card_id: str) -> CharacterCard:
 
 def create_card(args: argparse.Namespace) -> None:
     tags = _parse_tags(args.anatomy_tags)
+    trigger_tokens = _parse_trigger_tokens(args.trigger_tokens)
+    if args.trigger_token and args.trigger_token not in trigger_tokens:
+        trigger_tokens.insert(0, args.trigger_token)
     card = CharacterCard(
         id=args.id,
         name=args.name,
@@ -56,10 +71,12 @@ def create_card(args: argparse.Namespace) -> None:
         description=args.description,
         default_prompt_snippet=args.default_prompt_snippet,
         trigger_token=args.trigger_token,
+        trigger_tokens=trigger_tokens,
         anatomy_tags=tags,
         wardrobe=_parse_wardrobe(args.wardrobe),
         lora_file=args.lora_file,
         lora_default_strength=args.lora_default_strength,
+        reference_images=_parse_reference_images(args.reference_images),
     )
     destination = card.save(path=_get_card_path(args.id))
     print(f"Saved card to {destination}")
@@ -79,10 +96,18 @@ def edit_card(args: argparse.Namespace) -> None:
         card.default_prompt_snippet = args.default_prompt_snippet
     if args.trigger_token:
         card.trigger_token = args.trigger_token
+        if args.trigger_token not in card.trigger_tokens:
+            card.trigger_tokens.insert(0, args.trigger_token)
+    if args.trigger_tokens:
+        card.trigger_tokens = _parse_trigger_tokens(args.trigger_tokens)
+        if card.trigger_tokens:
+            card.trigger_token = card.trigger_tokens[0]
     if args.anatomy_tags:
         card.anatomy_tags = _parse_tags(args.anatomy_tags)
     if args.wardrobe:
         card.wardrobe = _parse_wardrobe(args.wardrobe)
+    if args.reference_images:
+        card.reference_images = _parse_reference_images(args.reference_images)
     if args.lora_file:
         card.lora_file = args.lora_file
     if args.lora_default_strength is not None:
@@ -198,8 +223,10 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--description", help="Description for the character")
     create.add_argument("--default-prompt-snippet", dest="default_prompt_snippet", help="Default prompt snippet")
     create.add_argument("--trigger-token", dest="trigger_token", help="Trigger token")
+    create.add_argument("--trigger-tokens", dest="trigger_tokens", help="Comma separated trigger tokens")
     create.add_argument("--anatomy-tags", dest="anatomy_tags", help="Comma separated anatomy tags")
     create.add_argument("--wardrobe", dest="wardrobe", help="Comma separated wardrobe descriptors")
+    create.add_argument("--reference-images", dest="reference_images", help="Comma separated reference image paths")
     create.add_argument("--lora-file", dest="lora_file", help="LoRA file path")
     create.add_argument("--lora-default-strength", dest="lora_default_strength", type=float)
     create.set_defaults(func=create_card)
@@ -212,8 +239,10 @@ def build_parser() -> argparse.ArgumentParser:
     edit.add_argument("--description", help="Description for the character")
     edit.add_argument("--default-prompt-snippet", dest="default_prompt_snippet", help="Default prompt snippet")
     edit.add_argument("--trigger-token", dest="trigger_token", help="Trigger token")
+    edit.add_argument("--trigger-tokens", dest="trigger_tokens", help="Comma separated trigger tokens")
     edit.add_argument("--anatomy-tags", dest="anatomy_tags", help="Comma separated anatomy tags")
     edit.add_argument("--wardrobe", dest="wardrobe", help="Comma separated wardrobe descriptors")
+    edit.add_argument("--reference-images", dest="reference_images", help="Comma separated reference image paths")
     edit.add_argument("--lora-file", dest="lora_file", help="LoRA file path")
     edit.add_argument("--lora-default-strength", dest="lora_default_strength", type=float)
     edit.set_defaults(func=edit_card)

@@ -1,21 +1,14 @@
 #!/bin/bash
+set -euo pipefail
 
 # detect_gpu.sh — Identify installed GPU and prompt for driver setup or CPU fallback
 
 CONFIG_FILE="${CONFIG_FILE:-$HOME/.config/aihub/installer.conf}"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
-LOG_FILE="${LOG_FILE:-$HOME/.config/aihub/install.log}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/logging.sh"
 source "$SCRIPT_DIR/../config_service/config_helpers.sh"
-
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-
-log_msg() {
-  local message="$1"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
-}
 
 log_msg "Starting GPU detection flow; log file located at $LOG_FILE"
 

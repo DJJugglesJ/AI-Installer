@@ -27,6 +27,7 @@ if ($PythonPath.Count -eq 0) {
 }
 
 $LogPath = Get-AIHubLogPath
+$Env:AIHUB_LOG_DIR = Get-AIHubLogRoot
 $LogDir = Split-Path $LogPath -Parent
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
 if (-not (Test-Path $LogPath)) { New-Item -ItemType File -Path $LogPath -Force | Out-Null }

@@ -1,12 +1,19 @@
 #!/bin/bash
+set -euo pipefail
 # Shared logging helpers for AI Hub scripts
 
-CONFIG_ROOT="${CONFIG_ROOT:-$HOME/.config/aihub}"
-LOG_FILE="${LOG_FILE:-$CONFIG_ROOT/install.log}"
+CONFIG_ROOT="${AIHUB_CONFIG_DIR:-${CONFIG_ROOT:-$HOME/.config/aihub}}"
+LOG_DIR="${AIHUB_LOG_DIR:-$CONFIG_ROOT/logs}"
+LOG_DATE="${AIHUB_LOG_DATE:-$(date -u '+%Y%m%d')}"
+LOG_FILE="${AIHUB_LOG_PATH:-$LOG_DIR/install-${LOG_DATE}.log}"
 METRICS_ROOT="${METRICS_ROOT:-$CONFIG_ROOT/metrics}"
 METRICS_START_ROOT="${METRICS_START_ROOT:-$METRICS_ROOT/starts}"
 
-mkdir -p "$CONFIG_ROOT" "$METRICS_ROOT" "$METRICS_START_ROOT"
+export AIHUB_LOG_DIR="$LOG_DIR"
+export AIHUB_LOG_PATH="$LOG_FILE"
+export AIHUB_LOG_DATE="$LOG_DATE"
+
+mkdir -p "$CONFIG_ROOT" "$LOG_DIR" "$METRICS_ROOT" "$METRICS_START_ROOT"
 touch "$LOG_FILE"
 
 escape_json() {
@@ -31,6 +38,16 @@ log_event() {
   done
   json+="}"
   echo "$json" | tee -a "$LOG_FILE" >/dev/null
+}
+
+log_msg() {
+  local message="$1"
+  log_event "info" message="$message"
+}
+
+log_error() {
+  local message="$1"
+  log_event "error" message="$message"
 }
 
 metrics_record_start() {

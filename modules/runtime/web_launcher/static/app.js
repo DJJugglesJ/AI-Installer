@@ -22,6 +22,10 @@ const installProgress = document.getElementById("install-progress");
 const characterList = document.getElementById("character-list");
 const characterTableBody = document.querySelector("#character-table tbody");
 const promptResult = document.getElementById("prompt-result");
+const promptHistory = document.getElementById("prompt-history");
+const promptHistoryRefresh = document.getElementById("refresh-prompt-history");
+const quickPromptForm = document.getElementById("quick-prompt-form");
+const quickPromptResult = document.getElementById("quick-prompt-result");
 const audioTools = document.getElementById("audio-tools");
 const videoTools = document.getElementById("video-tools");
 const ttsForm = document.getElementById("tts-form");
@@ -36,6 +40,8 @@ const taskList = document.getElementById("task-list");
 const gpuDiagnosticsBody = document.getElementById("gpu-diagnostics-body");
 const gpuRefresh = document.getElementById("refresh-gpu");
 const gpuGuidance = document.getElementById("gpu-guidance");
+const characterEditor = document.getElementById("character-editor");
+const characterEditorResult = document.getElementById("character-editor-result");
 
 let manifestItems = [];
 let currentManifestItem = null;
@@ -365,7 +371,11 @@ function renderCharacters(characters) {
   characters.forEach((card) => {
     const li = document.createElement("li");
     const nsfw = card.nsfw_allowed ? "NSFW allowed" : "SFW";
-    li.innerHTML = `<strong>${card.name}</strong><span>${card.id}</span><span class="tagline">${nsfw} • ${card.anatomy_tags.join(", ")}</span>`;
+    const triggers = (card.trigger_tokens || []).join(", ") || card.trigger_token || "none";
+    li.innerHTML = `<strong>${card.name}</strong><span>${card.id}</span><span class="tagline">${nsfw} • ${card.anatomy_tags.join(
+      ", "
+    )}</span><span class="tagline">Triggers: ${triggers}</span><button class="secondary" type="button">Edit</button>`;
+    li.querySelector("button").addEventListener("click", () => fillCharacterEditor(card));
     characterList.appendChild(li);
   });
 }
@@ -404,15 +414,166 @@ async function compilePrompt() {
     .filter((entry) => entry.slot_id && entry.character_id);
 
   try {
-    const result = await fetchJson("/api/prompt/compile", {
+    const result = await fetchJson("/api/prompt/guided", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scene }),
     });
     const assembly = result.assembly;
     promptResult.innerHTML = `<div><strong>Positive:</strong> ${assembly.positive_prompt.join("; ")}</div><div><strong>Negative:</strong> ${assembly.negative_prompt.join("; ")}</div><div><strong>LoRAs:</strong> ${assembly.lora_calls.map((l) => `${l.name} (${l.weight || 1})`).join(", ") || "none"}</div><div class="tagline">Bundle saved to ${result.published.bundle_path}</div>`;
+    await refreshPromptHistory();
   } catch (err) {
     promptResult.textContent = `Failed to compile prompt: ${err.message}`;
+  }
+}
+
+function parseListField(value) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function fillCharacterEditor(card) {
+  if (!characterEditor) return;
+  characterEditor.querySelector("[name=id]").value = card.id || "";
+  characterEditor.querySelector("[name=name]").value = card.name || "";
+  characterEditor.querySelector("[name=age]").value = card.age || "";
+  characterEditor.querySelector("[name=nsfw_allowed]").checked = Boolean(card.nsfw_allowed);
+  characterEditor.querySelector("[name=description]").value = card.description || "";
+  characterEditor.querySelector("[name=default_prompt_snippet]").value = card.default_prompt_snippet || "";
+  characterEditor.querySelector("[name=trigger_tokens]").value =
+    (card.trigger_tokens || []).join(", ") || card.trigger_token || "";
+  characterEditor.querySelector("[name=anatomy_tags]").value = (card.anatomy_tags || []).join(", ");
+  characterEditor.querySelector("[name=wardrobe]").value = (card.wardrobe || []).join(", ");
+  characterEditor.querySelector("[name=reference_images]").value = (card.reference_images || []).join(", ");
+  characterEditor.querySelector("[name=lora_file]").value = card.lora_file || "";
+  characterEditor.querySelector("[name=lora_default_strength]").value =
+    card.lora_default_strength !== null && card.lora_default_strength !== undefined ? card.lora_default_strength : "";
+}
+
+async function submitCharacterEditor(event) {
+  event.preventDefault();
+  if (!characterEditor) return;
+  characterEditorResult.textContent = "Saving character card…";
+  const formData = new FormData(characterEditor);
+  const payload = {
+    id: formData.get("id"),
+    name: formData.get("name"),
+    age: formData.get("age") || undefined,
+    nsfw_allowed: formData.get("nsfw_allowed") === "on",
+    description: formData.get("description") || undefined,
+    default_prompt_snippet: formData.get("default_prompt_snippet") || undefined,
+    trigger_tokens: parseListField(formData.get("trigger_tokens")),
+    anatomy_tags: parseListField(formData.get("anatomy_tags")),
+    wardrobe: parseListField(formData.get("wardrobe")),
+    reference_images: parseListField(formData.get("reference_images")),
+    lora_file: formData.get("lora_file") || undefined,
+    lora_default_strength: formData.get("lora_default_strength")
+      ? Number(formData.get("lora_default_strength"))
+      : undefined,
+  };
+
+  try {
+    const result = await fetchJson("/api/characters", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    characterEditorResult.textContent = `Saved ${result.item.name} (${result.item.id}).`;
+    await refreshCharacters();
+  } catch (err) {
+    characterEditorResult.textContent = `Failed to save character: ${err.message}`;
+  }
+}
+
+async function submitQuickPrompt(event) {
+  event.preventDefault();
+  if (!quickPromptForm) return;
+  quickPromptResult.textContent = "Compiling quick prompt…";
+  const formData = new FormData(quickPromptForm);
+  const payload = {
+    prompt: formData.get("prompt"),
+    world: formData.get("world") || undefined,
+    setting: formData.get("setting") || undefined,
+    mood: formData.get("mood") || undefined,
+    style: formData.get("style") || undefined,
+    camera: formData.get("camera") || undefined,
+    nsfw_level: formData.get("nsfw_level") || undefined,
+    character_ids: parseListField(formData.get("character_ids")),
+    extra_elements: parseListField(formData.get("extra_elements")),
+  };
+
+  try {
+    const result = await fetchJson("/api/prompt/quick", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const assembly = result.assembly;
+    quickPromptResult.innerHTML = `<div><strong>Positive:</strong> ${assembly.positive_prompt.join("; ")}</div><div><strong>Negative:</strong> ${assembly.negative_prompt.join(
+      "; "
+    )}</div><div><strong>LoRAs:</strong> ${assembly.lora_calls.map((l) => `${l.name} (${l.weight || 1})`).join(", ") ||
+      "none"}</div><div class="tagline">Bundle saved to ${result.published.bundle_path}</div>`;
+    await refreshPromptHistory();
+  } catch (err) {
+    quickPromptResult.textContent = `Failed to compile prompt: ${err.message}`;
+  }
+}
+
+function renderPromptHistory(payload) {
+  if (!promptHistory) return;
+  const items = payload.items || [];
+  promptHistory.innerHTML = "";
+  if (!items.length) {
+    promptHistory.innerHTML = '<div class="muted">No prompt history yet.</div>';
+    return;
+  }
+
+  items.forEach((entry) => {
+    const li = document.createElement("div");
+    li.className = "history-card";
+    const assembly = entry.assembly || {};
+    const loras = (assembly.lora_calls || []).map((l) => l.name).join(", ") || "none";
+    li.innerHTML = `
+      <strong>${entry.created_at}</strong>
+      <span class="tagline">${assembly.positive_prompt_text || "No positive prompt text"}</span>
+      <span class="tagline">LoRAs: ${loras}</span>
+      <div class="history-actions">
+        <button type="button" class="secondary">${entry.favorite ? "Unfavorite" : "Favorite"}</button>
+      </div>
+    `;
+    li.querySelector("button").addEventListener("click", () =>
+      togglePromptFavorite(entry.id, !entry.favorite)
+    );
+    promptHistory.appendChild(li);
+  });
+}
+
+async function togglePromptFavorite(entryId, favorite) {
+  try {
+    await fetchJson("/api/prompt/history/favorite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entry_id: entryId, favorite }),
+    });
+    await refreshPromptHistory();
+  } catch (err) {
+    console.error("Failed to toggle favorite", err);
+  }
+}
+
+async function refreshPromptHistory(initial = false) {
+  if (!promptHistory) return;
+  if (initial) {
+    setPanelLoading(promptHistory, "Loading prompt history…");
+  }
+  try {
+    const payload = await fetchJson("/api/prompt/history");
+    renderPromptHistory(payload);
+  } catch (err) {
+    setPanelError(promptHistory, `Failed to load prompt history: ${err.message}`, refreshPromptHistory);
   }
 }
 
@@ -458,6 +619,15 @@ async function refreshTasks(initial = false) {
     renderTasks(payload.items || []);
   } catch (err) {
     setPanelError(taskList, `Failed to load tasks: ${err.message}`);
+  }
+}
+
+async function refreshCharacters() {
+  try {
+    const characters = await fetchJson("/api/characters");
+    renderCharacters(characters.items || []);
+  } catch (err) {
+    setPanelError(characterList, `Failed to load characters: ${err.message}`, refreshCharacters);
   }
 }
 
@@ -554,6 +724,9 @@ async function bootstrap() {
   setPanelLoading(taskList, "Loading tasks…");
   setPanelLoading(audioTools, "Loading audio tools…");
   setPanelLoading(videoTools, "Loading video tools…");
+  if (promptHistory) {
+    setPanelLoading(promptHistory, "Loading prompt history…");
+  }
 
   let actionsCount = 0;
   let hasError = false;
@@ -591,8 +764,7 @@ async function bootstrap() {
   }
 
   try {
-    const characters = await fetchJson("/api/characters");
-    renderCharacters(characters.items || []);
+    await refreshCharacters();
   } catch (err) {
     hasError = true;
     setPanelError(characterList, `Failed to load characters: ${err.message}`, bootstrap);
@@ -606,6 +778,12 @@ async function bootstrap() {
 
   try {
     await refreshTasks(true);
+  } catch (err) {
+    hasError = true;
+  }
+
+  try {
+    await refreshPromptHistory(true);
   } catch (err) {
     hasError = true;
   }
@@ -1148,6 +1326,15 @@ addCharacterRow();
 
 document.getElementById("add-character").addEventListener("click", () => addCharacterRow({ slot_id: `slot-${Date.now()}` }));
 document.getElementById("compile-prompt").addEventListener("click", compilePrompt);
+if (quickPromptForm) {
+  quickPromptForm.addEventListener("submit", submitQuickPrompt);
+}
+if (promptHistoryRefresh) {
+  promptHistoryRefresh.addEventListener("click", () => refreshPromptHistory(true));
+}
+if (characterEditor) {
+  characterEditor.addEventListener("submit", submitCharacterEditor);
+}
 manifestSearch.addEventListener("input", renderManifestTable);
 filterModels.addEventListener("change", renderManifestTable);
 filterLoras.addEventListener("change", renderManifestTable);
