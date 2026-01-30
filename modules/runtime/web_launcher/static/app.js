@@ -39,6 +39,8 @@ const gpuRefresh = document.getElementById("refresh-gpu");
 const gpuGuidance = document.getElementById("gpu-guidance");
 const characterEditor = document.getElementById("character-editor");
 const characterEditorResult = document.getElementById("character-editor-result");
+const characterStudioLink = document.getElementById("character-studio-link");
+const characterStudioSection = document.getElementById("characters");
 
 let manifestItems = [];
 const selectedModels = new Set();
@@ -1170,6 +1172,12 @@ if (pairButton) {
 }
 if (gpuRefresh) {
   gpuRefresh.addEventListener("click", () => loadGpuDiagnostics(true));
+}
+if (characterStudioLink) {
+  characterStudioLink.addEventListener("click", () => {
+    if (!characterStudioSection) return;
+    characterStudioSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 setInterval(() => {
   refreshInstallations().catch(() => {});
