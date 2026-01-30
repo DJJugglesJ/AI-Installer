@@ -59,6 +59,34 @@ def test_generate_captions_blocks_nsfw_without_permission(sandbox, tmp_path):
         dataset.generate_captions_for_dataset(card.id, "nsfw")
 
 
+def test_get_dataset_summary_reports_counts(sandbox):
+    card_root, dataset_root = sandbox
+    card = CharacterCard(
+        id="blake",
+        name="Blake",
+        nsfw_allowed=False,
+        anatomy_tags=["pilot"],
+    )
+    card.save()
+
+    dataset.create_dataset_structure(card.id)
+    subset_dir = dataset_root / "characters" / card.id / "base"
+    image_path = subset_dir / "sample.png"
+    image_path.write_bytes(b"")
+    caption_path = subset_dir / "sample.txt"
+    caption_path.write_text("pilot", encoding="utf-8")
+
+    summary = dataset.get_dataset_summary(card.id)
+
+    assert summary["exists"] is True
+    assert summary["total_images"] == 1
+    assert summary["total_captioned"] == 1
+    assert summary["total_missing_captions"] == 0
+    assert summary["subsets"][0]["name"] == "base"
+    assert summary["subsets"][0]["image_count"] == 1
+    assert summary["subsets"][0]["captioned_count"] == 1
+
+
 def test_auto_tag_images_reports_missing_tagger(sandbox):
     card_root, dataset_root = sandbox
     card = CharacterCard(
