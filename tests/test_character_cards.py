@@ -47,6 +47,35 @@ def test_serialization_round_trip(tmp_path):
     assert card.to_dict() == loaded.to_dict()
 
 
+def test_trigger_token_parity_round_trip():
+    payload = {
+        "id": "hero",
+        "name": "Hero",
+        "nsfw_allowed": False,
+        "anatomy_tags": ["cape"],
+        "trigger_token": "summon-hero",
+    }
+    card = CharacterCard.from_dict(payload)
+    serialized = card.to_dict()
+
+    assert serialized["trigger_tokens"] == ["summon-hero"]
+    reloaded = CharacterCard.from_dict(serialized)
+    assert reloaded.trigger_tokens == ["summon-hero"]
+
+    payload_with_tokens = {
+        "id": "mage",
+        "name": "Mage",
+        "nsfw_allowed": False,
+        "anatomy_tags": ["robe"],
+        "trigger_tokens": ["summon-mage", "arcane"],
+    }
+    card_with_tokens = CharacterCard.from_dict(payload_with_tokens)
+    serialized_with_tokens = card_with_tokens.to_dict()
+
+    assert serialized_with_tokens["trigger_tokens"] == ["summon-mage", "arcane"]
+    assert card_with_tokens.trigger_token == "summon-mage"
+
+
 def test_feedback_updates_fields():
     card = CharacterCard(id="hero", name="Hero", anatomy_tags=["cape"], nsfw_allowed=False)
     feedback = "description: moodier tone; anatomy_tags: silver eyes, windswept hair; nsfw_allowed: true"
