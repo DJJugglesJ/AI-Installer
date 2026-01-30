@@ -34,5 +34,7 @@ When exposing beyond localhost, set a bearer token and ensure your firewall/netw
 - `POST /api/installations {"models": [], "loras": []}` — start curated installers; `GET /api/installations` polls progress and history.
 - `POST /api/prompt/compile {"scene": {...}}` — build prompt bundles used by launchers.
 - `GET /api/characters` — Character Studio registry entries shared with Prompt Builder.
+- `POST /api/characters/{id}/training/export` — export a training pack; returns status and archive/config paths.
+- `POST /api/characters/{id}/training/run` — run the configured trainer and return status with config/output paths.
 
 The UI exercises these endpoints directly; headless environments can call the APIs on their own if preferred.
