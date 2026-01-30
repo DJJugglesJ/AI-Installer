@@ -873,7 +873,7 @@ fi
 BOOTSTRAP_SCRIPT="$MODULE_DIR/bootstrap/bootstrap.sh"
 if [[ -x "$BOOTSTRAP_SCRIPT" ]]; then
   log_msg "Running bootstrap to verify/install prerequisites."
-  if ! HEADLESS=$HEADLESS bash "$BOOTSTRAP_SCRIPT" | tee -a "$LOG_FILE"; then
+  if ! AIHUB_INSTALL_TARGET="$INSTALL_TARGET" HEADLESS=$HEADLESS bash "$BOOTSTRAP_SCRIPT" | tee -a "$LOG_FILE"; then
     echo "[!] Bootstrap failed; see $LOG_FILE for details." >&2
     exit 1
   fi
