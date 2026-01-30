@@ -16,6 +16,7 @@ import subprocess
 import threading
 import uuid
 import re
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from http import HTTPStatus
@@ -294,11 +295,13 @@ class WebLauncherAPI:
     def _tail_log(self, log_path: Path, lines: int = 20) -> str:
         if not log_path.exists():
             return ""
+        if lines <= 0:
+            return ""
+        tail_lines: deque[str] = deque(maxlen=lines)
         with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
-            content = handle.readlines()
-        if len(content) <= lines:
-            return "".join(content)
-        return "".join(content[-lines:])
+            for line in handle:
+                tail_lines.append(line)
+        return "".join(tail_lines)
 
     def _append_status_event(
         self, path: Path, level: str, event: str, message: str, detail: Optional[object] = None
@@ -320,18 +323,23 @@ class WebLauncherAPI:
     def _load_status_events(self, path: Path, limit: int = 50) -> List[Dict[str, object]]:
         if not path or not path.exists():
             return []
+        if limit <= 0:
+            return []
 
-        events: List[Dict[str, object]] = []
+        recent_lines: deque[str] = deque(maxlen=limit)
         with path.open("r", encoding="utf-8", errors="ignore") as handle:
             for line in handle:
                 line = line.strip()
-                if not line:
-                    continue
-                try:
-                    events.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-        return events[-limit:]
+                if line:
+                    recent_lines.append(line)
+
+        events: List[Dict[str, object]] = []
+        for line in recent_lines:
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return events
 
     def _load_history(self) -> List[Dict[str, object]]:
         if not self._history_path.exists():
