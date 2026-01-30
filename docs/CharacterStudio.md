@@ -27,6 +27,12 @@ Character Studio manages the character lifecycle for prompting and LoRA training
   - `"char_a_token, character portrait, short_stature, freckles, casual_outfit, standing, looking_at_viewer"`
 - Avoid relying on improvised names as identifiers; keep captions consistent with the trigger token and descriptive tags.
 
+## Training workflow (Web Launcher UI)
+- Open **Character Studio** in the web launcher and choose the **Training** tab for a character.
+- **Export Training Pack** creates a ZIP archive under the character dataset folder (and writes a `training_config.json` inside `training_pack/`).
+- **Run Trainer** writes `training_config.json` at the dataset root and, when `CHAR_STUDIO_TRAINER_CMD` is configured, invokes the trainer command to produce a LoRA output file.
+- The UI surfaces the archive/config/output paths after each action so you can share the pack or retrieve the trained LoRA file.
+
 ## Integration with Prompt Builder
 - Prompt Builder looks up Character Cards by `character_id`.
 - It injects `trigger_token` and `default_prompt_snippet` into the positive prompt.

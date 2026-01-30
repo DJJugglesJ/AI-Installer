@@ -1312,6 +1312,12 @@ function initCharacterStudioPage() {
   const datasetCaptionsButton = document.getElementById("cs-dataset-captions");
   const datasetAutoTagButton = document.getElementById("cs-dataset-auto-tag");
   const datasetResult = document.getElementById("cs-dataset-result");
+  const trainingForm = document.getElementById("cs-training-form");
+  const trainingCharacter = document.getElementById("cs-training-character");
+  const trainingExportButton = document.getElementById("cs-training-export");
+  const trainingRunButton = document.getElementById("cs-training-run");
+  const trainingResult = document.getElementById("cs-training-result");
+  const trainingPaths = document.getElementById("cs-training-paths");
   const tabButtons = document.querySelectorAll("[data-tab]");
   const tabPanels = document.querySelectorAll("[data-panel]");
   let cardItems = [];
@@ -1358,6 +1364,31 @@ function initCharacterStudioPage() {
         input.disabled = !enabled;
       });
     }
+  };
+
+  const setTrainingControlsEnabled = (enabled) => {
+    if (trainingForm) {
+      trainingForm.querySelectorAll("input, textarea, button").forEach((input) => {
+        if (input.id === "cs-training-character") return;
+        input.disabled = !enabled;
+      });
+    }
+  };
+
+  const renderTrainingPaths = (paths) => {
+    if (!trainingPaths) return;
+    trainingPaths.innerHTML = "";
+    const entries = Object.entries(paths || {}).filter(([, value]) => value);
+    if (!entries.length) return;
+
+    const list = document.createElement("ul");
+    list.className = "note-list";
+    entries.forEach(([label, value]) => {
+      const item = document.createElement("li");
+      item.textContent = `${label}: ${value}`;
+      list.appendChild(item);
+    });
+    trainingPaths.appendChild(list);
   };
 
   const renderDatasetSummary = (summary) => {
@@ -1449,14 +1480,31 @@ function initCharacterStudioPage() {
     if (datasetCharacter) {
       datasetCharacter.value = card ? `${card.name || "Unnamed"} (${card.id})` : "";
     }
+    if (trainingCharacter) {
+      trainingCharacter.value = card ? `${card.name || "Unnamed"} (${card.id})` : "";
+    }
     if (!card) {
       if (datasetSummary) {
         datasetSummary.innerHTML = '<p class="muted">Select a character card to review dataset status.</p>';
       }
       setDatasetControlsEnabled(false);
+      setTrainingControlsEnabled(false);
+      if (trainingResult) {
+        trainingResult.innerHTML = '<p class="muted">Select a character card to manage training.</p>';
+      }
+      if (trainingPaths) {
+        trainingPaths.innerHTML = "";
+      }
       return;
     }
     setDatasetControlsEnabled(true);
+    setTrainingControlsEnabled(true);
+    if (trainingResult) {
+      trainingResult.innerHTML = "";
+    }
+    if (trainingPaths) {
+      trainingPaths.innerHTML = "";
+    }
     refreshDatasetSummary(true);
   };
 
@@ -1641,6 +1689,50 @@ function initCharacterStudioPage() {
         renderDatasetSummary(response.summary);
       } catch (err) {
         renderResultBanner(datasetResult, "error", "Auto-tag failed", err.message, err.details);
+      }
+    });
+  }
+
+  if (trainingExportButton) {
+    trainingExportButton.addEventListener("click", async () => {
+      if (!activeCard) return;
+      renderResultBanner(trainingResult, "success", "Training", "Exporting training pack…");
+      renderTrainingPaths({});
+      try {
+        const response = await fetchJson(`/api/characters/${activeCard.id}/training/export`, { method: "POST" });
+        const result = response.result || {};
+        renderResultBanner(
+          trainingResult,
+          "success",
+          "Training pack exported",
+          `Status: ${result.status || "exported"}.`,
+        );
+        renderTrainingPaths(result.paths || {});
+      } catch (err) {
+        renderResultBanner(trainingResult, "error", "Export failed", err.message, err.details);
+      }
+    });
+  }
+
+  if (trainingRunButton) {
+    trainingRunButton.addEventListener("click", async () => {
+      if (!activeCard) return;
+      renderResultBanner(trainingResult, "success", "Training", "Starting trainer…");
+      renderTrainingPaths({});
+      try {
+        const response = await fetchJson(`/api/characters/${activeCard.id}/training/run`, { method: "POST" });
+        const result = response.result || {};
+        const status = result.status || "completed";
+        let message = `Status: ${status}.`;
+        if (status === "config_written") {
+          message = "Trainer not configured; wrote training_config.json for manual runs.";
+        } else if (status === "completed_no_output") {
+          message = "Trainer finished, but no output file was found.";
+        }
+        renderResultBanner(trainingResult, "success", "Trainer finished", message);
+        renderTrainingPaths(result.paths || {});
+      } catch (err) {
+        renderResultBanner(trainingResult, "error", "Trainer failed", err.message, err.details);
       }
     });
   }

@@ -103,17 +103,16 @@
         <div class="tab-panel" data-panel="training">
           <div class="panel-section">
             <h3>Training</h3>
-            <p class="muted">Schedule packs, monitor runs, and share configuration presets.</p>
-            <div class="panel-grid">
-              <div class="panel-card">
-                <strong>Upcoming runs</strong>
-                <p class="muted">Queue new training packs with dataset + LoRA settings.</p>
+            <p class="muted">Export packs and trigger LoRA training runs for the active character.</p>
+            <form id="cs-training-form" class="form-grid">
+              <label class="full">Active character<input id="cs-training-character" type="text" readonly /></label>
+              <div class="actions-row full">
+                <button id="cs-training-export" type="button">Export Training Pack</button>
+                <button id="cs-training-run" type="button" class="secondary">Run Trainer</button>
               </div>
-              <div class="panel-card">
-                <strong>Recent activity</strong>
-                <p class="muted">Track outputs, checkpoints, and evaluation notes.</p>
-              </div>
-            </div>
+              <div id="cs-training-result" class="result full"></div>
+              <div id="cs-training-paths" class="result full"></div>
+            </form>
           </div>
         </div>
       </section>

@@ -30,6 +30,7 @@ from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.character_studio import dataset as character_dataset
 from modules.runtime.character_studio import services as character_services
 from modules.runtime.character_studio import tagging as character_tagging
+from modules.runtime.character_studio import trainer as character_trainer
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.history import PromptHistoryStore
@@ -584,6 +585,50 @@ class WebLauncherAPI:
         )
         return {"captions": captions, "summary": self.get_dataset_summary(card_id)}
 
+    def export_training_pack(self, card_id: str) -> Dict[str, object]:
+        self.get_character(card_id)
+        try:
+            archive_path = character_trainer.export_training_pack(card_id)
+        except Exception as exc:
+            raise CharacterStudioError(
+                f"Training pack export failed for {card_id}.",
+                context={"errors": [str(exc)]},
+            ) from exc
+
+        pack_dir = character_dataset.get_character_dataset_dir(card_id) / "training_pack"
+        config_path = pack_dir / "training_config.json"
+        return {
+            "status": "exported",
+            "paths": {"archive": str(archive_path), "config": str(config_path)},
+            "errors": [],
+        }
+
+    def run_lora_training(self, card_id: str) -> Dict[str, object]:
+        self.get_character(card_id)
+        dataset_dir = character_dataset.get_character_dataset_dir(card_id)
+        config_path = dataset_dir / "training_config.json"
+        trainer_cmd = os.getenv("CHAR_STUDIO_TRAINER_CMD")
+        try:
+            output_path = character_trainer.run_lora_training(card_id)
+        except Exception as exc:
+            raise CharacterStudioError(
+                f"Trainer run failed for {card_id}.",
+                context={"errors": [str(exc)]},
+            ) from exc
+
+        if not trainer_cmd:
+            status = "config_written"
+        elif output_path:
+            status = "completed"
+        else:
+            status = "completed_no_output"
+
+        return {
+            "status": status,
+            "paths": {"config": str(config_path), "output": output_path or ""},
+            "errors": [],
+        }
+
     def list_tools(self) -> Dict[str, object]:
         tools = [tool.to_dict() for tool in list_tools()]
         available = [tool for tool in tools if tool.get("available")]
@@ -893,6 +938,22 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                     self._send_json(result)
                 else:
                     self.send_error(HTTPStatus.NOT_FOUND, "Unknown dataset endpoint")
+            elif path.startswith("/api/characters/") and "/training/" in path:
+                prefix = "/api/characters/"
+                remainder = path[len(prefix) :]
+                parts = remainder.split("/")
+                if len(parts) < 3 or parts[1] != "training":
+                    raise ValueError("Invalid training endpoint")
+                card_id = parts[0]
+                action = parts[2]
+                if action == "export":
+                    result = self.api.export_training_pack(card_id)
+                    self._send_json({"result": result})
+                elif action == "run":
+                    result = self.api.run_lora_training(card_id)
+                    self._send_json({"result": result})
+                else:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Unknown training endpoint")
             elif path == "/api/characters":
                 payload = self._read_json_body()
                 result = self.api.upsert_character(payload)
