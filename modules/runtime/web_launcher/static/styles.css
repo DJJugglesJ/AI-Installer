@@ -366,6 +366,12 @@ button.secondary {
   color: #fecaca;
 }
 
+.banner.success {
+  border-color: #065f46;
+  background: #0f172a;
+  color: #bbf7d0;
+}
+
 .banner button {
   margin-left: auto;
   background: #ef4444;

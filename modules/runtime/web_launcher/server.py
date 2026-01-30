@@ -27,7 +27,9 @@ from urllib.parse import urlparse
 from modules.config_service import config_service
 from modules.runtime.character_studio.models import CharacterStudioError
 from modules.runtime.character_studio.registry import CharacterCardRegistry
+from modules.runtime.character_studio import dataset as character_dataset
 from modules.runtime.character_studio import services as character_services
+from modules.runtime.character_studio import tagging as character_tagging
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.history import PromptHistoryStore
@@ -538,6 +540,50 @@ class WebLauncherAPI:
         self._card_registry._cache.pop(card.id, None)
         return card.to_dict()
 
+    def get_dataset_summary(self, card_id: str) -> Dict[str, object]:
+        self.get_character(card_id)
+        return character_dataset.get_dataset_summary(card_id)
+
+    def init_dataset(self, card_id: str) -> Dict[str, object]:
+        character_dataset.create_dataset_structure(card_id)
+        return self.get_dataset_summary(card_id)
+
+    def add_dataset_images(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        subset = payload.get("subset", "base")
+        images = payload.get("images", [])
+        if not isinstance(subset, str) or not subset.strip():
+            raise ValueError("subset must be a non-empty string")
+        if not isinstance(images, list) or not all(isinstance(item, str) for item in images):
+            raise ValueError("images must be a list of image paths")
+        stored = character_dataset.add_images_to_dataset(card_id, images, subset)
+        return {"stored": stored, "summary": self.get_dataset_summary(card_id)}
+
+    def generate_dataset_captions(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        subset = payload.get("subset", "base")
+        if not isinstance(subset, str) or not subset.strip():
+            raise ValueError("subset must be a non-empty string")
+        captions = character_dataset.generate_captions_for_dataset(card_id, subset)
+        return {"captions": captions, "summary": self.get_dataset_summary(card_id)}
+
+    def auto_tag_dataset(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        subset = payload.get("subset", "base")
+        tagger_cmd = payload.get("tagger_cmd")
+        extra_tags = payload.get("extra_tags")
+        if not isinstance(subset, str) or not subset.strip():
+            raise ValueError("subset must be a non-empty string")
+        if tagger_cmd is not None and not isinstance(tagger_cmd, str):
+            raise ValueError("tagger_cmd must be a string when provided")
+        if extra_tags is not None:
+            if not isinstance(extra_tags, list) or not all(isinstance(item, str) for item in extra_tags):
+                raise ValueError("extra_tags must be a list of strings")
+        captions = character_tagging.auto_tag_images(
+            card_id,
+            subset,
+            tagger_cmd=tagger_cmd,
+            extra_tags=extra_tags,
+        )
+        return {"captions": captions, "summary": self.get_dataset_summary(card_id)}
+
     def list_tools(self) -> Dict[str, object]:
         tools = [tool.to_dict() for tool in list_tools()]
         available = [tool for tool in tools if tool.get("available")]
@@ -737,6 +783,12 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.get_manifests())
             elif path == "/api/characters":
                 self._send_json({"items": self.api.list_characters()})
+            elif path.startswith("/api/characters/") and path.endswith("/dataset"):
+                card_id = path[len("/api/characters/") : -len("/dataset")].strip("/")
+                if not card_id:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Character id required")
+                    return
+                self._send_json({"item": self.api.get_dataset_summary(card_id)})
             elif path.startswith("/api/characters/"):
                 _, _, card_id = path.partition("/api/characters/")
                 if not card_id:
@@ -818,6 +870,29 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 payload = self._read_json_body()
                 result = self.api.update_pairings(payload)
                 self._send_json(result)
+            elif path.startswith("/api/characters/") and "/dataset/" in path:
+                prefix = "/api/characters/"
+                remainder = path[len(prefix) :]
+                parts = remainder.split("/")
+                if len(parts) < 3 or parts[1] != "dataset":
+                    raise ValueError("Invalid dataset endpoint")
+                card_id = parts[0]
+                action = parts[2]
+                payload = self._read_json_body()
+                if action == "init":
+                    result = self.api.init_dataset(card_id)
+                    self._send_json({"item": result})
+                elif action == "add-images":
+                    result = self.api.add_dataset_images(card_id, payload)
+                    self._send_json(result)
+                elif action == "captions":
+                    result = self.api.generate_dataset_captions(card_id, payload)
+                    self._send_json(result)
+                elif action == "auto-tag":
+                    result = self.api.auto_tag_dataset(card_id, payload)
+                    self._send_json(result)
+                else:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Unknown dataset endpoint")
             elif path == "/api/characters":
                 payload = self._read_json_body()
                 result = self.api.upsert_character(payload)

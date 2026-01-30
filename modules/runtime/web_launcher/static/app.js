@@ -512,6 +512,24 @@ function renderCharacterError(resultEl, form, err) {
   resultEl.appendChild(banner);
 }
 
+function renderResultBanner(container, type, title, message, details) {
+  if (!container) return;
+  container.innerHTML = "";
+  const banner = document.createElement("div");
+  banner.className = `banner ${type === "error" ? "error" : "success"}`;
+  banner.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(message)}</span>`;
+  if (details) {
+    const detailText = summarizeDetail(details);
+    if (detailText) {
+      const detail = document.createElement("p");
+      detail.className = "muted";
+      detail.textContent = detailText;
+      banner.appendChild(detail);
+    }
+  }
+  container.appendChild(banner);
+}
+
 async function compilePrompt() {
   promptResult.textContent = "Compiling scene…";
   const form = document.getElementById("prompt-form");
@@ -1282,9 +1300,22 @@ function initCharacterStudioPage() {
   const cardForm = document.getElementById("cs-card-form");
   const cardStatus = document.getElementById("cs-card-status");
   const cardSearch = document.getElementById("cs-card-search");
+  const datasetSummary = document.getElementById("cs-dataset-summary");
+  const datasetForm = document.getElementById("cs-dataset-form");
+  const datasetCharacter = document.getElementById("cs-dataset-character");
+  const datasetSubset = document.getElementById("cs-dataset-subset");
+  const datasetImages = document.getElementById("cs-dataset-images");
+  const datasetExtraTags = document.getElementById("cs-dataset-extra-tags");
+  const datasetTaggerCmd = document.getElementById("cs-dataset-tagger-cmd");
+  const datasetInitButton = document.getElementById("cs-dataset-init");
+  const datasetAddImagesButton = document.getElementById("cs-dataset-add-images");
+  const datasetCaptionsButton = document.getElementById("cs-dataset-captions");
+  const datasetAutoTagButton = document.getElementById("cs-dataset-auto-tag");
+  const datasetResult = document.getElementById("cs-dataset-result");
   const tabButtons = document.querySelectorAll("[data-tab]");
   const tabPanels = document.querySelectorAll("[data-panel]");
   let cardItems = [];
+  let activeCard = null;
 
   if (!cardList || !cardDetail || !cardForm) {
     return;
@@ -1320,12 +1351,129 @@ function initCharacterStudioPage() {
     `;
   };
 
+  const setDatasetControlsEnabled = (enabled) => {
+    if (datasetForm) {
+      datasetForm.querySelectorAll("input, textarea, button").forEach((input) => {
+        if (input.id === "cs-dataset-character") return;
+        input.disabled = !enabled;
+      });
+    }
+  };
+
+  const renderDatasetSummary = (summary) => {
+    if (!datasetSummary) return;
+    datasetSummary.innerHTML = "";
+    if (!summary || !summary.exists) {
+      datasetSummary.innerHTML = `
+        <strong>Dataset not initialized</strong>
+        <p class="muted">Run the initializer to create dataset folders for this character.</p>
+      `;
+      if (summary && summary.dataset_root) {
+        const root = document.createElement("p");
+        root.className = "muted";
+        root.textContent = summary.dataset_root;
+        datasetSummary.appendChild(root);
+      }
+      return;
+    }
+
+    const header = document.createElement("div");
+    header.className = "detail-header";
+    header.innerHTML = `
+      <div>
+        <strong>Dataset status</strong>
+        <span class="muted">${escapeHtml(summary.dataset_root || "")}</span>
+      </div>
+      <span class="pill inline ok">${summary.total_images || 0} images</span>
+    `;
+    datasetSummary.appendChild(header);
+
+    const totals = document.createElement("div");
+    totals.className = "detail-grid";
+    totals.innerHTML = `
+      <div><span class="muted">Captioned</span><strong>${summary.total_captioned || 0}</strong></div>
+      <div><span class="muted">Missing captions</span><strong>${summary.total_missing_captions || 0}</strong></div>
+      <div><span class="muted">Subsets</span><strong>${(summary.subsets || []).length}</strong></div>
+    `;
+    datasetSummary.appendChild(totals);
+
+    const subsets = summary.subsets || [];
+    if (!subsets.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "No subset folders found yet.";
+      datasetSummary.appendChild(empty);
+      return;
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "panel-grid";
+    subsets.forEach((subset) => {
+      const card = document.createElement("div");
+      card.className = "panel-card";
+      card.innerHTML = `
+        <strong>${escapeHtml(subset.name || "subset")}</strong>
+        <p class="muted">${escapeHtml(subset.path || "")}</p>
+        <p class="tagline">${subset.image_count || 0} images • ${subset.captioned_count || 0} captioned • ${
+          subset.missing_captions || 0
+        } missing</p>
+      `;
+      grid.appendChild(card);
+    });
+    datasetSummary.appendChild(grid);
+  };
+
+  const refreshDatasetSummary = async (showLoading = false) => {
+    if (!datasetSummary || !activeCard) return;
+    if (showLoading) {
+      setPanelLoading(datasetSummary, "Loading dataset status…");
+    }
+    try {
+      const payload = await fetchJson(`/api/characters/${activeCard.id}/dataset`);
+      renderDatasetSummary(payload.item);
+    } catch (err) {
+      setPanelError(
+        datasetSummary,
+        `Failed to load dataset status: ${err.message}`,
+        () => refreshDatasetSummary(true),
+      );
+    }
+  };
+
+  const setActiveCard = (card) => {
+    activeCard = card;
+    renderCardDetail(card);
+    if (card) {
+      fillCharacterForm(card);
+    }
+    if (datasetCharacter) {
+      datasetCharacter.value = card ? `${card.name || "Unnamed"} (${card.id})` : "";
+    }
+    if (!card) {
+      if (datasetSummary) {
+        datasetSummary.innerHTML = '<p class="muted">Select a character card to review dataset status.</p>';
+      }
+      setDatasetControlsEnabled(false);
+      return;
+    }
+    setDatasetControlsEnabled(true);
+    refreshDatasetSummary(true);
+  };
+
+  const parsePathList = (rawText) => {
+    if (!rawText) return [];
+    return rawText
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
   const renderCardList = (cards) => {
     const filtered = filterCharacters(cards, cardSearch ? cardSearch.value : "");
     cardList.innerHTML = "";
     if (!filtered.length) {
       cardList.innerHTML = '<li class="muted">No cards available.</li>';
-      renderCardDetail(null);
+      setActiveCard(null);
       return;
     }
 
@@ -1339,8 +1487,7 @@ function initCharacterStudioPage() {
       button.addEventListener("click", () => {
         cardList.querySelectorAll(".cs-list-item").forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
-        fillCharacterForm(card);
-        renderCardDetail(card);
+        setActiveCard(card);
       });
       cardList.appendChild(button);
     });
@@ -1350,8 +1497,7 @@ function initCharacterStudioPage() {
     if (firstButton) {
       firstButton.classList.add("active");
     }
-    fillCharacterForm(first);
-    renderCardDetail(first);
+    setActiveCard(first);
   };
 
   const fillCharacterForm = (card) => {
@@ -1401,6 +1547,103 @@ function initCharacterStudioPage() {
       renderCharacterError(cardStatus, cardForm, err);
     }
   });
+
+  if (datasetInitButton) {
+    datasetInitButton.addEventListener("click", async () => {
+      if (!activeCard) return;
+      renderResultBanner(datasetResult, "success", "Dataset", "Initializing dataset…");
+      try {
+        const payload = await fetchJson(`/api/characters/${activeCard.id}/dataset/init`, { method: "POST" });
+        renderResultBanner(datasetResult, "success", "Dataset initialized", "Folders created successfully.");
+        renderDatasetSummary(payload.item);
+      } catch (err) {
+        renderResultBanner(datasetResult, "error", "Init failed", err.message, err.details);
+      }
+    });
+  }
+
+  if (datasetAddImagesButton) {
+    datasetAddImagesButton.addEventListener("click", async () => {
+      if (!activeCard) return;
+      const subset = datasetSubset && datasetSubset.value ? datasetSubset.value.trim() : "base";
+      const images = parsePathList(datasetImages ? datasetImages.value : "");
+      if (!images.length) {
+        renderResultBanner(datasetResult, "error", "Add images failed", "Provide at least one image path.");
+        return;
+      }
+      renderResultBanner(datasetResult, "success", "Dataset", "Adding images…");
+      try {
+        const response = await fetchJson(`/api/characters/${activeCard.id}/dataset/add-images`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subset, images }),
+        });
+        renderResultBanner(
+          datasetResult,
+          "success",
+          "Images added",
+          `${response.stored.length} images copied to ${subset}.`,
+        );
+        renderDatasetSummary(response.summary);
+      } catch (err) {
+        renderResultBanner(datasetResult, "error", "Add images failed", err.message, err.details);
+      }
+    });
+  }
+
+  if (datasetCaptionsButton) {
+    datasetCaptionsButton.addEventListener("click", async () => {
+      if (!activeCard) return;
+      const subset = datasetSubset && datasetSubset.value ? datasetSubset.value.trim() : "base";
+      renderResultBanner(datasetResult, "success", "Dataset", "Generating captions…");
+      try {
+        const response = await fetchJson(`/api/characters/${activeCard.id}/dataset/captions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subset }),
+        });
+        renderResultBanner(
+          datasetResult,
+          "success",
+          "Captions generated",
+          `${response.captions.length} captions written for ${subset}.`,
+        );
+        renderDatasetSummary(response.summary);
+      } catch (err) {
+        renderResultBanner(datasetResult, "error", "Captioning failed", err.message, err.details);
+      }
+    });
+  }
+
+  if (datasetAutoTagButton) {
+    datasetAutoTagButton.addEventListener("click", async () => {
+      if (!activeCard) return;
+      const subset = datasetSubset && datasetSubset.value ? datasetSubset.value.trim() : "base";
+      const extraTags = parsePathList(datasetExtraTags ? datasetExtraTags.value : "");
+      const tagger_cmd = datasetTaggerCmd && datasetTaggerCmd.value ? datasetTaggerCmd.value.trim() : "";
+      renderResultBanner(datasetResult, "success", "Dataset", "Auto-tagging images…");
+      try {
+        const response = await fetchJson(`/api/characters/${activeCard.id}/dataset/auto-tag`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subset,
+            extra_tags: extraTags.length ? extraTags : undefined,
+            tagger_cmd: tagger_cmd || undefined,
+          }),
+        });
+        renderResultBanner(
+          datasetResult,
+          "success",
+          "Auto-tag complete",
+          `${response.captions.length} captions updated for ${subset}.`,
+        );
+        renderDatasetSummary(response.summary);
+      } catch (err) {
+        renderResultBanner(datasetResult, "error", "Auto-tag failed", err.message, err.details);
+      }
+    });
+  }
 
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {

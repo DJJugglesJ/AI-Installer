@@ -77,20 +77,26 @@
           <div class="panel-section">
             <h3>Datasets</h3>
             <p class="muted">Track dataset folders, tagging progress, and caption quality.</p>
-            <div class="panel-grid">
-              <div class="panel-card">
-                <strong>Collections</strong>
-                <p class="muted">Link datasets to character IDs for faster training runs.</p>
-              </div>
-              <div class="panel-card">
-                <strong>Tagging</strong>
-                <p class="muted">Review tag coverage and ensure prompts are balanced.</p>
-              </div>
-              <div class="panel-card">
-                <strong>Exports</strong>
-                <p class="muted">Package training-ready folders with metadata.</p>
-              </div>
+            <div id="cs-dataset-summary" class="panel-card">
+              <p class="muted">Select a character card to review dataset status.</p>
             </div>
+            <form id="cs-dataset-form" class="form-grid">
+              <label class="full">Active character<input id="cs-dataset-character" type="text" readonly /></label>
+              <label>Subset name<input id="cs-dataset-subset" type="text" placeholder="base" value="base" /></label>
+              <label>Extra tags<input id="cs-dataset-extra-tags" type="text" placeholder="cinematic, blue hair" /></label>
+              <label class="full">External tagger command<input id="cs-dataset-tagger-cmd" type="text" placeholder="optional: tagger --image {image}" /></label>
+              <label class="full">
+                Image paths (comma or newline separated)
+                <textarea id="cs-dataset-images" rows="3" placeholder="/path/to/image.png"></textarea>
+              </label>
+              <div class="actions-row full">
+                <button id="cs-dataset-init" type="button">Initialize dataset</button>
+                <button id="cs-dataset-add-images" type="button" class="secondary">Add images</button>
+                <button id="cs-dataset-captions" type="button" class="secondary">Generate captions</button>
+                <button id="cs-dataset-auto-tag" type="button" class="secondary">Auto-tag</button>
+              </div>
+              <div id="cs-dataset-result" class="result full"></div>
+            </form>
           </div>
         </div>
 

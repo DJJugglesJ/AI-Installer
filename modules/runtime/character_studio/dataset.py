@@ -11,7 +11,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Iterable, List
+from typing import Dict, Iterable, List
 
 from .models import CARD_STORAGE_ROOT, CharacterCard, CharacterStudioError, SchemaValidationError
 
@@ -192,3 +192,44 @@ def generate_captions_for_dataset(character_id: str, subset_name: str) -> List[s
         )
 
     return captions
+
+
+def get_dataset_summary(character_id: str) -> Dict[str, object]:
+    """Return a structured summary of dataset subsets and caption coverage."""
+
+    dataset_dir = _character_dataset_dir(character_id)
+    summary: Dict[str, object] = {
+        "character_id": character_id,
+        "dataset_root": str(dataset_dir),
+        "exists": dataset_dir.exists(),
+        "subsets": [],
+        "total_images": 0,
+        "total_captioned": 0,
+        "total_missing_captions": 0,
+    }
+
+    if not dataset_dir.exists():
+        return summary
+
+    subsets: List[Dict[str, object]] = []
+    for subset_dir in sorted([entry for entry in dataset_dir.iterdir() if entry.is_dir()]):
+        if subset_dir.name in {"outputs", "training_pack"}:
+            continue
+        images = [p for p in subset_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
+        captioned = [p for p in images if p.with_suffix(".txt").exists()]
+        missing = len(images) - len(captioned)
+        subsets.append(
+            {
+                "name": subset_dir.relative_to(dataset_dir).as_posix(),
+                "path": str(subset_dir),
+                "image_count": len(images),
+                "captioned_count": len(captioned),
+                "missing_captions": missing,
+            }
+        )
+        summary["total_images"] = int(summary["total_images"]) + len(images)
+        summary["total_captioned"] = int(summary["total_captioned"]) + len(captioned)
+        summary["total_missing_captions"] = int(summary["total_missing_captions"]) + missing
+
+    summary["subsets"] = subsets
+    return summary
