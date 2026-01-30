@@ -51,6 +51,11 @@ CHARACTER_CARD_SCHEMA: Dict[str, object] = {
             "type": ["string", "null"],
             "description": "Token or keyword that reliably summons the character in prompts.",
         },
+        "trigger_tokens": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional additional trigger tokens that work with this character.",
+        },
         "anatomy_tags": {
             "type": "array",
             "items": {"type": "string"},
@@ -94,6 +99,7 @@ class CharacterCard:
     description: Optional[str] = None
     default_prompt_snippet: Optional[str] = None
     trigger_token: Optional[str] = None
+    trigger_tokens: List[str] = field(default_factory=list)
     anatomy_tags: List[str] = field(default_factory=list)
     wardrobe: List[str] = field(default_factory=list)
     lora_file: Optional[str] = None
@@ -111,6 +117,12 @@ class CharacterCard:
             errors.append("name must be a non-empty string")
         if not isinstance(self.nsfw_allowed, bool):
             errors.append("nsfw_allowed must be a boolean")
+        if self.trigger_token is not None and not isinstance(self.trigger_token, str):
+            errors.append("trigger_token must be a string or None")
+        if not isinstance(self.trigger_tokens, list) or not all(
+            isinstance(token, str) and token.strip() for token in self.trigger_tokens
+        ):
+            errors.append("trigger_tokens must be a list of non-empty strings")
         if not isinstance(self.anatomy_tags, list) or not all(
             isinstance(tag, str) and tag.strip() for tag in self.anatomy_tags
         ):
@@ -119,6 +131,10 @@ class CharacterCard:
             isinstance(item, str) and item.strip() for item in self.wardrobe
         ):
             errors.append("wardrobe must be a list of non-empty strings")
+        if not isinstance(self.reference_images, list) or not all(
+            isinstance(item, str) and item.strip() for item in self.reference_images
+        ):
+            errors.append("reference_images must be a list of non-empty strings")
 
         if errors:
             raise SchemaValidationError("Character Card validation failed", context={"errors": errors, "card_id": self.id})
@@ -132,6 +148,11 @@ class CharacterCard:
     def from_dict(cls, payload: Dict[str, object]) -> "CharacterCard":
         """Create a CharacterCard from a JSON-compatible dict."""
 
+        trigger_tokens = list(payload.get("trigger_tokens", []) or [])
+        trigger_token = payload.get("trigger_token")
+        if trigger_token and trigger_token not in trigger_tokens:
+            trigger_tokens.insert(0, trigger_token)
+
         return cls(
             id=str(payload.get("id")),
             name=str(payload.get("name")),
@@ -139,7 +160,8 @@ class CharacterCard:
             nsfw_allowed=bool(payload.get("nsfw_allowed", False)),
             description=payload.get("description"),
             default_prompt_snippet=payload.get("default_prompt_snippet"),
-            trigger_token=payload.get("trigger_token"),
+            trigger_token=trigger_token or (trigger_tokens[0] if trigger_tokens else None),
+            trigger_tokens=trigger_tokens,
             anatomy_tags=list(payload.get("anatomy_tags", []) or []),
             wardrobe=list(payload.get("wardrobe", []) or []),
             lora_file=payload.get("lora_file"),
@@ -191,6 +213,10 @@ def apply_feedback_to_character(character_card: CharacterCard, feedback_text: st
     for key, value in updates.items():
         if key in {"description", "default_prompt_snippet", "trigger_token", "age", "name"}:
             setattr(updated, key, value)
+        elif key in {"trigger_tokens", "triggers"}:
+            additions = [v.strip() for v in value.split(",") if v.strip()]
+            updated.trigger_tokens = additions
+            updated.trigger_token = additions[0] if additions else updated.trigger_token
         elif key in {"nsfw", "nsfw_allowed"}:
             updated.nsfw_allowed = value.lower() in {"true", "1", "yes", "y", "allow"}
         elif key in {"tag", "anatomy_tag", "anatomy_tags", "tags"}:
@@ -198,6 +224,16 @@ def apply_feedback_to_character(character_card: CharacterCard, feedback_text: st
             for tag in additions:
                 if tag not in updated.anatomy_tags:
                     updated.anatomy_tags.append(tag)
+        elif key in {"wardrobe"}:
+            additions = [v.strip() for v in value.split(",") if v.strip()]
+            for item in additions:
+                if item not in updated.wardrobe:
+                    updated.wardrobe.append(item)
+        elif key in {"reference_images", "reference_image"}:
+            additions = [v.strip() for v in value.split(",") if v.strip()]
+            for path in additions:
+                if path not in updated.reference_images:
+                    updated.reference_images.append(path)
         elif key.startswith("metadata"):
             # Accept directives like "metadata.version: 1.0"
             metadata_key = key.split(".", maxsplit=1)[1] if "." in key else "note"

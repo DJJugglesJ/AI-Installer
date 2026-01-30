@@ -91,3 +91,17 @@ def test_schema_validation_rejects_blank_wardrobe_item():
 
     with pytest.raises(SchemaValidationError):
         card.validate()
+
+
+def test_schema_validation_rejects_blank_trigger_tokens():
+    card = CharacterCard(
+        id="erin",
+        name="Erin",
+        nsfw_allowed=False,
+        anatomy_tags=["mage"],
+        wardrobe=["robe"],
+        trigger_tokens=[""],
+    )
+
+    with pytest.raises(SchemaValidationError):
+        card.validate()
