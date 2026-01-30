@@ -691,7 +691,7 @@ class WebLauncherAPI:
 
         scene = compiler.parse_scene_description(scene_json)
         if feedback:
-            scene = compiler.apply_feedback_to_scene(scene_json, feedback)
+            scene = compiler.apply_feedback_to_scene(asdict(scene), feedback)
             scene = compiler.parse_scene_description(scene)
         assembly = compiler.build_prompt_from_scene(asdict(scene))
         assembly_payload = assembly.to_payload()
