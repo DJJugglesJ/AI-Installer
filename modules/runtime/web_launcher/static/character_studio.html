@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Hub Character Studio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="character-studio-page">
+    <header>
+      <div>
+        <h1>Character Studio</h1>
+        <p class="muted">Manage cards, datasets, and training packs from one workspace.</p>
+        <div class="header-actions">
+          <a class="action-tile" href="index.html">
+            <span class="action-title">Back to Launcher</span>
+            <span class="action-subtitle">Return to the main dashboard</span>
+          </a>
+        </div>
+      </div>
+      <form id="auth-form" class="auth-form">
+        <label>
+          API token
+          <input id="auth-token" type="password" placeholder="Optional bearer token" />
+        </label>
+        <button type="submit">Save</button>
+        <span id="auth-state" class="muted">Not set</span>
+      </form>
+    </header>
+
+    <main class="character-studio-layout">
+      <aside class="card sidebar-panel">
+        <div class="card-header">
+          <h2>Cards</h2>
+          <p>Browse your Character Card registry.</p>
+        </div>
+        <div id="cs-card-list" class="cs-list">
+          <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Loading character cards…</div>
+        </div>
+      </aside>
+
+      <section class="card detail-panel">
+        <div class="tab-list" role="tablist">
+          <button class="tab-button active" type="button" data-tab="cards">Cards</button>
+          <button class="tab-button" type="button" data-tab="datasets">Datasets</button>
+          <button class="tab-button" type="button" data-tab="training">Training</button>
+        </div>
+
+        <div class="tab-panel active" data-panel="cards">
+          <div id="cs-card-detail" class="panel-section">
+            <p class="muted">Select a card to see details.</p>
+          </div>
+          <form id="cs-card-form" class="form-grid">
+            <label>ID<input type="text" name="id" placeholder="hero" required /></label>
+            <label>Name<input type="text" name="name" placeholder="Hero Name" required /></label>
+            <label>Age<input type="text" name="age" placeholder="Optional age" /></label>
+            <label class="checkbox"><input type="checkbox" name="nsfw_allowed" /> NSFW allowed</label>
+            <label class="full">Description<textarea name="description" rows="2" placeholder="Character description"></textarea></label>
+            <label class="full">Default Prompt Snippet<input type="text" name="default_prompt_snippet" placeholder="cinematic lighting" /></label>
+            <label class="full">Trigger Tokens<input type="text" name="trigger_tokens" placeholder="token1, token2" /></label>
+            <label class="full">Anatomy Tags<input type="text" name="anatomy_tags" placeholder="silver eyes, cape" /></label>
+            <label class="full">Wardrobe<input type="text" name="wardrobe" placeholder="cloak, armor" /></label>
+            <label class="full">Reference Images<input type="text" name="reference_images" placeholder="hero/ref1.png, hero/ref2.png" /></label>
+            <label>LoRA File<input type="text" name="lora_file" placeholder="hero.safetensors" /></label>
+            <label>LoRA Strength<input type="number" name="lora_default_strength" step="0.05" min="0" /></label>
+            <div class="actions-row">
+              <button type="submit">Save Character Card</button>
+              <div id="cs-card-status" class="result"></div>
+            </div>
+          </form>
+        </div>
+
+        <div class="tab-panel" data-panel="datasets">
+          <div class="panel-section">
+            <h3>Datasets</h3>
+            <p class="muted">Track dataset folders, tagging progress, and caption quality.</p>
+            <div class="panel-grid">
+              <div class="panel-card">
+                <strong>Collections</strong>
+                <p class="muted">Link datasets to character IDs for faster training runs.</p>
+              </div>
+              <div class="panel-card">
+                <strong>Tagging</strong>
+                <p class="muted">Review tag coverage and ensure prompts are balanced.</p>
+              </div>
+              <div class="panel-card">
+                <strong>Exports</strong>
+                <p class="muted">Package training-ready folders with metadata.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="training">
+          <div class="panel-section">
+            <h3>Training</h3>
+            <p class="muted">Schedule packs, monitor runs, and share configuration presets.</p>
+            <div class="panel-grid">
+              <div class="panel-card">
+                <strong>Upcoming runs</strong>
+                <p class="muted">Queue new training packs with dataset + LoRA settings.</p>
+              </div>
+              <div class="panel-card">
+                <strong>Recent activity</strong>
+                <p class="muted">Track outputs, checkpoints, and evaluation notes.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+      window.AIHub?.initCharacterStudioPage?.();
+    </script>
+  </body>
+</html>
