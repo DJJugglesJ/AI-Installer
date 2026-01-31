@@ -35,10 +35,11 @@ from modules.path_utils import (
     get_state_path,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SHELL_DIR = PROJECT_ROOT / "modules" / "shell"
-WINDOWS_SHELL_DIR = PROJECT_ROOT / "launcher" / "windows"
 LAUNCHER_DIR = PROJECT_ROOT / "launcher"
+WINDOWS_SHELL_DIR = LAUNCHER_DIR / "windows"
+LINUX_LAUNCHER_DIR = LAUNCHER_DIR / "linux"
 MANIFEST_DIR = PROJECT_ROOT / "manifests"
 IS_WINDOWS = platform.system().lower().startswith("windows")
 LOG_PATH = ensure_file_path(get_log_path())
@@ -159,7 +160,9 @@ ACTION_MAP: Dict[str, ActionSpec] = {
     "self_update": ActionSpec("self_update", "Self-update bundled installer scripts", _shell_command("self_update")),
     "pull_updates": ActionSpec("pull_updates", "Git pull for cloned checkouts", ["git", "pull"]),
     "launcher_status": ActionSpec(
-        "launcher_status", "Show launcher status panel", ["bash", str(LAUNCHER_DIR / "ai_hub_launcher.sh")]
+        "launcher_status",
+        "Show launcher status panel",
+        ["bash", str(LINUX_LAUNCHER_DIR / "ai_hub_launcher.sh")],
     ),
     "pair_oobabooga": ActionSpec(
         "pair_oobabooga", "Pair an oobabooga model with a LoRA", _shell_command("pair_oobabooga")

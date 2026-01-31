@@ -1,8 +1,10 @@
 #!/bin/bash
+set -euo pipefail
+
 # macOS double-click helper to start the AI Hub web launcher
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 HOST="${AIHUB_WEB_HOST:-127.0.0.1}"
 PORT="${AIHUB_WEB_PORT:-3939}"
 

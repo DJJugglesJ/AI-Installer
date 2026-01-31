@@ -14,7 +14,7 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    ./install.sh
    ```
 3. Pick **Web Launcher** or **YAD Menu** when prompted. The installer records logs to `~/.config/aihub/logs/install-YYYYMMDD.log` and creates OS-appropriate shortcuts.
-4. Launch again anytime with `./aihub_menu.sh` (Linux/WSL) or `launcher/aihub_menu.ps1` (Windows). Use `./launcher/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
+4. Launch again anytime with `./aihub_menu.sh` (Linux/WSL) or `launcher/windows/aihub_menu.ps1` (Windows). Use `./launcher/linux/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
 
 ### Windows 10 quick start
 1. Install and open **Git Bash** (or use **WSL2 with Ubuntu**) so the repo can be cloned and bash-compatible paths resolve correctly.
@@ -26,7 +26,7 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    .\install.ps1
    ```
 4. The installer logs to `%APPDATA%\AIHub\logs\install-YYYYMMDD.log`, and shortcuts are created under the Start Menu and Desktop (matching `.lnk`, `.bat`, and `.ps1` wrappers called by the launchers).
-5. Re-launch anytime via `launcher\aihub_menu.ps1` (menu), `launcher\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`), or the dedicated action wrappers like `launcher\install_webui.ps1` and `launcher\run_webui.ps1`. Linux instructions above remain unchanged for WSL.
+5. Re-launch anytime via `launcher\windows\aihub_menu.ps1` (menu), `launcher\windows\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`), or the dedicated action wrappers like `launcher\windows\install_webui.ps1` and `launcher\windows\run_webui.ps1`. Linux instructions above remain unchanged for WSL.
 
 > **Need a hands-free run?** `./install.sh --headless --install webui --gpu nvidia` mirrors the guided flow without dialogs. Add `--config <file>` to feed a JSON/env config (see [`docs/headless_config.md`](docs/headless_config.md)).
 
@@ -70,7 +70,7 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
     └─► Launcher choice
            ├─ YAD Menu (aihub_menu.sh)
            │     └─ calls shell helpers per action
-           └─ Web Launcher (start_web_launcher.sh)
+           └─ Web Launcher (launcher/linux/start_web_launcher.sh)
                  └─ HTTP routes → Python runtimes → manifests/config
 ```
 
@@ -97,7 +97,7 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 - Menu buttons directly call the same shell helpers used by the headless and web flows.
 
 ### Web launcher
-- Start with `./launcher/start_web_launcher.sh` (Linux/WSL) or the matching PowerShell/Batch/macOS wrappers.
+- Start with `./launcher/linux/start_web_launcher.sh` (Linux/WSL) or the matching PowerShell/Batch/macOS wrappers in `launcher/windows` and `launcher/linux`.
 - Defaults to `http://127.0.0.1:3939`; override host/port with `AIHUB_WEB_HOST`/`AIHUB_WEB_PORT`.
 - Protect APIs with `AIHUB_WEB_TOKEN` or `--auth-token`.
 - The Web Launcher UI already includes Guided Scene Builder + Quick Prompt for Prompt Builder and a Character Studio page for cards, datasets, and tag helpers.
@@ -106,7 +106,7 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 ### Command-line shortcuts
 - Headless install: `./install.sh --headless --gpu <nvidia|amd|intel|cpu> --install <webui|kobold|sillytavern|loras|models>`
 - Use `--config <file>` for repeatable unattended runs (JSON or env-style). See [`docs/headless_config.md`](docs/headless_config.md).
-- After install, re-run launchers directly (e.g., `./launcher/start_webui.sh`, `./launcher/start_kobold.sh`) or use menu buttons. On Windows, the matching `.ps1`/`.bat` wrappers are available (for example, `launcher\install_webui.ps1`, `launcher\run_kobold.bat`, `launcher\health_summary.ps1`).
+- After install, re-run launchers directly (e.g., `./launcher/start_webui.sh`, `./launcher/start_kobold.sh`) or use menu buttons. On Windows, the matching `.ps1`/`.bat` wrappers are available (for example, `launcher\windows\install_webui.ps1`, `launcher\windows\run_kobold.bat`, `launcher\windows\health_summary.ps1`).
 
 ## Advanced options and setup
 - **Performance flags:** FP16 defaults on NVIDIA; xFormers is offered for NVIDIA; DirectML toggles apply on Windows/WSL for AMD/Intel; low-VRAM mode adds `--medvram` for WebUI. Details in [`docs/performance_flags.md`](docs/performance_flags.md).

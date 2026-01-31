@@ -10,8 +10,8 @@ CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 CONFIG_STATE_FILE="${CONFIG_STATE_FILE:-$HOME/.config/aihub/config.yaml}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../modules/shell/logging.sh"
-source "$SCRIPT_DIR/../modules/config_service/config_helpers.sh"
+source "$SCRIPT_DIR/../../modules/shell/logging.sh"
+source "$SCRIPT_DIR/../../modules/config_service/config_helpers.sh"
 
 CONFIG_ENV_FILE="$CONFIG_FILE" CONFIG_STATE_FILE="$CONFIG_STATE_FILE" config_load
 
