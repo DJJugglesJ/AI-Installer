@@ -603,7 +603,7 @@ class WebLauncherAPI:
         self.get_character(card_id)
         if not isinstance(subset, str) or not subset.strip():
             raise ValueError("subset must be a non-empty string")
-        normalized_subset = subset.strip()
+        normalized_subset = character_dataset.validate_subset_name(subset)
         images = character_dataset.list_subset_images(card_id, normalized_subset)
         items = []
         for image_path in images:
@@ -694,14 +694,16 @@ class WebLauncherAPI:
             raise ValueError("subset must be a non-empty string")
         if not isinstance(images, list) or not all(isinstance(item, str) for item in images):
             raise ValueError("images must be a list of image paths")
-        stored = character_dataset.add_images_to_dataset(card_id, images, subset)
+        normalized_subset = character_dataset.validate_subset_name(subset)
+        stored = character_dataset.add_images_to_dataset(card_id, images, normalized_subset)
         return {"stored": stored, "summary": self.get_dataset_summary(card_id)}
 
     def generate_dataset_captions(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
         subset = payload.get("subset", "base")
         if not isinstance(subset, str) or not subset.strip():
             raise ValueError("subset must be a non-empty string")
-        captions = character_dataset.generate_captions_for_dataset(card_id, subset)
+        normalized_subset = character_dataset.validate_subset_name(subset)
+        captions = character_dataset.generate_captions_for_dataset(card_id, normalized_subset)
         return {"captions": captions, "summary": self.get_dataset_summary(card_id)}
 
     def auto_tag_dataset(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
@@ -715,9 +717,10 @@ class WebLauncherAPI:
         if extra_tags is not None:
             if not isinstance(extra_tags, list) or not all(isinstance(item, str) for item in extra_tags):
                 raise ValueError("extra_tags must be a list of strings")
+        normalized_subset = character_dataset.validate_subset_name(subset)
         captions = character_tagging.auto_tag_images(
             card_id,
-            subset,
+            normalized_subset,
             tagger_cmd=tagger_cmd,
             extra_tags=extra_tags,
         )

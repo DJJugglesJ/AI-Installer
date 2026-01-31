@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Dict, Iterable, List
 
 from .models import CARD_STORAGE_ROOT, CharacterCard, CharacterStudioError, SchemaValidationError
@@ -57,8 +57,30 @@ def get_character_dataset_dir(character_id: str) -> Path:
 def get_subset_dir(character_id: str, subset_name: str) -> Path:
     """Return the absolute path to a dataset subset for a character."""
 
-    subset_path = Path(subset_name.strip("/")) if subset_name else Path("base")
-    return _character_dataset_dir(character_id) / subset_path
+    normalized = validate_subset_name(subset_name)
+    return _character_dataset_dir(character_id) / Path(normalized)
+
+
+def validate_subset_name(subset_name: str) -> str:
+    raw_subset = subset_name or ""
+    trimmed = raw_subset.strip()
+    if not trimmed:
+        return "base"
+
+    posix_path = PurePosixPath(trimmed)
+    windows_path = PureWindowsPath(trimmed)
+    if posix_path.is_absolute() or windows_path.is_absolute():
+        raise DatasetOperationError(
+            "Invalid dataset subset",
+            context={"subset": raw_subset, "reason": "absolute paths are not allowed"},
+        )
+    if ".." in set(posix_path.parts) | set(windows_path.parts):
+        raise DatasetOperationError(
+            "Invalid dataset subset",
+            context={"subset": raw_subset, "reason": "parent path segments are not allowed"},
+        )
+
+    return trimmed.strip("/\\")
 
 
 def _subset_is_nsfw(subset_name: str) -> bool:
@@ -103,14 +125,15 @@ def create_dataset_structure(character_id: str) -> None:
 def add_images_to_dataset(character_id: str, images: Iterable[str], subset_name: str) -> List[str]:
     """Add selected images to a dataset subset and return stored paths."""
 
+    normalized_subset = validate_subset_name(subset_name)
     card = _load_card(character_id)
-    if _subset_is_nsfw(subset_name) and not card.nsfw_allowed:
+    if _subset_is_nsfw(normalized_subset) and not card.nsfw_allowed:
         raise DatasetOperationError(
             "NSFW dataset subsets are not allowed for this character",
             context={"character_id": character_id, "subset": subset_name},
         )
 
-    target_dir = get_subset_dir(character_id, subset_name)
+    target_dir = get_subset_dir(character_id, normalized_subset)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     stored: List[str] = []
@@ -134,7 +157,8 @@ def add_images_to_dataset(character_id: str, images: Iterable[str], subset_name:
 
 
 def list_subset_images(character_id: str, subset_name: str) -> List[Path]:
-    subset_dir = get_subset_dir(character_id, subset_name)
+    normalized_subset = validate_subset_name(subset_name)
+    subset_dir = get_subset_dir(character_id, normalized_subset)
     if not subset_dir.exists():
         return []
     return sorted(
@@ -148,12 +172,13 @@ def load_image_contexts(character_id: str, subset_name: str) -> List[Dict[str, o
     Each context includes the image path, subset name, and any caption text if available.
     """
 
-    subset_dir = get_subset_dir(character_id, subset_name)
+    normalized_subset = validate_subset_name(subset_name)
+    subset_dir = get_subset_dir(character_id, normalized_subset)
     if not subset_dir.exists():
         return []
 
     contexts: List[Dict[str, object]] = []
-    for image_path in list_subset_images(character_id, subset_name):
+    for image_path in list_subset_images(character_id, normalized_subset):
         caption_path = image_path.with_suffix(".txt")
         caption_text = None
         if caption_path.exists():
@@ -161,7 +186,7 @@ def load_image_contexts(character_id: str, subset_name: str) -> List[Dict[str, o
         contexts.append(
             {
                 "image_path": str(image_path),
-                "subset": subset_name,
+                "subset": normalized_subset,
                 "caption_path": str(caption_path),
                 "caption": caption_text,
             }
@@ -172,19 +197,24 @@ def load_image_contexts(character_id: str, subset_name: str) -> List[Dict[str, o
 def generate_captions_for_dataset(character_id: str, subset_name: str) -> List[str]:
     """Generate training captions based on Character Card defaults and subset context."""
 
+    normalized_subset = validate_subset_name(subset_name)
     card = _load_card(character_id)
-    if _subset_is_nsfw(subset_name) and not card.nsfw_allowed:
+    if _subset_is_nsfw(normalized_subset) and not card.nsfw_allowed:
         raise DatasetOperationError(
             "NSFW dataset subsets are not allowed for this character",
             context={"character_id": character_id, "subset": subset_name},
         )
 
-    subset_dir = get_subset_dir(character_id, subset_name)
+    subset_dir = get_subset_dir(character_id, normalized_subset)
     subset_dir.mkdir(parents=True, exist_ok=True)
     captions: List[str] = []
-    subset_tags = [part.replace("_", " ") for part in Path(subset_name).parts if part.lower() not in {"base", "nsfw"}]
+    subset_tags = [
+        part.replace("_", " ")
+        for part in Path(normalized_subset).parts
+        if part.lower() not in {"base", "nsfw"}
+    ]
 
-    for image_path in list_subset_images(character_id, subset_name):
+    for image_path in list_subset_images(character_id, normalized_subset):
         caption_parts: List[str] = []
         if card.trigger_token:
             caption_parts.append(card.trigger_token)
