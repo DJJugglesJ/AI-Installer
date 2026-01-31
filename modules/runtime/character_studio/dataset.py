@@ -142,6 +142,33 @@ def list_subset_images(character_id: str, subset_name: str) -> List[Path]:
     )
 
 
+def load_image_contexts(character_id: str, subset_name: str) -> List[Dict[str, object]]:
+    """Load image contexts for a dataset subset without writing data.
+
+    Each context includes the image path, subset name, and any caption text if available.
+    """
+
+    subset_dir = get_subset_dir(character_id, subset_name)
+    if not subset_dir.exists():
+        return []
+
+    contexts: List[Dict[str, object]] = []
+    for image_path in list_subset_images(character_id, subset_name):
+        caption_path = image_path.with_suffix(".txt")
+        caption_text = None
+        if caption_path.exists():
+            caption_text = caption_path.read_text(encoding="utf-8")
+        contexts.append(
+            {
+                "image_path": str(image_path),
+                "subset": subset_name,
+                "caption_path": str(caption_path),
+                "caption": caption_text,
+            }
+        )
+    return contexts
+
+
 def generate_captions_for_dataset(character_id: str, subset_name: str) -> List[str]:
     """Generate training captions based on Character Card defaults and subset context."""
 

@@ -179,6 +179,49 @@ def test_web_launcher_bulk_tag_edit(sandbox, tmp_path):
     assert (subset_dir / "second.txt").read_text(encoding="utf-8") == "starter, extra"
 
 
+def test_batch_tag_images_returns_tags_by_image(sandbox):
+    card_root, dataset_root = sandbox
+    card = CharacterCard(
+        id="juno",
+        name="Juno",
+        nsfw_allowed=False,
+        anatomy_tags=["android"],
+        wardrobe=["jacket"],
+        trigger_token="juno_tok",
+        trigger_tokens=["juno_tok", "juno_alt"],
+        default_prompt_snippet="soft lighting",
+    )
+    card.save()
+
+    dataset.create_dataset_structure(card.id)
+    subset_dir = dataset_root / "characters" / card.id / "base"
+    image_path = subset_dir / "sample.png"
+    image_path.write_bytes(b"")
+    image_path.with_suffix(".txt").write_text("portrait, smile", encoding="utf-8")
+
+    contexts = dataset.load_image_contexts(card.id, "base")
+    result = tagging.batch_tag_images(card.to_dict(), contexts)
+
+    assert result["metadata"]["character_id"] == card.id
+    assert result["metadata"]["count"] == 1
+    tags = result["tags_by_image"][str(image_path)]
+    assert tags == ["juno_tok", "juno_alt", "android", "jacket", "soft lighting", "portrait", "smile"]
+
+
+def test_batch_tag_images_rejects_invalid_context(sandbox):
+    card_root, dataset_root = sandbox
+    card = CharacterCard(
+        id="kira",
+        name="Kira",
+        nsfw_allowed=False,
+        anatomy_tags=["pilot"],
+    )
+    card.save()
+
+    with pytest.raises(TaggingError):
+        tagging.batch_tag_images(card, [{"caption": "missing image_path"}])
+
+
 def test_schema_validation_rejects_blank_wardrobe_item():
     card = CharacterCard(
         id="dana",

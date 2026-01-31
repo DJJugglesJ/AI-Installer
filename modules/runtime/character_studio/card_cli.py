@@ -197,6 +197,13 @@ def bulk_edit_dataset_tags(args: argparse.Namespace) -> None:
     print("Updated tags for:\n" + "\n".join(updated))
 
 
+def batch_tag_dataset(args: argparse.Namespace) -> None:
+    card = _load_existing_card(args.id)
+    image_contexts = dataset.load_image_contexts(args.id, args.subset)
+    result = tagging.batch_tag_images(card, image_contexts)
+    print(json.dumps(result, indent=2))
+
+
 def export_training(args: argparse.Namespace) -> None:
     archive = trainer.export_training_pack(args.id)
     print(f"Exported training pack to {archive}")
@@ -288,6 +295,11 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_tag_edit.add_argument("--append", help="Comma separated tags to append")
     dataset_tag_edit.add_argument("--replace", help="Comma separated tags to replace existing captions")
     dataset_tag_edit.set_defaults(func=bulk_edit_dataset_tags)
+
+    dataset_batch_tag = subparsers.add_parser("batch-tag", help="Batch tag dataset images and emit JSON")
+    dataset_batch_tag.add_argument("id", help="Unique character id")
+    dataset_batch_tag.add_argument("subset", help="Subset name")
+    dataset_batch_tag.set_defaults(func=batch_tag_dataset)
 
     export_pack = subparsers.add_parser("export-training", help="Create a portable training pack")
     export_pack.add_argument("id", help="Unique character id")
