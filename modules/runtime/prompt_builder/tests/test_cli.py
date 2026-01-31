@@ -46,10 +46,12 @@ def test_cli_compiles_scene(tmp_path, capsys):
     output = capsys.readouterr().out
     payload = json.loads(output)
 
-    assert payload["positive_prompt"]
-    assert any("magetoken" in part for part in payload["positive_prompt"])
-    assert any("magic circle" in part for part in payload["positive_prompt"])
-    assert payload["lora_calls"] == []
+    assert payload["error"] is None
+    assert payload["metadata"] == {}
+    assert payload["data"]["positive_prompt"]
+    assert any("magetoken" in part for part in payload["data"]["positive_prompt"])
+    assert any("magic circle" in part for part in payload["data"]["positive_prompt"])
+    assert payload["data"]["lora_calls"] == []
 
 
 def test_cli_feedback_only_returns_scene(tmp_path, capsys):
@@ -75,5 +77,28 @@ def test_cli_feedback_only_returns_scene(tmp_path, capsys):
     output = capsys.readouterr().out
     payload = json.loads(output)
 
-    assert payload["mood"] == "tense"
-    assert "mist" in payload["extra_elements"]
+    assert payload["error"] is None
+    assert payload["metadata"] == {}
+    assert payload["data"]["mood"] == "tense"
+    assert "mist" in payload["data"]["extra_elements"]
+
+
+def test_cli_feedback_only_requires_feedback(tmp_path, capsys):
+    scene_payload = {
+        "world": "fantasy",
+        "setting": "tower",
+        "mood": "calm",
+        "characters": [],
+        "extra_elements": ["moonlight"],
+    }
+    scene_path = tmp_path / "scene.json"
+    scene_path.write_text(json.dumps(scene_payload), encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        prompt_cli.main(["--scene", str(scene_path), "--feedback-only"])
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert payload["data"] is None
+    assert payload["metadata"] == {}
+    assert payload["error"]["message"] == "feedback is required when using --feedback-only"

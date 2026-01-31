@@ -15,6 +15,7 @@ from typing import Iterable
 from dataclasses import asdict
 
 from . import compiler
+from ..common import json_output
 from .models import CharacterRef, SceneDescription
 from .services import PromptCompilerService, UIIntegrationHooks
 
@@ -53,25 +54,32 @@ def main(argv: Iterable[str] | None = None) -> None:
     scene = _load_scene(args.scene)
     if args.feedback_only:
         if not args.feedback:
-            raise SystemExit("feedback is required when using --feedback-only")
+            print(json_output.to_json(json_output.failure("feedback is required when using --feedback-only")))
+            raise SystemExit(1)
         updated_scene = compiler.apply_feedback_to_scene(scene, args.feedback)
         if isinstance(updated_scene, compiler.Error):
-            print(json.dumps({"error": updated_scene.error, "context": updated_scene.context}, indent=2))
+            print(
+                json_output.to_json(
+                    json_output.failure(updated_scene.error, context=updated_scene.context)
+                )
+            )
             raise SystemExit(1)
-        print(json.dumps(asdict(updated_scene), indent=2))
+        print(json_output.to_json(json_output.success(asdict(updated_scene))))
         return
 
     if args.feedback:
         # Apply heuristic feedback before validation hooks so users see deterministic adjustments.
         updated_scene = compiler.apply_feedback_to_scene(scene, args.feedback)
         if isinstance(updated_scene, compiler.Error):
-            raise SystemExit(updated_scene.error)
+            print(json_output.to_json(json_output.failure(updated_scene.error)))
+            raise SystemExit(1)
         scene = updated_scene
 
     hooks = UIIntegrationHooks()
     preflight_error = hooks.preflight_scene(scene)
     if preflight_error:
-        raise SystemExit(preflight_error)
+        print(json_output.to_json(json_output.failure(preflight_error)))
+        raise SystemExit(1)
 
     try:
         compiler_service = PromptCompilerService()
@@ -79,9 +87,10 @@ def main(argv: Iterable[str] | None = None) -> None:
         # Persist the compiled bundle for downstream launchers while echoing JSON for CLI users.
         payload = hooks.publish_prompt(assembly)
     except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
+        print(json_output.to_json(json_output.failure(str(exc))))
+        raise SystemExit(1) from exc
 
-    print(json.dumps(payload, indent=2))
+    print(json_output.to_json(json_output.success(payload)))
 
 
 def _load_scene_from_json(scene_json: dict) -> SceneDescription:
