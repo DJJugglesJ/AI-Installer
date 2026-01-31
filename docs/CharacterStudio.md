@@ -27,6 +27,19 @@ Character Studio manages the character lifecycle for prompting and LoRA training
   - `"char_a_token, character portrait, short_stature, freckles, casual_outfit, standing, looking_at_viewer"`
 - Avoid relying on improvised names as identifiers; keep captions consistent with the trigger token and descriptive tags.
 
+## Trigger token serialization parity
+Character Cards accept both a single `trigger_token` and a list of `trigger_tokens`. Serialization and deserialization always normalize these fields to keep them in parity:
+- The parity rule is **`trigger_token` must be present in `trigger_tokens`**. When data is loaded or saved, the system enforces that rule automatically.
+- Whitespace is trimmed, empty tokens are dropped, and duplicates are removed while preserving order.
+- If only `trigger_token` is provided, `trigger_tokens` is automatically set to `[trigger_token]`.
+- If only `trigger_tokens` is provided, `trigger_token` is automatically set to the first entry in the list.
+- If both are provided and differ, `trigger_token` is inserted at the front of `trigger_tokens` if it is not already present.
+
+**Examples**
+- Input: `{"trigger_token": "hero_token"}` → Stored: `{"trigger_token": "hero_token", "trigger_tokens": ["hero_token"]}`
+- Input: `{"trigger_tokens": ["hero_token", "alias_token"]}` → Stored: `{"trigger_token": "hero_token", "trigger_tokens": ["hero_token", "alias_token"]}`
+- Input: `{"trigger_token": "hero_token", "trigger_tokens": ["alias_token", "hero_token", "alias_token"]}` → Stored: `{"trigger_token": "hero_token", "trigger_tokens": ["alias_token", "hero_token"]}`
+
 ## Training workflow (Web Launcher UI)
 - Open **Character Studio** in the web launcher and choose the **Training** tab for a character.
 - **Export Training Pack** creates a ZIP archive under the character dataset folder (and writes a `training_config.json` inside `training_pack/`).
