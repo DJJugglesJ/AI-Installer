@@ -15,7 +15,6 @@ import os
 import subprocess
 import threading
 import uuid
-import re
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -33,6 +32,13 @@ from modules.runtime.character_studio import services as character_services
 from modules.runtime.character_studio import tagging as character_tagging
 from modules.runtime.character_studio import trainer as character_trainer
 from modules.runtime.hardware.gpu_diagnostics import collect_gpu_diagnostics
+from modules.runtime.manifest_validation import (
+    MANIFEST_UPDATE_SCHEMA,
+    apply_manifest_updates,
+    normalize_manifest_entry,
+    slugify,
+    validate_manifest_items,
+)
 from modules.runtime.prompt_builder import compiler
 from modules.runtime.prompt_builder.history import PromptHistoryStore
 from modules.runtime.prompt_builder.services import UIIntegrationHooks
@@ -49,8 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 def _slugify(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
-    return normalized.strip("-")
+    return slugify(value)
 
 
 PAIRING_SCHEMA: Dict[str, object] = {
@@ -221,43 +226,8 @@ class WebLauncherAPI:
             logger.warning(message)
             return {**base_payload, "source": source, "errors": [message], "has_errors": True}
 
-        validated_items: List[Dict[str, object]] = []
-        for idx, item in enumerate(items):
-            if not isinstance(item, dict):
-                message = f"{manifest_path.name} items[{idx}] is not an object"
-                logger.warning(message)
-                errors.append(message)
-                continue
-
-            entry = dict(item)
-            entry.setdefault("tags", [])
-            entry.setdefault("license", "")
-            entry.setdefault("notes", "")
-            entry.setdefault("version", "")
-            entry.setdefault("size_bytes", None)
-            entry.setdefault("checksum", "")
-
-            issues: List[str] = []
-            name_value = entry.get("name")
-            if not isinstance(name_value, str) or not name_value.strip():
-                issues.append("Manifest entries must include a name")
-            entry_slug = entry.get("slug") or (name_value and _slugify(name_value))
-            entry["slug"] = entry_slug or ""
-            if not entry["slug"]:
-                issues.append("Manifest entries must include a slug or valid name")
-
-            if not entry.get("url") and not entry.get("filename"):
-                issues.append("Entries should include a download url or filename")
-            if not isinstance(entry.get("tags"), list):
-                issues.append("tags must be a list")
-                entry["tags"] = []
-
-            entry["health"] = "ok" if not issues else "warning"
-            entry["issues"] = issues
-            if issues:
-                errors.extend([f"{manifest_path.name} {entry['name'] or entry['slug']}: {msg}" for msg in issues])
-
-            validated_items.append(entry)
+        validated_items, item_errors = validate_manifest_items(items, manifest_path.name)
+        errors.extend(item_errors)
 
         return {
             "source": source,
@@ -291,6 +261,70 @@ class WebLauncherAPI:
         if normalized not in index:
             raise ValueError(f"Manifest item '{item_id}' not found in {manifest_type}")
         return {"item": index[normalized], "type": manifest_type, "source": manifest.get("source"), "errors": manifest.get("errors", [])}
+
+    def validate_manifest(self, manifest_type: str) -> Dict[str, object]:
+        manifest = self.list_manifest(manifest_type)
+        return {
+            "type": manifest_type,
+            "items": manifest.get("items", []),
+            "errors": manifest.get("errors", []),
+            "has_errors": manifest.get("has_errors", False),
+            "source": manifest.get("source"),
+        }
+
+    def update_manifest_item(self, manifest_type: str, item_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        if manifest_type not in {"models", "loras"}:
+            raise ValueError("Manifest type must be 'models' or 'loras'")
+        errors = config_service.validate_against_schema(payload, MANIFEST_UPDATE_SCHEMA)
+        if errors:
+            raise ValueError("; ".join(errors))
+        if not payload:
+            raise ValueError("At least one field must be provided for manifest updates")
+
+        manifest_path = self.manifest_dir / f"{manifest_type}.json"
+        if not manifest_path.exists():
+            raise ValueError(f"Manifest {manifest_path.name} not found")
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Failed to parse {manifest_path.name}: {exc}") from exc
+        if not isinstance(manifest_payload, dict):
+            raise ValueError(f"Manifest {manifest_path.name} must be a JSON object")
+
+        items = manifest_payload.get("items", [])
+        if not isinstance(items, list):
+            raise ValueError(f"Manifest {manifest_path.name} items must be a list")
+
+        normalized_id = _slugify(item_id)
+        target_index: Optional[int] = None
+        for idx, entry in enumerate(items):
+            if not isinstance(entry, dict):
+                continue
+            candidate = entry.get("slug") or _slugify(entry.get("name", ""))
+            if candidate and _slugify(candidate) == normalized_id:
+                target_index = idx
+                break
+        if target_index is None:
+            raise ValueError(f"Manifest item '{item_id}' not found in {manifest_type}")
+
+        updates = dict(payload)
+        updated_entry = apply_manifest_updates(items[target_index], updates)
+        normalized_entry, issues = normalize_manifest_entry(updated_entry)
+        if issues:
+            detail = "; ".join(issues)
+            raise ValueError(f"Updated manifest entry is invalid: {detail}")
+
+        items[target_index] = updated_entry
+        manifest_payload["items"] = items
+        manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
+
+        detail = self.get_manifest_item(manifest_type, normalized_entry.get("slug", item_id))
+        return {
+            "item": detail.get("item"),
+            "type": manifest_type,
+            "errors": detail.get("errors", []),
+            "has_errors": detail.get("errors", []) != [],
+        }
 
     def _tail_log(self, log_path: Path, lines: int = 20) -> str:
         if not log_path.exists():
@@ -928,6 +962,22 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 loras = payload.get("loras", [])
                 jobs = self.api.start_installation(models=models, loras=loras)
                 self._send_json({"jobs": jobs}, status=HTTPStatus.ACCEPTED)
+            elif path.startswith("/api/manifests/"):
+                payload = self._read_json_body()
+                _, _, manifest_type, *rest = path.strip("/").split("/")
+                if not rest:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Manifest action required")
+                    return
+                if rest == ["validate"]:
+                    result = self.api.validate_manifest(manifest_type)
+                    self._send_json(result)
+                    return
+                if len(rest) >= 2 and rest[1] == "update":
+                    item_id = rest[0]
+                    result = self.api.update_manifest_item(manifest_type, item_id, payload)
+                    self._send_json(result)
+                    return
+                self.send_error(HTTPStatus.NOT_FOUND, "Unknown manifest action")
             elif path == "/api/tasks":
                 payload = self._read_json_body()
                 tool_id = payload.get("tool")

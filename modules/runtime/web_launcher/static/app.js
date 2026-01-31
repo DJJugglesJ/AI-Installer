@@ -6,6 +6,7 @@ const authTokenInput = document.getElementById("auth-token");
 const authState = document.getElementById("auth-state");
 const manifestTable = document.getElementById("manifest-table");
 const manifestDetail = document.getElementById("manifest-detail");
+const manifestEditor = document.getElementById("manifest-editor");
 const manifestSearch = document.getElementById("manifest-search");
 const filterModels = document.getElementById("filter-models");
 const filterLoras = document.getElementById("filter-loras");
@@ -943,6 +944,15 @@ function hydrateManifests(manifests) {
   renderManifestTable();
 }
 
+async function refreshManifests() {
+  try {
+    const manifests = await fetchJson("/api/manifests");
+    hydrateManifests(manifests);
+  } catch (err) {
+    setPanelError(manifestTable, `Failed to refresh manifests: ${err.message}`, refreshManifests);
+  }
+}
+
 function renderHealthPill(status) {
   const pill = document.createElement("span");
   pill.className = `pill inline ${status || "ok"}`;
@@ -1000,15 +1010,147 @@ function renderManifestDetail(detail) {
   }
 }
 
+function renderManifestEditor(detail) {
+  if (!manifestEditor) return;
+  manifestEditor.innerHTML = "";
+  if (!detail || !detail.item) {
+    manifestEditor.innerHTML = '<p class="muted">No item selected.</p>';
+    return;
+  }
+
+  const item = detail.item;
+  const typeLabel = detail.type === "models" ? "Model" : "LoRA";
+  const header = document.createElement("div");
+  header.className = "detail-header";
+  header.innerHTML = `<strong>Edit ${typeLabel} Metadata</strong><span class="muted">${item.name}</span>`;
+  manifestEditor.appendChild(header);
+
+  const form = document.createElement("form");
+  form.className = "form-grid";
+  form.innerHTML = `
+    <label class="full">Tags (comma-separated)
+      <input type="text" name="tags" placeholder="portrait, cinematic" />
+    </label>
+    <label class="full">Checksum
+      <input type="text" name="checksum" placeholder="sha256:..." />
+    </label>
+    <label class="full">Metadata (JSON)
+      <textarea name="metadata" rows="4" placeholder='{"origin":"curated"}'></textarea>
+    </label>
+  `;
+  const tagsInput = form.querySelector('input[name="tags"]');
+  const checksumInput = form.querySelector('input[name="checksum"]');
+  const metadataInput = form.querySelector('textarea[name="metadata"]');
+
+  tagsInput.value = (item.tags || []).join(", ");
+  checksumInput.value = item.checksum || "";
+  metadataInput.value = JSON.stringify(item.metadata || {}, null, 2);
+
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "actions-row";
+  const saveButton = document.createElement("button");
+  saveButton.type = "submit";
+  saveButton.textContent = "Save Updates";
+  const validateButton = document.createElement("button");
+  validateButton.type = "button";
+  validateButton.className = "secondary";
+  validateButton.textContent = "Run Validation";
+  const result = document.createElement("div");
+  result.className = "result";
+  actionsRow.appendChild(saveButton);
+  actionsRow.appendChild(validateButton);
+  actionsRow.appendChild(result);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await updateManifestEntry(detail, tagsInput.value, checksumInput.value, metadataInput.value, result);
+  });
+
+  validateButton.addEventListener("click", async () => {
+    await validateManifest(detail, result);
+  });
+
+  manifestEditor.appendChild(form);
+  manifestEditor.appendChild(actionsRow);
+}
+
+function parseManifestTags(value) {
+  return value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length);
+}
+
+async function updateManifestEntry(detail, tagsValue, checksumValue, metadataValue, resultNode) {
+  if (!detail || !detail.item) return;
+  resultNode.textContent = "Saving updates…";
+  let metadataPayload = {};
+  if (metadataValue && metadataValue.trim().length) {
+    try {
+      metadataPayload = JSON.parse(metadataValue);
+    } catch (error) {
+      resultNode.textContent = "Metadata must be valid JSON.";
+      return;
+    }
+  }
+
+  const payload = {
+    tags: parseManifestTags(tagsValue),
+    checksum: checksumValue.trim(),
+    metadata: metadataPayload,
+  };
+
+  try {
+    const type = detail.type;
+    const itemId = detail.item.slug || detail.item.name;
+    const reloadItem = { ...detail.item, type: type === "models" ? "Model" : "LoRA" };
+    const response = await fetchJson(`/api/manifests/${type}/${encodeURIComponent(itemId)}/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    resultNode.textContent = response.has_errors
+      ? `Saved with validation warnings (${response.errors.length}).`
+      : "Saved updates.";
+    await refreshManifests();
+    await loadManifestDetail(reloadItem);
+  } catch (err) {
+    resultNode.textContent = `Failed to save updates: ${err.message}`;
+  }
+}
+
+async function validateManifest(detail, resultNode) {
+  if (!detail || !detail.item) return;
+  resultNode.textContent = "Running validation…";
+  try {
+    const reloadItem = { ...detail.item, type: detail.type === "models" ? "Model" : "LoRA" };
+    const response = await fetchJson(`/api/manifests/${detail.type}/validate`, { method: "POST" });
+    resultNode.textContent = response.has_errors
+      ? `Validation found ${response.errors.length} issues.`
+      : "Manifest validation passed.";
+    await refreshManifests();
+    await loadManifestDetail(reloadItem);
+  } catch (err) {
+    resultNode.textContent = `Validation failed: ${err.message}`;
+  }
+}
+
 async function loadManifestDetail(item) {
   if (!manifestDetail) return;
   setPanelLoading(manifestDetail, "Loading manifest detail…");
+  if (manifestEditor) {
+    setPanelLoading(manifestEditor, "Loading manifest editor…");
+  }
   try {
     const type = item.type === "Model" ? "models" : "loras";
     const detail = await fetchJson(`/api/manifests/${type}/${encodeURIComponent(item.slug || item.name)}`);
     renderManifestDetail(detail);
+    renderManifestEditor(detail);
   } catch (err) {
     setPanelError(manifestDetail, `Failed to load manifest detail: ${err.message}`, () => loadManifestDetail(item));
+    if (manifestEditor) {
+      setPanelError(manifestEditor, `Failed to load manifest editor: ${err.message}`, () => loadManifestDetail(item));
+    }
   }
 }
 
