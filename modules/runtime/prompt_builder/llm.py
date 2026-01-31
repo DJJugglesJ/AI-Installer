@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
-import re
-from dataclasses import asdict
 from typing import Dict, Iterable, List, Optional
 
 from modules.runtime.character_studio.models import CharacterCard
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 
 from .models import CharacterRef, LoRACall, PromptAssembly, SceneDescription
+from . import llm_clients
 
 
 class SceneLLMAdapter:
@@ -80,52 +79,7 @@ class SceneLLMAdapter:
         rely on stable behavior until a full LLM client is introduced.
         """
 
-        updated = SceneDescription(
-            world=scene.world,
-            setting=scene.setting,
-            mood=scene.mood,
-            style=scene.style,
-            nsfw_level=scene.nsfw_level,
-            camera=scene.camera,
-            characters=[CharacterRef(**asdict(ref)) for ref in scene.characters],
-            extra_elements=list(scene.extra_elements),
-        )
-
-        if not feedback_text or not feedback_text.strip():
-            return updated
-
-        # Interpret feedback as key:value directives to keep updates deterministic for CLI usage.
-        directives = re.split(r"[\n;]+", feedback_text)
-        for directive in directives:
-            if ":" not in directive:
-                continue
-            key, value = directive.split(":", 1)
-            key = key.strip().lower()
-            value = value.strip()
-            if not value:
-                continue
-
-            if key in {"world", "setting", "mood", "style", "camera", "nsfw_level"}:
-                setattr(updated, key, value)
-            elif key in {"add element", "add elements", "elements", "extra", "extra_elements"}:
-                for part in [v.strip() for v in value.split(",") if v.strip()]:
-                    if part not in updated.extra_elements:
-                        updated.extra_elements.append(part)
-            elif key.startswith("character"):
-                _, _, remainder = key.partition(" ")
-                target_slot = remainder.strip()
-                if not target_slot:
-                    continue
-                for character in updated.characters:
-                    if character.slot_id == target_slot:
-                        if "role=" in value:
-                            character.role = value.split("role=", 1)[1].strip()
-                        elif "override_prompt_snippet=" in value:
-                            character.override_prompt_snippet = value.split(
-                                "override_prompt_snippet=", 1
-                            )[1].strip()
-
-        return updated
+        return llm_clients.DeterministicFeedbackProvider().apply_scene_feedback(scene, feedback_text)
 
     @staticmethod
     def _character_prompt_snippet(character: CharacterRef, card: Optional[CharacterCard]) -> str:

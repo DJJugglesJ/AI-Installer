@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from .llm import SceneLLMAdapter
+from . import llm_clients
 from .models import SceneDescription, validate_scene
 
 
@@ -20,7 +20,6 @@ def apply_feedback_to_scene(scene: SceneDescription, feedback_text: str) -> Scen
         raise ValueError("feedback_text must be a string")
 
     validate_scene(scene)
-    adapter = SceneLLMAdapter()
-    updated_scene = adapter.apply_feedback(scene, feedback_text)
+    updated_scene = llm_clients.apply_scene_feedback(scene, feedback_text)
     validate_scene(updated_scene)
     return updated_scene
