@@ -8,10 +8,10 @@ import shlex
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from . import dataset
-from .models import CharacterCard, CharacterStudioError
+from .models import CharacterCard, CharacterStudioError, SchemaValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,90 @@ def parse_tag_text(tag_text: str) -> List[str]:
     """Parse tag text into a normalized list."""
 
     return _parse_tag_output(tag_text)
+
+
+def _normalize_tag_list(tags: Iterable[str]) -> List[str]:
+    normalized: List[str] = []
+    for tag in tags:
+        if not isinstance(tag, str):
+            raise TaggingError("Tags must be strings", context={"tag": tag})
+        stripped = tag.strip()
+        if stripped and stripped not in normalized:
+            normalized.append(stripped)
+    return normalized
+
+
+def _coerce_character_card(character_card: CharacterCard | Dict[str, object]) -> CharacterCard:
+    if isinstance(character_card, CharacterCard):
+        card = character_card
+    elif isinstance(character_card, dict):
+        card = CharacterCard.from_dict(character_card)
+    else:
+        raise TaggingError(
+            "character_card must be a CharacterCard or dict payload",
+            context={"type": type(character_card).__name__},
+        )
+
+    try:
+        card.normalize_triggers()
+        card.validate()
+    except SchemaValidationError as exc:
+        raise TaggingError("Invalid Character Card input", context={"errors": exc.context}) from exc
+    return card
+
+
+def _extract_existing_tags(image_context: Dict[str, object]) -> List[str]:
+    existing_tags: List[str] = []
+    if "existing_tags" in image_context and image_context["existing_tags"] is not None:
+        if not isinstance(image_context["existing_tags"], list):
+            raise TaggingError("existing_tags must be a list of strings", context={"existing_tags": image_context})
+        existing_tags.extend(_normalize_tag_list(image_context["existing_tags"]))
+    caption = image_context.get("caption")
+    if isinstance(caption, str) and caption.strip():
+        existing_tags.extend(_parse_tag_output(caption))
+    return _normalize_tag_list(existing_tags)
+
+
+def batch_tag_images(
+    character_card: CharacterCard | Dict[str, object], image_contexts: Iterable[Dict[str, object]]
+) -> Dict[str, object]:
+    """Generate tags for multiple images using a Character Card and context."""
+
+    card = _coerce_character_card(character_card)
+    contexts = list(image_contexts)
+    if not contexts:
+        return {"tags_by_image": {}, "metadata": {"character_id": card.id, "count": 0}}
+
+    base_tags: List[str] = []
+    if card.trigger_token:
+        base_tags.append(card.trigger_token)
+    base_tags.extend(card.trigger_tokens)
+    base_tags.extend(card.anatomy_tags)
+    base_tags.extend(card.wardrobe)
+    if card.default_prompt_snippet:
+        base_tags.append(card.default_prompt_snippet)
+    base_tags = _normalize_tag_list(base_tags)
+
+    tags_by_image: Dict[str, List[str]] = {}
+    for context in contexts:
+        if not isinstance(context, dict):
+            raise TaggingError("image_contexts must contain dict entries", context={"context": context})
+        image_path = context.get("image_path")
+        if not isinstance(image_path, str) or not image_path.strip():
+            raise TaggingError("image_path is required in image_context", context={"context": context})
+
+        extra_tags = context.get("extra_tags", [])
+        if extra_tags and not isinstance(extra_tags, list):
+            raise TaggingError("extra_tags must be a list of strings", context={"extra_tags": extra_tags})
+
+        existing_tags = _extract_existing_tags(context)
+        merged = _normalize_tag_list(base_tags + existing_tags + _normalize_tag_list(extra_tags or []))
+        tags_by_image[image_path] = merged
+
+    return {
+        "tags_by_image": tags_by_image,
+        "metadata": {"character_id": card.id, "count": len(tags_by_image)},
+    }
 
 
 def _write_caption(image_path: Path, tags: List[str]) -> str:
