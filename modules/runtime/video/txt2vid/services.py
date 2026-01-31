@@ -9,6 +9,18 @@ from .models import TextToVideoRequest
 TASK_KIND = "txt2vid"
 
 
+def _parse_int_field(value, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be an integer")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped and stripped.lstrip("+-").isdigit():
+            return int(stripped)
+    raise ValueError(f"{field_name} must be an integer")
+
+
 def run_txt2vid(request: TextToVideoRequest):
     task = new_task(TASK_KIND, payload=request.to_dict())
     mark_running(task)
@@ -24,5 +36,9 @@ def run_txt2vid_from_payload(payload):
     prompt = payload.get("prompt")
     if not prompt:
         raise ValueError("prompt is required for txt2vid")
-    request = TextToVideoRequest(prompt=prompt, duration=int(payload.get("duration", 4)))
+    duration_value = payload["duration"] if "duration" in payload else 4
+    request = TextToVideoRequest(
+        prompt=prompt,
+        duration=_parse_int_field(duration_value, "duration"),
+    )
     return run_txt2vid(request)
