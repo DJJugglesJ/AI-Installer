@@ -2,6 +2,7 @@
 
 The Character Studio CLI builds on Character Cards to prepare datasets, tag images, and export training packs.
 Commands live in `modules/runtime/character_studio/card_cli.py`.
+The Web Launcher UI also exposes Character Studio workflows via `modules/runtime/web_launcher/static/character_studio.html`.
 
 ## Character Cards
 - Create a card:
@@ -11,6 +12,10 @@ Commands live in `modules/runtime/character_studio/card_cli.py`.
 - Edit metadata:
   ```bash
   python -m modules.runtime.character_studio.card_cli edit alice --nsfw --lora-default-strength 0.8
+  ```
+- Attach reference images (copies files into the card's `character_cards/<id>/references` folder and stores relative paths on the card):
+  ```bash
+  python -m modules.runtime.character_studio.card_cli attach-images alice ./refs/alice_01.png ./refs/alice_02.png
   ```
 - Show or list cards:
   ```bash
@@ -52,3 +57,11 @@ Commands live in `modules/runtime/character_studio/card_cli.py`.
   python -m modules.runtime.character_studio.card_cli train alice
   ```
   When a LoRA file appears at the expected output path, the Character Card is updated with the path and default strength.
+
+## Feedback directives (deterministic)
+
+`apply_feedback_to_character` in `models.py` expects key/value directives separated by semicolons or new lines. Example:
+```
+anatomy_tags: freckles, bob cut; wardrobe: hoodie; nsfw_allowed: false; metadata.version: 1.0
+```
+Supported keys include `description`, `default_prompt_snippet`, `trigger_token`, `trigger_tokens`, `anatomy_tags`, `wardrobe`, `reference_images`, `nsfw_allowed`, and `metadata.<key>`.

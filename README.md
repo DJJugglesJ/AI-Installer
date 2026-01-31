@@ -44,8 +44,8 @@ All new/updated scripts enforce `set -euo pipefail`, quote variables, and are sa
 
 ### Python runtime modules (`modules/runtime`)
 Schema-first runtimes that expose structured JSON workflows used by the web launcher and CLI:
-- `prompt_builder/` – Scene-driven prompt compiler with LLM-backed positive/negative prompts, LoRA call lists, and `apply_feedback_to_scene` for iterative refinements.
-- `character_studio/` – Character card management, dataset prep, captioning/tagging helpers, and `apply_feedback_to_character` for LLM-guided edits.
+- `prompt_builder/` – Scene-driven prompt compiler with deterministic/heuristic prompt assembly, LoRA call lists, and `apply_feedback_to_scene` directives for iterative refinements.
+- `character_studio/` – Character card management, dataset prep, captioning/tagging helpers, and `apply_feedback_to_character` for deterministic key/value updates.
 - `web_launcher/` – HTTP server routes that surface installs, manifests, prompt compilation, and character registry reads to the browser UI. Configurable via `AIHUB_WEB_HOST`, `AIHUB_WEB_PORT`, and `AIHUB_WEB_TOKEN`/`--auth-token`.
 - `hardware/` – GPU/CPU probes surfaced to launchers and logs.
 - `audio/` and `video/` – multimedia helpers kept separate from install logic.
@@ -100,7 +100,8 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 - Start with `./launcher/start_web_launcher.sh` (Linux/WSL) or the matching PowerShell/Batch/macOS wrappers.
 - Defaults to `http://127.0.0.1:3939`; override host/port with `AIHUB_WEB_HOST`/`AIHUB_WEB_PORT`.
 - Protect APIs with `AIHUB_WEB_TOKEN` or `--auth-token`.
-- Surfaced routes include install triggers, manifest browsing, prompt compilation, character registry reads, and job logs.
+- The Web Launcher UI already includes Guided Scene Builder + Quick Prompt for Prompt Builder and a Character Studio page for cards, datasets, and tag helpers.
+- Surfaced routes include install triggers, manifest browsing, prompt compilation (with history saved to `~/.cache/aihub/prompt_builder/prompt_history.json`), character registry reads, and job logs. Prompt bundles are written to `~/.cache/aihub/prompt_builder/prompt_bundle.json` unless `PROMPT_BUNDLE_PATH` is set.
 
 ### Command-line shortcuts
 - Headless install: `./install.sh --headless --gpu <nvidia|amd|intel|cpu> --install <webui|kobold|sillytavern|loras|models>`
