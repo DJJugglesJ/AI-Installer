@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +9,7 @@ from modules.runtime.character_studio import dataset, models, tagging
 from modules.runtime.character_studio.dataset import DatasetOperationError
 from modules.runtime.character_studio.models import CharacterCard, SchemaValidationError
 from modules.runtime.character_studio.tagging import TaggingError
+from modules.runtime.web_launcher.server import WebLauncherAPI
 
 
 @pytest.fixture()
@@ -108,6 +110,73 @@ def test_auto_tag_images_reports_missing_tagger(sandbox):
         tagging.auto_tag_images(card.id, "base", tagger_cmd="definitely_missing_cmd {image}")
 
     assert excinfo.value.context["command"][0] == "definitely_missing_cmd"
+
+
+def test_web_launcher_dataset_review_endpoints(sandbox, tmp_path):
+    card_root, dataset_root = sandbox
+    card = CharacterCard(
+        id="hana",
+        name="Hana",
+        nsfw_allowed=False,
+        anatomy_tags=["ranger"],
+    )
+    card.save()
+
+    dataset.create_dataset_structure(card.id)
+    subset_dir = dataset_root / "characters" / card.id / "base"
+    image_path = subset_dir / "sample.png"
+    image_path.write_bytes(b"")
+    caption_path = subset_dir / "sample.txt"
+    caption_path.write_text("tag1, tag2", encoding="utf-8")
+
+    api = WebLauncherAPI(
+        project_root=Path(__file__).resolve().parents[4],
+        log_dir=tmp_path / "logs",
+        history_path=tmp_path / "history.json",
+    )
+
+    images = api.list_dataset_images(card.id, "base")
+    assert images["count"] == 1
+    assert images["items"][0]["caption_exists"] is True
+
+    caption = api.get_dataset_caption(card.id, {"image_path": str(image_path)})
+    assert caption["caption"] == "tag1, tag2"
+    assert caption["tags"] == ["tag1", "tag2"]
+
+    updated = api.edit_dataset_tags(card.id, {"image_path": str(image_path), "tags": ["alpha", "beta"]})
+    assert updated["tags"] == ["alpha", "beta"]
+    assert caption_path.read_text(encoding="utf-8") == "alpha, beta"
+
+
+def test_web_launcher_bulk_tag_edit(sandbox, tmp_path):
+    card_root, dataset_root = sandbox
+    card = CharacterCard(
+        id="ivy",
+        name="Ivy",
+        nsfw_allowed=False,
+        anatomy_tags=["pilot"],
+    )
+    card.save()
+
+    dataset.create_dataset_structure(card.id)
+    subset_dir = dataset_root / "characters" / card.id / "base"
+    image_paths = []
+    for name in ("first.png", "second.png"):
+        image_path = subset_dir / name
+        image_path.write_bytes(b"")
+        image_path.with_suffix(".txt").write_text("starter", encoding="utf-8")
+        image_paths.append(str(image_path))
+
+    api = WebLauncherAPI(
+        project_root=Path(__file__).resolve().parents[4],
+        log_dir=tmp_path / "logs",
+        history_path=tmp_path / "history.json",
+    )
+
+    result = api.bulk_edit_dataset_tags(card.id, {"image_paths": image_paths, "append_tags": ["extra"]})
+    assert result["count"] == 2
+    assert (subset_dir / "first.txt").read_text(encoding="utf-8") == "starter, extra"
+    assert (subset_dir / "second.txt").read_text(encoding="utf-8") == "starter, extra"
 
 
 def test_schema_validation_rejects_blank_wardrobe_item():

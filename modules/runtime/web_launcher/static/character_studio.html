@@ -98,6 +98,34 @@
               <div id="cs-dataset-result" class="result full"></div>
             </form>
           </div>
+          <div class="panel-section">
+            <h3>Dataset review</h3>
+            <p class="muted">Inspect images, edit caption text, and persist tag updates.</p>
+            <div class="panel-grid">
+              <div class="panel-card">
+                <label class="full">
+                  Review subset
+                  <input id="cs-review-subset" type="text" value="base" />
+                </label>
+                <button id="cs-review-refresh" type="button" class="secondary">Load images</button>
+                <div id="cs-review-list" class="cs-list">
+                  <div class="placeholder"><span class="spinner" aria-hidden="true"></span> Select a card to load images.</div>
+                </div>
+              </div>
+              <div class="panel-card">
+                <div id="cs-review-detail" class="muted">Select an image to review its caption.</div>
+                <form id="cs-review-form" class="form-grid">
+                  <label class="full">Image path<input id="cs-review-image" type="text" readonly /></label>
+                  <label class="full">Caption<textarea id="cs-review-caption" rows="3" placeholder="comma separated tags"></textarea></label>
+                  <label class="full">Tags<input id="cs-review-tags" type="text" placeholder="tag1, tag2" /></label>
+                  <div class="actions-row full">
+                    <button id="cs-review-save" type="button">Save caption</button>
+                    <div id="cs-review-result" class="result"></div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="tab-panel" data-panel="training">
