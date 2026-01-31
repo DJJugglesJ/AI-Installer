@@ -27,6 +27,8 @@ def _api(tmp_path: Path) -> server.WebLauncherAPI:
             "size_bytes": 123,
             "checksum": "old",
             "license": "MIT",
+            "training_data": "Unknown",
+            "recommended_precision": "fp16",
             "tags": ["baseline"],
             "notes": "",
         },
@@ -42,6 +44,8 @@ def _api(tmp_path: Path) -> server.WebLauncherAPI:
             "size_bytes": 456,
             "checksum": "old-lora",
             "license": "MIT",
+            "training_data": "Unknown",
+            "recommended_precision": "fp16",
             "tags": ["starter"],
             "notes": "",
         },
@@ -54,12 +58,22 @@ def test_manifest_update_round_trip(tmp_path: Path) -> None:
     result = api.update_manifest_item(
         "models",
         "sample-model",
-        {"tags": ["updated"], "checksum": "new", "metadata": {"origin": "unit-test"}},
+        {
+            "tags": ["updated"],
+            "checksum": "new",
+            "metadata": {"origin": "unit-test"},
+            "license": "Apache-2.0",
+            "training_data": "Community curated",
+            "recommended_precision": "bf16",
+        },
     )
 
     assert result["item"]["tags"] == ["updated"]
     assert result["item"]["checksum"] == "new"
     assert result["item"]["metadata"] == {"origin": "unit-test"}
+    assert result["item"]["license"] == "Apache-2.0"
+    assert result["item"]["training_data"] == "Community curated"
+    assert result["item"]["recommended_precision"] == "bf16"
     assert result["has_errors"] is False
 
     manifest_path = api.manifest_dir / "models.json"
@@ -68,6 +82,9 @@ def test_manifest_update_round_trip(tmp_path: Path) -> None:
     assert stored_item["tags"] == ["updated"]
     assert stored_item["checksum"] == "new"
     assert stored_item["metadata"] == {"origin": "unit-test"}
+    assert stored_item["license"] == "Apache-2.0"
+    assert stored_item["training_data"] == "Community curated"
+    assert stored_item["recommended_precision"] == "bf16"
     assert "health" not in stored_item
 
 
@@ -86,5 +103,16 @@ def test_manifest_update_rejects_bad_payload(tmp_path: Path) -> None:
         api.update_manifest_item("models", "sample-model", {"tags": "bad"})
     except ValueError as exc:
         assert "tags" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected manifest update schema validation to fail")
+
+
+def test_manifest_update_rejects_unknown_fields(tmp_path: Path) -> None:
+    api = _api(tmp_path)
+
+    try:
+        api.update_manifest_item("models", "sample-model", {"unexpected": "value"})
+    except ValueError as exc:
+        assert "Unexpected field" in str(exc)
     else:  # pragma: no cover - defensive
         raise AssertionError("Expected manifest update schema validation to fail")

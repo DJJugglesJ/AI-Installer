@@ -12,6 +12,9 @@ MANIFEST_UPDATE_SCHEMA: Dict[str, object] = {
         "tags": {"type": "array", "items": {"type": "string"}},
         "checksum": {"type": "string"},
         "metadata": {"type": "object"},
+        "license": {"type": "string"},
+        "training_data": {"type": "string"},
+        "recommended_precision": {"type": "string"},
     },
     "additionalProperties": False,
 }
@@ -28,6 +31,8 @@ def normalize_manifest_entry(entry: Dict[str, object]) -> Tuple[Dict[str, object
     normalized.setdefault("license", "")
     normalized.setdefault("notes", "")
     normalized.setdefault("version", "")
+    normalized.setdefault("training_data", "")
+    normalized.setdefault("recommended_precision", "")
     normalized.setdefault("size_bytes", None)
     normalized.setdefault("checksum", "")
     normalized.setdefault("metadata", {})
@@ -54,6 +59,21 @@ def normalize_manifest_entry(entry: Dict[str, object]) -> Tuple[Dict[str, object
     if metadata_value is not None and not isinstance(metadata_value, dict):
         issues.append("metadata must be an object")
         normalized["metadata"] = {}
+
+    license_value = normalized.get("license")
+    if license_value is not None and not isinstance(license_value, str):
+        issues.append("license must be a string")
+        normalized["license"] = ""
+
+    training_data_value = normalized.get("training_data")
+    if training_data_value is not None and not isinstance(training_data_value, str):
+        issues.append("training_data must be a string")
+        normalized["training_data"] = ""
+
+    precision_value = normalized.get("recommended_precision")
+    if precision_value is not None and not isinstance(precision_value, str):
+        issues.append("recommended_precision must be a string")
+        normalized["recommended_precision"] = ""
 
     checksum_value = normalized.get("checksum")
     if checksum_value is not None and not isinstance(checksum_value, str):
@@ -91,7 +111,14 @@ def validate_manifest_items(items: List[object], manifest_label: str) -> Tuple[L
 
 def apply_manifest_updates(entry: Dict[str, object], updates: Dict[str, object]) -> Dict[str, object]:
     updated = dict(entry)
-    for field in ("tags", "checksum", "metadata"):
+    for field in (
+        "tags",
+        "checksum",
+        "metadata",
+        "license",
+        "training_data",
+        "recommended_precision",
+    ):
         if field in updates:
             updated[field] = updates[field]
     return updated

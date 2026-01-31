@@ -9,6 +9,8 @@
       "size_bytes": 6938041050,
       "checksum": "67AB2FD8EC439A89B3FEDB15CC65F54336AF163C7EB5E4F2ACC98F090A29B0B3",
       "license": "Unknown (refer to CivitAI listing)",
+      "training_data": "Unknown (refer to CivitAI listing)",
+      "recommended_precision": "fp16",
       "tags": ["western art", "my little pony", "base model"],
       "notes": "Top-rated XL checkpoint with pony diffusion focus"
     },
@@ -20,6 +22,8 @@
       "size_bytes": 6938040682,
       "checksum": "BEFC694A296F75E996488EBF9F9DB8A1493BD059B6E704B975829E87D5AEB4FA",
       "license": "Unknown (refer to CivitAI listing)",
+      "training_data": "Unknown (refer to CivitAI listing)",
+      "recommended_precision": "fp16",
       "tags": ["anime", "base model"],
       "notes": "Anime-focused SDXL checkpoint"
     },

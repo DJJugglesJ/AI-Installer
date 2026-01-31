@@ -12,8 +12,8 @@
 
 ## Validation and metadata fields
 - **Required integrity fields**: `url`, `size`, `sha256`, and optional `mirrors[]` checked before surfacing entries; installer refuses installs on checksum mismatch.
-- **Licensing and source provenance**: `license`, `source`, `attribution`, and `gated` flags surfaced in the browser so users can understand requirements before download.
-- **Runtime targeting**: `frontend` (e.g., `webui`, `comfyui`, `koboldai`), `file_type`, `precision`, and `default_path` to map entries into the correct installer/runtime destination.
+- **Licensing and source provenance**: `license`, `source`, `attribution`, `gated`, and `training_data` surfaced in the browser so users can understand requirements before download.
+- **Runtime targeting**: `frontend` (e.g., `webui`, `comfyui`, `koboldai`), `file_type`, `precision`, `recommended_precision`, and `default_path` to map entries into the correct installer/runtime destination.
 - **User experience metadata**: `title`, `description`, `tags[]`, `thumbnail`, `version`, and optional `recommended_companions[]` (e.g., LoRAs that pair well with a model) for filtering and curated sets.
 - **Validation pipeline**: schema validation (JSON schema), checksum verification against staged files, and linting for missing metadata fields before manifests are merged or fetched by clients.
 

@@ -1,6 +1,6 @@
 # Manifest Browser
 
-The manifest browser provides a single place to review curated models and LoRAs from `manifests/models.json` and `manifests/loras.json` without opening external sites. It presents the same metadata used by the installers (name, version, size, license, tags, and notes) and routes installs through the existing shell/runtime hooks so logging, checksum verification, and download retries stay consistent.
+The manifest browser provides a single place to review curated models and LoRAs from `manifests/models.json` and `manifests/loras.json` without opening external sites. It presents the same metadata used by the installers (name, version, size, license, training data, recommended precision, tags, and notes) and routes installs through the existing shell/runtime hooks so logging, checksum verification, and download retries stay consistent.
 
 ## How it works
 - The browser reads both manifest files and renders a combined YAD checklist so users can filter and multi-select curated entries.
