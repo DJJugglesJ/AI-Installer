@@ -155,9 +155,14 @@ def auto_tag_images(
     base_tags: List[str] = []
     if card.trigger_token:
         base_tags.append(card.trigger_token)
+    base_tags.extend(card.trigger_tokens)
     base_tags.extend(card.anatomy_tags)
+    base_tags.extend(card.wardrobe)
+    if card.default_prompt_snippet:
+        base_tags.append(card.default_prompt_snippet)
+    base_tags = _normalize_tag_list(base_tags)
     if extra_tags:
-        base_tags.extend(extra_tags)
+        base_tags = _normalize_tag_list(base_tags + extra_tags)
 
     results: List[str] = []
     external_cmd = tagger_cmd or os.getenv("CHAR_STUDIO_TAGGER_CMD")
