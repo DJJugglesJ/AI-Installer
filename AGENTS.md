@@ -192,3 +192,11 @@ Introducing heavy dependencies beyond what the project already uses.
 Embedding user interface strings, HTML, or JavaScript logic into Python runtime code.
 Collapsing or changing the high-level directory structure.
 If you are unsure about a change that could affect multiple modules or platforms, prefer a minimal implementation and leave a clear TODO comment explaining the limitation.
+
+## Agents
+
+- Agent name: FeedbackProvider (DeterministicFeedbackProvider, PresetFeedbackProvider)
+  - Location: modules/runtime/prompt_builder/llm_clients.py
+  - Purpose: Select a feedback provider for Prompt Builder scenes and Character Studio cards.
+  - Expected input/output: SceneDescription or CharacterCard payload plus feedback text in; updated SceneDescription or character payload out.
+  - Important constraints: Providers must remain deterministic by default and avoid side effects or network calls.

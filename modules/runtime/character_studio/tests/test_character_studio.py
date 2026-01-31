@@ -1,7 +1,9 @@
 import json
+from copy import deepcopy
 
 import pytest
 
+from modules.config_service import config_service
 from modules.runtime.character_studio import dataset, models, tagging
 from modules.runtime.character_studio.dataset import DatasetOperationError
 from modules.runtime.character_studio.models import CharacterCard, SchemaValidationError
@@ -133,3 +135,54 @@ def test_schema_validation_rejects_blank_trigger_tokens():
 
     with pytest.raises(SchemaValidationError):
         card.validate()
+
+
+def _write_config(tmp_path, data):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return path
+
+
+def test_apply_feedback_uses_preset_provider(tmp_path):
+    config = deepcopy(config_service.DEFAULT_CONFIG)
+    config["llm"]["provider"] = "preset"
+    config["llm"]["fallback_provider"] = "deterministic"
+    config["llm"]["providers"]["preset"]["character_overrides"] = {
+        "refresh character": {"description": "new bio", "anatomy_tags": ["sharp"]}
+    }
+    config_path = _write_config(tmp_path, config)
+
+    card = CharacterCard(
+        id="faye",
+        name="Faye",
+        nsfw_allowed=False,
+        anatomy_tags=["pilot"],
+    )
+
+    updated = models.apply_feedback_to_character(card, "refresh character", config_path=config_path)
+
+    assert updated.description == "new bio"
+    assert "sharp" in updated.anatomy_tags
+
+
+def test_apply_feedback_falls_back_to_deterministic(tmp_path):
+    config = deepcopy(config_service.DEFAULT_CONFIG)
+    config["llm"]["provider"] = "missing"
+    config["llm"]["fallback_provider"] = "deterministic"
+    config_path = _write_config(tmp_path, config)
+
+    card = CharacterCard(
+        id="gwen",
+        name="Gwen",
+        nsfw_allowed=False,
+        anatomy_tags=["mage"],
+    )
+
+    updated = models.apply_feedback_to_character(
+        card,
+        "description: veteran mage; anatomy_tags: stoic",
+        config_path=config_path,
+    )
+
+    assert updated.description == "veteran mage"
+    assert "stoic" in updated.anatomy_tags

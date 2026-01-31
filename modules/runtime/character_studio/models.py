@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from modules.runtime.prompt_builder import llm_clients
 
 CARD_STORAGE_ROOT = Path(__file__).resolve().parent / "character_cards"
 CARD_STORAGE_ROOT.mkdir(exist_ok=True)
@@ -208,7 +208,12 @@ class CharacterCard:
         return card
 
 
-def apply_feedback_to_character(character_card: CharacterCard, feedback_text: str) -> CharacterCard:
+def apply_feedback_to_character(
+    character_card: CharacterCard,
+    feedback_text: str,
+    config_path: Optional[Path] = None,
+    provider_name: Optional[str] = None,
+) -> CharacterCard:
     """Apply structured feedback to update a Character Card.
 
     The function supports simple key/value directives separated by semicolons or newlines. Example:
@@ -218,46 +223,14 @@ def apply_feedback_to_character(character_card: CharacterCard, feedback_text: st
     if not feedback_text.strip():
         return character_card
 
-    directives = re.split(r"[\n;]+", feedback_text)
-    updates: Dict[str, str] = {}
-    for directive in directives:
-        if ":" not in directive:
-            continue
-        key, value = directive.split(":", 1)
-        updates[key.strip().lower()] = value.strip()
-
-    updated = CharacterCard(**character_card.to_dict())
-
-    for key, value in updates.items():
-        if key in {"description", "default_prompt_snippet", "trigger_token", "age", "name"}:
-            setattr(updated, key, value)
-        elif key in {"trigger_tokens", "triggers"}:
-            additions = [v.strip() for v in value.split(",") if v.strip()]
-            updated.trigger_tokens = additions
-            updated.trigger_token = additions[0] if additions else updated.trigger_token
-        elif key in {"nsfw", "nsfw_allowed"}:
-            updated.nsfw_allowed = value.lower() in {"true", "1", "yes", "y", "allow"}
-        elif key in {"tag", "anatomy_tag", "anatomy_tags", "tags"}:
-            additions = [v.strip() for v in value.split(",") if v.strip()]
-            for tag in additions:
-                if tag not in updated.anatomy_tags:
-                    updated.anatomy_tags.append(tag)
-        elif key in {"wardrobe"}:
-            additions = [v.strip() for v in value.split(",") if v.strip()]
-            for item in additions:
-                if item not in updated.wardrobe:
-                    updated.wardrobe.append(item)
-        elif key in {"reference_images", "reference_image"}:
-            additions = [v.strip() for v in value.split(",") if v.strip()]
-            for path in additions:
-                if path not in updated.reference_images:
-                    updated.reference_images.append(path)
-        elif key.startswith("metadata"):
-            # Accept directives like "metadata.version: 1.0"
-            metadata_key = key.split(".", maxsplit=1)[1] if "." in key else "note"
-            updated.metadata[metadata_key] = value
-
-    return updated
+    payload = character_card.to_dict()
+    updated_payload = llm_clients.apply_character_feedback(
+        payload,
+        feedback_text,
+        config_path=config_path,
+        provider_name=provider_name,
+    )
+    return CharacterCard.from_dict(updated_payload)
 
 
 def _normalize_trigger_fields(

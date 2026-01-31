@@ -75,6 +75,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "headless_default": False,
         "theme": "system",
     },
+    "llm": {
+        "provider": "deterministic",
+        "fallback_provider": "deterministic",
+        "providers": {
+            "preset": {
+                "credentials": {
+                    "api_key": "",
+                },
+                "scene_overrides": {},
+                "character_overrides": {},
+            },
+        },
+    },
     "state": {
         "webui_installed": False,
         "kobold_installed": False,
