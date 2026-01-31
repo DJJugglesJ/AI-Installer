@@ -7,14 +7,20 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
+import re
 from typing import Dict, List, Optional
 
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 
-from .feedback import apply_feedback_to_scene as apply_feedback_to_scene_description
 from .llm import SceneLLMAdapter
 from .models import CharacterRef, PromptAssembly, SceneDescription, validate_scene
+
+
+@dataclass(frozen=True)
+class Error:
+    error: str
+    context: Dict[str, object] = field(default_factory=dict)
 
 
 def _validate_text(value: object, field_name: str):
@@ -90,6 +96,57 @@ def _scene_from_json(scene_json: Dict) -> SceneDescription:
     return scene
 
 
+def _clone_scene(scene: SceneDescription) -> SceneDescription:
+    return SceneDescription(
+        world=scene.world,
+        setting=scene.setting,
+        mood=scene.mood,
+        style=scene.style,
+        nsfw_level=scene.nsfw_level,
+        camera=scene.camera,
+        characters=[CharacterRef(**asdict(ref)) for ref in scene.characters],
+        extra_elements=list(scene.extra_elements),
+    )
+
+
+def _apply_scene_directives(scene: SceneDescription, feedback_text: str) -> SceneDescription:
+    updated = _clone_scene(scene)
+    if not feedback_text or not feedback_text.strip():
+        return updated
+
+    directives = re.split(r"[\n;]+", feedback_text)
+    for directive in directives:
+        if ":" not in directive:
+            continue
+        key, value = directive.split(":", 1)
+        key = key.strip().lower()
+        value = value.strip()
+        if not value:
+            continue
+
+        if key in {"world", "setting", "mood", "style", "camera", "nsfw_level"}:
+            setattr(updated, key, value)
+        elif key in {"add element", "add elements", "elements", "extra", "extra_elements"}:
+            for part in [v.strip() for v in value.split(",") if v.strip()]:
+                if part not in updated.extra_elements:
+                    updated.extra_elements.append(part)
+        elif key.startswith("character"):
+            _, _, remainder = key.partition(" ")
+            target_slot = remainder.strip()
+            if not target_slot:
+                continue
+            for character in updated.characters:
+                if character.slot_id == target_slot:
+                    if "role=" in value:
+                        character.role = value.split("role=", 1)[1].strip()
+                    elif "override_prompt_snippet=" in value:
+                        character.override_prompt_snippet = value.split(
+                            "override_prompt_snippet=", 1
+                        )[1].strip()
+
+    return updated
+
+
 def parse_scene_description(scene_json: Dict) -> SceneDescription:
     """Public helper to normalize and validate a SceneDescription payload."""
 
@@ -117,7 +174,10 @@ def compile_scene(scene_json: Dict, feedback_text: Optional[str] = None) -> Prom
 
     scene = parse_scene_description(scene_json)
     if feedback_text:
-        scene = apply_feedback_to_scene_description(scene, feedback_text)
+        updated_scene = apply_feedback_to_scene(scene, feedback_text)
+        if isinstance(updated_scene, Error):
+            raise ValueError(updated_scene.error)
+        scene = updated_scene
     return build_prompt_from_scene(asdict(scene))
 
 
@@ -129,18 +189,36 @@ def compile_prompt_payload(scene_json: Dict, feedback_text: Optional[str] = None
 
     scene = parse_scene_description(scene_json)
     if feedback_text:
-        scene = apply_feedback_to_scene_description(scene, feedback_text)
+        updated_scene = apply_feedback_to_scene(scene, feedback_text)
+        if isinstance(updated_scene, Error):
+            raise ValueError(updated_scene.error)
+        scene = updated_scene
 
     assembly = build_prompt_from_scene(asdict(scene))
     return assembly.to_payload()
 
 
-def apply_feedback_to_scene(scene_json: Dict, feedback_text: str) -> Dict:
-    """Use natural language feedback to refine a SceneDescription payload via the LLM adapter."""
+def apply_feedback_to_scene(scene: SceneDescription, feedback_text: str) -> SceneDescription | Error:
+    """Use natural language feedback to refine a SceneDescription payload."""
 
-    scene = _scene_from_json(scene_json)
-    updated_scene = apply_feedback_to_scene_description(scene, feedback_text)
-    return asdict(updated_scene)
+    if feedback_text is None:
+        return Error("feedback_text must be provided", context={"field": "feedback_text"})
+    if not isinstance(feedback_text, str):
+        return Error("feedback_text must be a string", context={"field": "feedback_text"})
+
+    try:
+        validate_scene(scene)
+    except ValueError as exc:
+        return Error(str(exc), context={"stage": "input_validation"})
+
+    updated_scene = _apply_scene_directives(scene, feedback_text)
+
+    try:
+        validate_scene(updated_scene)
+    except ValueError as exc:
+        return Error(str(exc), context={"stage": "output_validation"})
+
+    return updated_scene
 
 
 def build_scene_from_quick_prompt(payload: Dict[str, object]) -> SceneDescription:

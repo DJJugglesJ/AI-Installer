@@ -43,7 +43,12 @@ class DeterministicFeedbackProvider:
         self.settings = dict(settings or {})
 
     def apply_scene_feedback(self, scene: SceneDescription, feedback_text: str) -> SceneDescription:
-        return _apply_scene_directives(scene, feedback_text)
+        from . import compiler
+
+        updated = compiler.apply_feedback_to_scene(scene, feedback_text)
+        if isinstance(updated, compiler.Error):
+            raise ValueError(updated.error)
+        return updated
 
     def apply_character_feedback(self, character_payload: Dict[str, object], feedback_text: str) -> Dict[str, object]:
         return _apply_character_directives(character_payload, feedback_text)

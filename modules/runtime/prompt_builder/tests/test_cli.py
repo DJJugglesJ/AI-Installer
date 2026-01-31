@@ -1,7 +1,5 @@
 import json
 import sys
-import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -52,3 +50,30 @@ def test_cli_compiles_scene(tmp_path, capsys):
     assert any("magetoken" in part for part in payload["positive_prompt"])
     assert any("magic circle" in part for part in payload["positive_prompt"])
     assert payload["lora_calls"] == []
+
+
+def test_cli_feedback_only_returns_scene(tmp_path, capsys):
+    scene_payload = {
+        "world": "fantasy",
+        "setting": "tower",
+        "mood": "calm",
+        "characters": [],
+        "extra_elements": ["moonlight"],
+    }
+    scene_path = tmp_path / "scene.json"
+    scene_path.write_text(json.dumps(scene_payload), encoding="utf-8")
+
+    prompt_cli.main(
+        [
+            "--scene",
+            str(scene_path),
+            "--feedback",
+            "mood: tense; add elements: mist",
+            "--feedback-only",
+        ]
+    )
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert payload["mood"] == "tense"
+    assert "mist" in payload["extra_elements"]
