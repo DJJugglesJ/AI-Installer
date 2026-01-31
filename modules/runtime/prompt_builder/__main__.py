@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compile SceneDescription JSON into prompts")
     parser.add_argument("--scene", type=Path, required=True, help="Path to a SceneDescription JSON file")
     parser.add_argument("--feedback", help="Natural language feedback to refine the scene before compilation")
+    parser.add_argument(
+        "--feedback-only",
+        action="store_true",
+        help="Apply feedback to the scene and emit updated SceneDescription JSON",
+    )
     return parser
 
 
@@ -46,10 +51,22 @@ def main(argv: Iterable[str] | None = None) -> None:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     scene = _load_scene(args.scene)
+    if args.feedback_only:
+        if not args.feedback:
+            raise SystemExit("feedback is required when using --feedback-only")
+        updated_scene = compiler.apply_feedback_to_scene(scene, args.feedback)
+        if isinstance(updated_scene, compiler.Error):
+            print(json.dumps({"error": updated_scene.error, "context": updated_scene.context}, indent=2))
+            raise SystemExit(1)
+        print(json.dumps(asdict(updated_scene), indent=2))
+        return
+
     if args.feedback:
         # Apply heuristic feedback before validation hooks so users see deterministic adjustments.
-        scene_json = compiler.apply_feedback_to_scene(asdict(scene), args.feedback)
-        scene = compiler.parse_scene_description(scene_json)
+        updated_scene = compiler.apply_feedback_to_scene(scene, args.feedback)
+        if isinstance(updated_scene, compiler.Error):
+            raise SystemExit(updated_scene.error)
+        scene = updated_scene
 
     hooks = UIIntegrationHooks()
     preflight_error = hooks.preflight_scene(scene)

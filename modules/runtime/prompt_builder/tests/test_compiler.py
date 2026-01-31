@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 from modules.runtime.character_studio import models as character_models
 from modules.runtime.character_studio.models import CharacterCard
 from modules.runtime.prompt_builder import compiler
+from modules.runtime.prompt_builder.models import SceneDescription, CharacterRef
 
 
 @pytest.fixture(autouse=True)
@@ -108,30 +109,37 @@ def test_compile_prompt_payload_includes_serialized_loras(tmp_path):
 
 
 def test_apply_feedback_updates_scene_fields():
-    scene_json = {
-        "world": "demo",
-        "setting": "street",
-        "mood": "calm",
-        "style": None,
-        "nsfw_level": None,
-        "camera": None,
-        "characters": [
-            {"slot_id": "hero", "character_id": "c1", "role": "support"}
-        ],
-        "extra_elements": ["neon"],
-    }
+    scene = SceneDescription(
+        world="demo",
+        setting="street",
+        mood="calm",
+        style=None,
+        nsfw_level=None,
+        camera=None,
+        characters=[CharacterRef(slot_id="hero", character_id="c1", role="support")],
+        extra_elements=["neon"],
+    )
 
     feedback = "mood: dramatic; add elements: rain, fog; character hero: role=antagonist"
-    updated = compiler.apply_feedback_to_scene(scene_json, feedback)
+    updated = compiler.apply_feedback_to_scene(scene, feedback)
 
-    assert updated["mood"] == "dramatic"
-    assert "rain" in updated["extra_elements"]
-    assert any(character["role"] == "antagonist" for character in updated["characters"])
+    assert isinstance(updated, SceneDescription)
+    assert updated.mood == "dramatic"
+    assert "rain" in updated.extra_elements
+    assert any(character.role == "antagonist" for character in updated.characters)
 
 
 def test_apply_feedback_requires_text():
-    with pytest.raises(ValueError):
-        compiler.apply_feedback_to_scene({}, None)
+    scene = SceneDescription(characters=[], extra_elements=[])
+    result = compiler.apply_feedback_to_scene(scene, None)
+    assert isinstance(result, compiler.Error)
+    assert "feedback_text" in result.error
+
+
+def test_apply_feedback_returns_error_on_invalid_scene():
+    scene = SceneDescription(characters=[], extra_elements=[""])
+    result = compiler.apply_feedback_to_scene(scene, "mood: tense")
+    assert isinstance(result, compiler.Error)
 
 
 def test_compile_quick_prompt_payload_builds_scene(tmp_path):
