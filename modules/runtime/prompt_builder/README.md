@@ -10,7 +10,7 @@ This module introduces a structured, scene-first workflow for composing AI promp
    - The UI posts a `SceneDescription` JSON payload to the Prompt Builder compiler service.
 
 2. **Prompt compilation**
-   - The compiler enriches characters (via Character Card registry when available), blends user-provided snippets, and synthesizes positive/negative prompts.
+   - The compiler enriches characters (via Character Card registry when available), blends user-provided snippets, and synthesizes positive/negative prompts deterministically (no external LLM calls).
    - LoRA calls are derived from character metadata and explicit user selections, producing a `PromptAssembly` response.
 
 3. **Launcher hand-off**
@@ -24,8 +24,10 @@ This module introduces a structured, scene-first workflow for composing AI promp
 - `modules/runtime/prompt_builder/ui.sh` launches YAD panels:
   - **Quick Prompt** gathers the vibe (setting, mood, style, NSFW level, and quick extras) and emits a minimal `SceneDescription`.
   - **Guided Scene Builder** captures world, camera, style, NSFW level, extra elements, and multi-line character rows (`slot_id,character_id,role,override`).
+- The Web Launcher UI (`modules/runtime/web_launcher/static/index.html`) exposes the same Guided Scene Builder + Quick Prompt workflows in the browser.
 - Scenes are written to `~/.cache/aihub/prompt_builder/scene_description.json` before being compiled to prompts.
 - Compiled bundles are written to `~/.cache/aihub/prompt_builder/prompt_bundle.json` (or `PROMPT_BUNDLE_PATH` when set) so launcher scripts can reuse the latest prompts without re-entering data.
+- Prompt history (used by the Web Launcher UI) is stored in `~/.cache/aihub/prompt_builder/prompt_history.json` and captures the scene, prompt assembly, and metadata for each compile action.
 
 ### CLI triggers
 
@@ -65,11 +67,24 @@ See `modules/runtime/prompt_builder/models.py` for the Python data models that m
 
 ## Services and extension hooks
 
-- **Compiler service**: `PromptCompilerService` validates `SceneDescription` objects, resolves character cards through the registry, and delegates to `SceneLLMAdapter` to synthesize prompts and LoRA calls. The `compiler.compile_prompt_payload` helper also supports `feedback_text`, which routes through `apply_feedback_to_scene` before rebuilding the prompt assembly.
+- **Compiler service**: `PromptCompilerService` validates `SceneDescription` objects, resolves character cards through the registry, and delegates to `SceneLLMAdapter` (deterministic/heuristic) to synthesize prompts and LoRA calls. The `compiler.compile_prompt_payload` helper also supports `feedback_text`, which routes through `apply_feedback_to_scene` before rebuilding the prompt assembly.
 - **UI integration hooks**: `UIIntegrationHooks` runs preflight checks to ensure a scene includes characters or extra elements, then writes the compiled bundle to the cache path (`PROMPT_BUNDLE_PATH` or the default under `~/.cache/aihub/prompt_builder/`). Bundles include a `compiled_at` timestamp and the resolved bundle path so launchers can detect freshness.
 
 ## Usage and development notes
 
 - Compile a saved scene JSON and emit the prompt bundle: `python -m modules.runtime.prompt_builder --scene /path/to/scene.json`
-- Apply natural-language feedback before compilation: `python -m modules.runtime.prompt_builder --scene /path/to/scene.json --feedback "make the lighting moodier"`
+- Apply directive-based feedback before compilation: `python -m modules.runtime.prompt_builder --scene /path/to/scene.json --feedback "mood: moodier; add elements: fog"`
 - Both commands validate the scene, write the enriched bundle to the cache path, and print the JSON payload to stdout for chaining into other tools.
+
+### Feedback directives (deterministic)
+
+`apply_feedback_to_scene` expects key/value directives separated by semicolons or new lines. Supported keys include:
+
+- `world`, `setting`, `mood`, `style`, `camera`, `nsfw_level`
+- `add elements` / `extra_elements` (comma-separated)
+- `character <slot_id>` with `role=` or `override_prompt_snippet=` in the value
+
+Example:
+```
+mood: rainy noir; add elements: mist, neon; character hero: role=detective
+```

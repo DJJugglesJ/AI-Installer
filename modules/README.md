@@ -25,12 +25,12 @@ Responsible for generating high-quality prompts from structured scene descriptio
 
 Key features:
 - Accepts a `SceneDescription` JSON object.
-- Uses LLMs to compile:
+- Uses deterministic/heuristic adapters to compile:
   - positive prompt
   - negative prompt
   - LoRA call list
 - Supports both simple and advanced prompt modes.
-- Provides `apply_feedback_to_scene()` to refine scenes using natural language adjustments.
+- Provides `apply_feedback_to_scene()` to refine scenes using key/value directives (for example `mood: moody; add elements: rain`).
 - Does not directly run Stable Diffusion — outputs text only.
 
 ---
@@ -44,12 +44,12 @@ Key features:
   - prompt snippets
   - tags/traits
   - optional LoRA metadata
-- Generates reference images via backend abstraction.
+- Attaches/copies reference images into per-card storage for later use.
 - Prepares datasets for LoRA training:
   - captioning
   - auto-tagging
   - folder structure
-- Provides `apply_feedback_to_character()` for LLM-driven refinement.
+- Provides `apply_feedback_to_character()` for deterministic key/value refinement (for example `anatomy_tags: freckles, bob cut`).
 - Outputs training-ready datasets and configs.
 
 ---
@@ -129,6 +129,8 @@ Instead, shell scripts are used by:
 
 The Runtime Layer interacts with AI tools through **HTTP APIs**, not process control.
 
+The Web Launcher UI already exposes Prompt Builder (Guided Scene Builder + Quick Prompt) and Character Studio workflows via the static pages in `modules/runtime/web_launcher/static/`.
+
 ---
 
 # ====================================
@@ -160,4 +162,3 @@ It divides responsibilities into:
 - **Installer/launcher helpers (Shell)** in `modules/shell/`
 
 This structure keeps the application clean, scalable, and easy to maintain as new capabilities are added.
-
