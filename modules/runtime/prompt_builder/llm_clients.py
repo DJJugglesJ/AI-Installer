@@ -3,6 +3,7 @@
 - Purpose: select feedback providers and apply structured feedback updates.
 - Assumptions: callers pass validated payloads; provider configs are structured JSON.
 - Side effects: none; providers return updated copies only.
+- Default providers are deterministic and preset-based, and do not make network calls.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ class FeedbackProvider(Protocol):
 
 
 class DeterministicFeedbackProvider:
-    """Deterministic fallback provider using directive-style feedback."""
+    """Deterministic fallback provider using directive-style feedback (no network calls)."""
 
     name = "deterministic"
 
@@ -55,7 +56,7 @@ class DeterministicFeedbackProvider:
 
 
 class PresetFeedbackProvider:
-    """Use structured config overrides keyed by feedback text."""
+    """Use structured config overrides keyed by feedback text (no network calls)."""
 
     name = "preset"
 
@@ -244,21 +245,32 @@ def _build_provider(name: str, settings: Dict[str, Any]) -> Optional[FeedbackPro
     return None
 
 
+def _normalize_provider_name(name: Optional[str]) -> str:
+    if not name:
+        return ""
+    return str(name).strip().lower()
+
+
 def load_provider_config(config_path: Optional[Path] = None) -> ProviderConfig:
     path = Path(config_path) if config_path else Path(config_service.DEFAULT_CONFIG_PATH)
     loaded = config_service.load_config(str(path), env_prefix="", overrides=[])
-    provider = config_service.deep_get(loaded.data, "llm.provider") or "deterministic"
-    fallback_provider = config_service.deep_get(loaded.data, "llm.fallback_provider") or "deterministic"
+    provider = _normalize_provider_name(config_service.deep_get(loaded.data, "llm.provider")) or "deterministic"
+    fallback_provider = (
+        _normalize_provider_name(config_service.deep_get(loaded.data, "llm.fallback_provider")) or "deterministic"
+    )
     providers_raw = config_service.deep_get(loaded.data, "llm.providers") or {}
     providers = providers_raw if isinstance(providers_raw, dict) else {}
-    providers = {
-        str(name): settings if isinstance(settings, dict) else {}
-        for name, settings in providers.items()
-    }
+    normalized: Dict[str, Dict[str, Any]] = {}
+    for name in sorted(providers, key=lambda item: str(item).lower()):
+        settings = providers[name]
+        normalized_name = _normalize_provider_name(str(name))
+        if not normalized_name:
+            continue
+        normalized[normalized_name] = settings if isinstance(settings, dict) else {}
     return ProviderConfig(
         provider=str(provider),
         fallback_provider=str(fallback_provider),
-        providers=providers,
+        providers=normalized,
     )
 
 
@@ -267,8 +279,8 @@ def get_feedback_provider(
     provider_name: Optional[str] = None,
 ) -> Tuple[FeedbackProvider, FeedbackProvider]:
     config = load_provider_config(config_path)
-    primary_name = provider_name or config.provider
-    fallback_name = config.fallback_provider or "deterministic"
+    primary_name = _normalize_provider_name(provider_name) or config.provider
+    fallback_name = _normalize_provider_name(config.fallback_provider) or "deterministic"
 
     fallback = _build_provider(fallback_name, config.providers.get(fallback_name, {}))
     if fallback is None:

@@ -64,3 +64,22 @@ def test_provider_fallbacks_to_deterministic(tmp_path):
     updated = llm_clients.apply_scene_feedback(scene, "mood: tense", config_path=config_path)
 
     assert updated.mood == "tense"
+
+
+def test_provider_selection_is_deterministic(tmp_path):
+    config = deepcopy(config_service.DEFAULT_CONFIG)
+    config["llm"]["provider"] = "Preset"
+    config["llm"]["fallback_provider"] = "Deterministic"
+    config["llm"]["providers"] = {
+        "Deterministic": {},
+        "Preset": {"scene_overrides": {"make it brighter": {"mood": "bright"}}},
+    }
+    config_path = _write_config(tmp_path, config)
+
+    primary_first, fallback_first = llm_clients.get_feedback_provider(config_path=config_path)
+    primary_second, fallback_second = llm_clients.get_feedback_provider(config_path=config_path)
+
+    assert primary_first.name == "preset"
+    assert fallback_first.name == "deterministic"
+    assert primary_first.name == primary_second.name
+    assert fallback_first.name == fallback_second.name
