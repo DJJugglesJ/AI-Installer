@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 from pathlib import Path
 from typing import Iterable, List
 
+from ..common import json_output
 from . import dataset, tagging, trainer
 from .models import CARD_STORAGE_ROOT, CharacterCard, CharacterStudioError
 
@@ -79,7 +79,11 @@ def create_card(args: argparse.Namespace) -> None:
         reference_images=_parse_reference_images(args.reference_images),
     )
     destination = card.save(path=_get_card_path(args.id))
-    print(f"Saved card to {destination}")
+    print(
+        json_output.to_json(
+            json_output.success({"message": "Saved card", "path": str(destination)})
+        )
+    )
 
 
 def edit_card(args: argparse.Namespace) -> None:
@@ -113,7 +117,11 @@ def edit_card(args: argparse.Namespace) -> None:
     if args.lora_default_strength is not None:
         card.lora_default_strength = args.lora_default_strength
     destination = card.save(path=_get_card_path(args.id))
-    print(f"Updated card at {destination}")
+    print(
+        json_output.to_json(
+            json_output.success({"message": "Updated card", "path": str(destination)})
+        )
+    )
 
 
 def attach_reference_images(args: argparse.Namespace) -> None:
@@ -134,52 +142,91 @@ def attach_reference_images(args: argparse.Namespace) -> None:
         new_paths.append(stored_path)
 
     card.save(path=_get_card_path(args.id))
-    print(f"Attached references: {', '.join(new_paths)}")
+    print(
+        json_output.to_json(
+            json_output.success(
+                {"message": "Attached references", "references": new_paths}
+            )
+        )
+    )
 
 
 def show_card(args: argparse.Namespace) -> None:
     card = _load_existing_card(args.id)
-    print(json.dumps(card.to_dict(), indent=2))
+    print(json_output.to_json(json_output.success(card.to_dict())))
 
 
 def list_cards(_: argparse.Namespace) -> None:
     if not CARD_STORAGE_ROOT.exists():
-        print("No cards found.")
+        print(json_output.to_json(json_output.success({"cards": []})))
         return
+    cards = []
     for card_dir in sorted(CARD_STORAGE_ROOT.iterdir()):
         if not card_dir.is_dir():
             continue
         card_path = card_dir / CARD_FILENAME
         if card_path.exists():
             card = CharacterCard.load(card_dir.name, path=card_path)
-            print(f"{card.id}: {card.name} (NSFW: {card.nsfw_allowed})")
+            cards.append(
+                {"id": card.id, "name": card.name, "nsfw_allowed": card.nsfw_allowed}
+            )
+    print(json_output.to_json(json_output.success({"cards": cards})))
 
 
 def create_dataset(args: argparse.Namespace) -> None:
     dataset.create_dataset_structure(args.id)
-    print(f"Initialized dataset at {dataset.get_character_dataset_dir(args.id)}")
+    print(
+        json_output.to_json(
+            json_output.success(
+                {
+                    "message": "Initialized dataset",
+                    "path": str(dataset.get_character_dataset_dir(args.id)),
+                }
+            )
+        )
+    )
 
 
 def add_dataset_images(args: argparse.Namespace) -> None:
     stored = dataset.add_images_to_dataset(args.id, args.images, args.subset)
-    print("Added images:\n" + "\n".join(stored))
+    print(
+        json_output.to_json(
+            json_output.success({"message": "Added images", "images": stored})
+        )
+    )
 
 
 def caption_dataset(args: argparse.Namespace) -> None:
     captions = dataset.generate_captions_for_dataset(args.id, args.subset)
     if not captions:
-        print("No images found to caption.")
+        print(
+            json_output.to_json(
+                json_output.success({"message": "No images found to caption", "captions": []})
+            )
+        )
         return
-    print("Generated captions:\n" + "\n".join(captions))
+    print(
+        json_output.to_json(
+            json_output.success({"message": "Generated captions", "captions": captions})
+        )
+    )
 
 
 def auto_tag_dataset(args: argparse.Namespace) -> None:
     extra_tags = _parse_tags(args.extra_tags)
     captions = tagging.auto_tag_images(args.id, args.subset, tagger_cmd=args.tagger, extra_tags=extra_tags)
     if not captions:
-        print("No images tagged.")
+        print(
+            json_output.to_json(
+                json_output.success({"message": "No images tagged", "captions": []})
+            )
+        )
         return
-    print("Tagged images:\n" + "\n".join(captions))
+    print(
+        json_output.to_json(
+            json_output.success({"message": "Tagged images", "captions": captions})
+        )
+    )
 
 
 def bulk_edit_dataset_tags(args: argparse.Namespace) -> None:
@@ -190,31 +237,59 @@ def bulk_edit_dataset_tags(args: argparse.Namespace) -> None:
         targets = [str(p) for p in dataset.list_subset_images(args.id, args.subset)]
 
     if not targets:
-        print("No images found for tag editing.")
+        print(
+            json_output.to_json(
+                json_output.success(
+                    {"message": "No images found for tag editing", "images": []}
+                )
+            )
+        )
         return
 
     updated = tagging.bulk_edit_tags(targets, append_tags=_parse_tags(args.append), replace_with=_parse_tags(args.replace))
-    print("Updated tags for:\n" + "\n".join(updated))
+    print(
+        json_output.to_json(
+            json_output.success({"message": "Updated tags", "images": updated})
+        )
+    )
 
 
 def batch_tag_dataset(args: argparse.Namespace) -> None:
     card = _load_existing_card(args.id)
     image_contexts = dataset.load_image_contexts(args.id, args.subset)
     result = tagging.batch_tag_images(card, image_contexts)
-    print(json.dumps(result, indent=2))
+    print(json_output.to_json(json_output.success(result)))
 
 
 def export_training(args: argparse.Namespace) -> None:
     archive = trainer.export_training_pack(args.id)
-    print(f"Exported training pack to {archive}")
+    print(
+        json_output.to_json(
+            json_output.success(
+                {"message": "Exported training pack", "path": str(archive)}
+            )
+        )
+    )
 
 
 def run_training(args: argparse.Namespace) -> None:
     output = trainer.run_lora_training(args.id)
     if output:
-        print(f"Trainer produced LoRA: {output}")
+        print(
+            json_output.to_json(
+                json_output.success(
+                    {"message": "Trainer produced LoRA", "path": str(output)}
+                )
+            )
+        )
     else:
-        print("Trainer not invoked or no output was produced.")
+        print(
+            json_output.to_json(
+                json_output.success(
+                    {"message": "Trainer not invoked or no output was produced", "path": None}
+                )
+            )
+        )
 
 
 
@@ -317,9 +392,11 @@ def main(argv: Iterable[str] | None = None) -> None:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         args.func(args)
-    except CharacterStudioError as exc:
-        payload = {"error": str(exc), "context": getattr(exc, "context", {})}
-        print(json.dumps(payload, indent=2))
+    except (CharacterStudioError, FileNotFoundError) as exc:
+        context = getattr(exc, "context", {})
+        if isinstance(exc, FileNotFoundError):
+            context = {"path": str(exc.filename)} if exc.filename else {}
+        print(json_output.to_json(json_output.failure(str(exc), context=context)))
         raise SystemExit(1) from exc
 
 

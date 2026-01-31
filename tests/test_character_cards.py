@@ -1,3 +1,4 @@
+import json
 import pytest
 import sys
 from pathlib import Path
@@ -114,3 +115,30 @@ def test_cli_create_and_attach_reference_images(tmp_path):
     assert stored_path.exists()
     assert saved_card.anatomy_tags == ["tag-a", "tag-b"]
     assert saved_card.nsfw_allowed is True
+
+
+def test_cli_emits_standard_success_shape(capsys):
+    card_cli.main([
+        "create",
+        "card-json",
+        "Card Json",
+        "--anatomy-tags",
+        "tag-a",
+    ])
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert payload["error"] is None
+    assert payload["metadata"] == {}
+    assert payload["data"]["path"].endswith("card-json/card.json")
+
+
+def test_cli_emits_standard_error_shape(capsys):
+    with pytest.raises(SystemExit):
+        card_cli.main(["show", "missing-card"])
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert payload["data"] is None
+    assert payload["metadata"] == {}
+    assert "does not exist" in payload["error"]["message"]
