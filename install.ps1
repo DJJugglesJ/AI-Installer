@@ -460,8 +460,8 @@ $StartMenuDir = [Environment]::GetFolderPath("Programs")
 Ensure-Directory $DesktopDir
 Ensure-Directory $StartMenuDir
 
-$webLauncher = Join-Path $ProjectRoot "launcher/start_web_launcher.ps1"
-$menuLauncher = Join-Path $ProjectRoot "launcher/aihub_menu.ps1"
+$webLauncher = Join-Path $ProjectRoot "launcher/windows/start_web_launcher.ps1"
+$menuLauncher = Join-Path $ProjectRoot "launcher/windows/aihub_menu.ps1"
 $target = if (Test-Path $webLauncher) { $webLauncher } elseif (Test-Path $menuLauncher) { $menuLauncher } else { $null }
 
 if ($target) {

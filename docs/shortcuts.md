@@ -3,7 +3,7 @@
 The installer generates OS-aware shortcuts for the menu and web UI launchers so users can open the same experience from their desktop environment.
 
 ## How targets are chosen
-- The installer prefers the web launcher (`launcher/start_web_launcher.sh`) and falls back to the YAD menu (`./aihub_menu.sh`) when the web script is missing. Set `AIHUB_LAUNCHER_MODE=menu` to force the legacy menu.
+- The installer prefers the web launcher (`launcher/linux/start_web_launcher.sh`) and falls back to the YAD menu (`./aihub_menu.sh`) when the web script is missing. Set `AIHUB_LAUNCHER_MODE=menu` to force the legacy menu.
 - Platform detection (Linux, macOS, Windows native, or WSL) and the detected desktop environment are logged in `install.log` so you can confirm where shortcuts land.
 
 ## Linux
@@ -14,7 +14,7 @@ The installer generates OS-aware shortcuts for the menu and web UI launchers so 
 
 ## Windows (native vs WSL/ROCm)
 - GPU-aware selection:
-  - NVIDIA: native PowerShell (`launcher/start_web_launcher.ps1` or `launcher/aihub_menu.ps1`) and batch wrappers are copied to the Windows Desktop and Start Menu. `.lnk` files point directly at PowerShell with `-ExecutionPolicy Bypass` so the launcher runs without WSL.
+  - NVIDIA: native PowerShell (`launcher/windows/start_web_launcher.ps1` or `launcher/windows/aihub_menu.ps1`) and batch wrappers are copied to the Windows Desktop and Start Menu. `.lnk` files point directly at PowerShell with `-ExecutionPolicy Bypass` so the launcher runs without WSL.
   - AMD (and other vendors): WSL2 is preferred to reach ROCm-ready launchers. Shortcuts call `wsl.exe -e bash -lc "cd <repo> && <launcher>"` and copy helper `.bat`/`.ps1` wrappers alongside the `.lnk` files.
 - Prerequisites: `powershell.exe` must support COM automation for `.lnk` creation. WSL helpers are optional and used only when the WSL strategy is selected (and `wsl.exe`/`wslpath` are available). The installer logs which strategy was used and the detected GPU vendor.
 - Paths: `.lnk` shortcuts are written to the Desktop (`[Environment]::GetFolderPath('Desktop')`) and Start Menu (`[Environment]::GetFolderPath('Programs')`). WSL-friendly `.bat`/`.ps1` helper scripts are copied to the Linux-side equivalents of those directories so you can double-click them from File Explorer or WSL.

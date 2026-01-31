@@ -6,8 +6,8 @@ param(
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectRoot = Resolve-Path "$ScriptDir/.."
-. "$ProjectRoot/launcher/windows/paths.ps1"
+$ProjectRoot = Resolve-Path "$ScriptDir/../.."
+. "$ScriptDir/paths.ps1"
 
 function Get-PythonPath {
   if ($Env:AIHUB_PYTHON) { return @($Env:AIHUB_PYTHON) }
@@ -43,6 +43,6 @@ if ($IsWindows -and -not $wslAvailable) {
 
 Push-Location $ProjectRoot
 $env:PYTHONPATH = "$ProjectRoot;$($env:PYTHONPATH)"
-$argsList = @("launcher/aihub_menu.py") + $ExtraArgs
+$argsList = @("launcher/common/aihub_menu.py") + $ExtraArgs
 & $PythonPath @argsList
 Pop-Location

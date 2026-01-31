@@ -8,7 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$SCRIPT_DIR/modules"
-LAUNCHER_DIR="$SCRIPT_DIR/launcher"
+LAUNCHER_DIR="$SCRIPT_DIR/launcher/linux"
 CONFIG_FILE="$HOME/.config/aihub/installer.conf"
 [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 source "$MODULE_DIR/shell/logging.sh"

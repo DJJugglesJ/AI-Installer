@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LAUNCHER_DIR = PROJECT_ROOT / "launcher"
+LAUNCHER_DIR = PROJECT_ROOT / "launcher" / "windows"
 
 WRAPPER_ACTIONS = [
     "install_webui",
@@ -37,7 +37,7 @@ def _read(path: Path) -> str:
 
 def test_windows_wrappers_present_and_linked() -> None:
     sys.path.insert(0, str(PROJECT_ROOT))
-    from launcher import aihub_menu  # pylint: disable=import-error
+    from launcher.common import aihub_menu  # pylint: disable=import-error
 
     missing = []
     for action in WRAPPER_ACTIONS:

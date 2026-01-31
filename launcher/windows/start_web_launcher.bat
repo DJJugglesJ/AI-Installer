@@ -3,8 +3,8 @@ setlocal ENABLEDELAYEDEXPANSION
 
 rem --- Locate project root ---
 set "SCRIPT_DIR=%~dp0"
-rem Go one level up from the script directory
-pushd "%SCRIPT_DIR%.."
+rem Go two levels up from the script directory
+pushd "%SCRIPT_DIR%..\.."
 set "PROJECT_ROOT=%CD%"
 popd
 

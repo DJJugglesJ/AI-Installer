@@ -116,7 +116,7 @@ fi
 source "$CONFIG_HELPERS"
 
 select_launcher_command() {
-  local web_launcher="$INSTALL_PATH/launcher/start_web_launcher.sh"
+  local web_launcher="$INSTALL_PATH/launcher/linux/start_web_launcher.sh"
   local menu_launcher="$INSTALL_PATH/aihub_menu.sh"
   local requested_mode="${LAUNCHER_MODE,,}"
 
@@ -126,14 +126,14 @@ select_launcher_command() {
   if [[ "$requested_mode" == "menu" ]]; then
     LAUNCH_CMD="$menu_launcher"
     LAUNCHER_LABEL="AI Hub Menu"
-    [[ -f "$INSTALL_PATH/launcher/aihub_menu.ps1" ]] && WINDOWS_NATIVE_LAUNCH_CMD="$INSTALL_PATH/launcher/aihub_menu.ps1"
-    [[ -f "$INSTALL_PATH/launcher/aihub_menu.bat" ]] && WINDOWS_NATIVE_BATCH_CMD="$INSTALL_PATH/launcher/aihub_menu.bat"
+    [[ -f "$INSTALL_PATH/launcher/windows/aihub_menu.ps1" ]] && WINDOWS_NATIVE_LAUNCH_CMD="$INSTALL_PATH/launcher/windows/aihub_menu.ps1"
+    [[ -f "$INSTALL_PATH/launcher/windows/aihub_menu.bat" ]] && WINDOWS_NATIVE_BATCH_CMD="$INSTALL_PATH/launcher/windows/aihub_menu.bat"
   else
     if [[ -x "$web_launcher" ]]; then
       LAUNCH_CMD="$web_launcher"
       LAUNCHER_LABEL="AI Hub Web UI"
-      [[ -f "$INSTALL_PATH/launcher/start_web_launcher.ps1" ]] && WINDOWS_NATIVE_LAUNCH_CMD="$INSTALL_PATH/launcher/start_web_launcher.ps1"
-      [[ -f "$INSTALL_PATH/launcher/start_web_launcher.bat" ]] && WINDOWS_NATIVE_BATCH_CMD="$INSTALL_PATH/launcher/start_web_launcher.bat"
+      [[ -f "$INSTALL_PATH/launcher/windows/start_web_launcher.ps1" ]] && WINDOWS_NATIVE_LAUNCH_CMD="$INSTALL_PATH/launcher/windows/start_web_launcher.ps1"
+      [[ -f "$INSTALL_PATH/launcher/windows/start_web_launcher.bat" ]] && WINDOWS_NATIVE_BATCH_CMD="$INSTALL_PATH/launcher/windows/start_web_launcher.bat"
     else
       log_error "Web launcher script missing; falling back to menu launcher."
     fi

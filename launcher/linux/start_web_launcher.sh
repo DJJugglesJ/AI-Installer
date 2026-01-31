@@ -1,8 +1,10 @@
 #!/bin/bash
+set -euo pipefail
+
 # Start the AI Hub web launcher (Linux/macOS/WSL)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 HOST="${AIHUB_WEB_HOST:-127.0.0.1}"
 PORT="${AIHUB_WEB_PORT:-3939}"
 

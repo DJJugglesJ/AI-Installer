@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set SCRIPT_DIR=%~dp0
-set PROJECT_ROOT=%SCRIPT_DIR%..
+set PROJECT_ROOT=%SCRIPT_DIR%..\..
 set LOG_PATH=%AIHUB_LOG_PATH%
 set LOG_DIR=%AIHUB_LOG_DIR%
 if "%LOG_DIR%"=="" (
@@ -53,6 +53,6 @@ if errorlevel 1 (
 
 pushd %PROJECT_ROOT%
 set PYTHONPATH=%PROJECT_ROOT%;%PYTHONPATH%
-%PY_CMD% launcher\aihub_menu.py %*
+%PY_CMD% launcher\common\aihub_menu.py %*
 popd
 endlocal

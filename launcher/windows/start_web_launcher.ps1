@@ -1,7 +1,7 @@
 # Start the AI Hub web launcher (Windows/PowerShell)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectRoot = Resolve-Path "$ScriptDir/.."
-. "$ProjectRoot/launcher/windows/paths.ps1"
+$ProjectRoot = Resolve-Path "$ScriptDir/../.."
+. "$ScriptDir/paths.ps1"
 $Env:AIHUB_LOG_PATH = Get-AIHubLogPath
 $Env:AIHUB_LOG_DIR = Get-AIHubLogRoot
 $Env:AIHUB_CONFIG_DIR = Get-AIHubConfigRoot

@@ -9,15 +9,15 @@ The web launcher exposes the same installer/launcher helpers that power the lega
 - **Static + API:** The handler serves `modules/runtime/web_launcher/static/` alongside `/api/*` endpoints for actions, installer jobs, manifests, prompt compilation, and character registry browsing.
 
 ## How it augments or replaces legacy menus
-- **Linux/WSL:** `launcher/start_web_launcher.sh` replaces the need for `aihub_menu.sh` + YAD dialogs. Existing desktop shortcuts can target the web launcher script or `http://127.0.0.1:3939` directly after the server is started.
-- **Windows:** `launcher/start_web_launcher.bat` and `launcher/start_web_launcher.ps1` mirror the Linux script and forward into the Python entry point (works in WSL-backed setups). The legacy `.bat`/`.ps1` menu wrappers remain available if you prefer dialogs.
-- **macOS:** `launcher/start_web_launcher.command` provides a double-clickable launcher while keeping `aihub_menu.sh` available in terminals for parity with Linux.
+- **Linux/WSL:** `launcher/linux/start_web_launcher.sh` replaces the need for `aihub_menu.sh` + YAD dialogs. Existing desktop shortcuts can target the web launcher script or `http://127.0.0.1:3939` directly after the server is started.
+- **Windows:** `launcher/windows/start_web_launcher.bat` and `launcher/windows/start_web_launcher.ps1` mirror the Linux script and forward into the Python entry point (works in WSL-backed setups). The legacy `.bat`/`.ps1` menu wrappers remain available if you prefer dialogs.
+- **macOS:** `launcher/linux/start_web_launcher.command` provides a double-clickable launcher while keeping `aihub_menu.sh` available in terminals for parity with Linux.
 
 ## Startup scripts and URLs
-- `launcher/start_web_launcher.sh` (Linux/WSL/macOS terminal)
-- `launcher/start_web_launcher.bat` (Windows batch)
-- `launcher/start_web_launcher.ps1` (Windows PowerShell)
-- `launcher/start_web_launcher.command` (macOS Finder/Terminal)
+- `launcher/linux/start_web_launcher.sh` (Linux/WSL/macOS terminal)
+- `launcher/windows/start_web_launcher.bat` (Windows batch)
+- `launcher/windows/start_web_launcher.ps1` (Windows PowerShell)
+- `launcher/linux/start_web_launcher.command` (macOS Finder/Terminal)
 
 Each script accepts `AIHUB_WEB_HOST`, `AIHUB_WEB_PORT`, and optionally `AIHUB_WEB_TOKEN` to pre-configure the binding and authentication. After launching, the UI is available at:
 
