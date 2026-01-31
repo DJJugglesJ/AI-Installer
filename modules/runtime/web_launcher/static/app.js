@@ -1454,6 +1454,16 @@ function initCharacterStudioPage() {
   const datasetCaptionsButton = document.getElementById("cs-dataset-captions");
   const datasetAutoTagButton = document.getElementById("cs-dataset-auto-tag");
   const datasetResult = document.getElementById("cs-dataset-result");
+  const reviewSubset = document.getElementById("cs-review-subset");
+  const reviewRefreshButton = document.getElementById("cs-review-refresh");
+  const reviewList = document.getElementById("cs-review-list");
+  const reviewDetail = document.getElementById("cs-review-detail");
+  const reviewForm = document.getElementById("cs-review-form");
+  const reviewImage = document.getElementById("cs-review-image");
+  const reviewCaption = document.getElementById("cs-review-caption");
+  const reviewTags = document.getElementById("cs-review-tags");
+  const reviewSaveButton = document.getElementById("cs-review-save");
+  const reviewResult = document.getElementById("cs-review-result");
   const trainingForm = document.getElementById("cs-training-form");
   const trainingCharacter = document.getElementById("cs-training-character");
   const trainingExportButton = document.getElementById("cs-training-export");
@@ -1464,6 +1474,9 @@ function initCharacterStudioPage() {
   const tabPanels = document.querySelectorAll("[data-panel]");
   let cardItems = [];
   let activeCard = null;
+  let reviewItems = [];
+  let activeReviewItem = null;
+  let isReviewSyncing = false;
 
   if (!cardList || !cardDetail || !cardForm) {
     return;
@@ -1514,6 +1527,21 @@ function initCharacterStudioPage() {
         if (input.id === "cs-training-character") return;
         input.disabled = !enabled;
       });
+    }
+  };
+
+  const setReviewControlsEnabled = (enabled) => {
+    if (reviewForm) {
+      reviewForm.querySelectorAll("input, textarea, button").forEach((input) => {
+        if (input.id === "cs-review-image") return;
+        input.disabled = !enabled;
+      });
+    }
+    if (reviewSubset) {
+      reviewSubset.disabled = !enabled;
+    }
+    if (reviewRefreshButton) {
+      reviewRefreshButton.disabled = !enabled;
     }
   };
 
@@ -1613,6 +1641,102 @@ function initCharacterStudioPage() {
     }
   };
 
+  const parseTagText = (rawText) => {
+    if (!rawText) return [];
+    return rawText
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
+  const renderReviewList = (items) => {
+    if (!reviewList) return;
+    reviewList.innerHTML = "";
+    if (!items.length) {
+      reviewList.innerHTML = '<div class="muted">No images found for this subset.</div>';
+      activeReviewItem = null;
+      if (reviewDetail) {
+        reviewDetail.textContent = "Select an image to review its caption.";
+      }
+      if (reviewForm) {
+        reviewForm.reset();
+      }
+      return;
+    }
+
+    const activePath = activeReviewItem ? activeReviewItem.image_path : null;
+    let activeButton = null;
+    let activeItem = null;
+
+    items.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "cs-list-item";
+      const captionState = item.caption_exists ? "Captioned" : "Missing caption";
+      button.innerHTML = `<strong>${escapeHtml(item.filename || "image")}</strong><span>${captionState}</span>`;
+      button.addEventListener("click", () => {
+        reviewList.querySelectorAll(".cs-list-item").forEach((listItem) => listItem.classList.remove("active"));
+        button.classList.add("active");
+        activeReviewItem = item;
+        loadReviewCaption(item);
+      });
+      reviewList.appendChild(button);
+      if (activePath && item.image_path === activePath) {
+        activeButton = button;
+        activeItem = item;
+      }
+    });
+
+    const firstButton = reviewList.querySelector(".cs-list-item");
+    if (activeButton) {
+      activeButton.classList.add("active");
+      activeReviewItem = activeItem;
+      loadReviewCaption(activeItem);
+    } else if (firstButton) {
+      firstButton.classList.add("active");
+      activeReviewItem = items[0];
+      loadReviewCaption(items[0]);
+    }
+  };
+
+  const loadReviewImages = async (showLoading = false) => {
+    if (!activeCard || !reviewList) return;
+    const subset = reviewSubset && reviewSubset.value ? reviewSubset.value.trim() : "base";
+    if (showLoading) {
+      setPanelLoading(reviewList, "Loading dataset images…");
+    }
+    try {
+      const payload = await fetchJson(
+        `/api/characters/${activeCard.id}/dataset/images/${encodeURIComponent(subset || "base")}`,
+      );
+      reviewItems = payload.items || [];
+      renderReviewList(reviewItems);
+    } catch (err) {
+      setPanelError(reviewList, `Failed to load dataset images: ${err.message}`, () => loadReviewImages(true));
+    }
+  };
+
+  const loadReviewCaption = async (item) => {
+    if (!item || !activeCard) return;
+    if (reviewDetail) {
+      reviewDetail.textContent = `Reviewing ${item.filename || "image"}`;
+    }
+    try {
+      const payload = await fetchJson(`/api/characters/${activeCard.id}/dataset/caption`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_path: item.image_path }),
+      });
+      if (reviewImage) reviewImage.value = payload.image_path || item.image_path || "";
+      if (reviewCaption) reviewCaption.value = payload.caption || "";
+      if (reviewTags) reviewTags.value = (payload.tags || []).join(", ");
+    } catch (err) {
+      if (reviewResult) {
+        renderResultBanner(reviewResult, "error", "Caption load failed", err.message, err.details);
+      }
+    }
+  };
+
   const setActiveCard = (card) => {
     activeCard = card;
     renderCardDetail(card);
@@ -1631,6 +1755,16 @@ function initCharacterStudioPage() {
       }
       setDatasetControlsEnabled(false);
       setTrainingControlsEnabled(false);
+      setReviewControlsEnabled(false);
+      if (reviewList) {
+        reviewList.innerHTML = '<div class="muted">Select a character card to load dataset images.</div>';
+      }
+      if (reviewDetail) {
+        reviewDetail.textContent = "Select an image to review its caption.";
+      }
+      if (reviewForm) {
+        reviewForm.reset();
+      }
       if (trainingResult) {
         trainingResult.innerHTML = '<p class="muted">Select a character card to manage training.</p>';
       }
@@ -1641,6 +1775,7 @@ function initCharacterStudioPage() {
     }
     setDatasetControlsEnabled(true);
     setTrainingControlsEnabled(true);
+    setReviewControlsEnabled(true);
     if (trainingResult) {
       trainingResult.innerHTML = "";
     }
@@ -1648,6 +1783,7 @@ function initCharacterStudioPage() {
       trainingPaths.innerHTML = "";
     }
     refreshDatasetSummary(true);
+    loadReviewImages(true);
   };
 
   const parsePathList = (rawText) => {
@@ -1831,6 +1967,65 @@ function initCharacterStudioPage() {
         renderDatasetSummary(response.summary);
       } catch (err) {
         renderResultBanner(datasetResult, "error", "Auto-tag failed", err.message, err.details);
+      }
+    });
+  }
+
+  if (reviewRefreshButton) {
+    reviewRefreshButton.addEventListener("click", () => {
+      if (!activeCard) return;
+      loadReviewImages(true);
+    });
+  }
+
+  if (reviewCaption) {
+    reviewCaption.addEventListener("input", () => {
+      if (isReviewSyncing) return;
+      isReviewSyncing = true;
+      if (reviewTags) {
+        reviewTags.value = parseTagText(reviewCaption.value).join(", ");
+      }
+      isReviewSyncing = false;
+    });
+  }
+
+  if (reviewTags) {
+    reviewTags.addEventListener("input", () => {
+      if (isReviewSyncing) return;
+      isReviewSyncing = true;
+      if (reviewCaption) {
+        reviewCaption.value = parseTagText(reviewTags.value).join(", ");
+      }
+      isReviewSyncing = false;
+    });
+  }
+
+  if (reviewSaveButton) {
+    reviewSaveButton.addEventListener("click", async () => {
+      if (!activeCard || !activeReviewItem) {
+        renderResultBanner(reviewResult, "error", "Save failed", "Select an image to edit.");
+        return;
+      }
+      const tagText = reviewCaption && reviewCaption.value ? reviewCaption.value : reviewTags ? reviewTags.value : "";
+      const tags = parseTagText(tagText);
+      renderResultBanner(reviewResult, "success", "Saving", "Updating caption tags…");
+      try {
+        const response = await fetchJson(`/api/characters/${activeCard.id}/dataset/tags/edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image_path: activeReviewItem.image_path, tags }),
+        });
+        if (reviewCaption) {
+          reviewCaption.value = response.caption || "";
+        }
+        if (reviewTags) {
+          reviewTags.value = (response.tags || []).join(", ");
+        }
+        activeReviewItem.caption_exists = true;
+        renderReviewList(reviewItems);
+        renderResultBanner(reviewResult, "success", "Caption saved", "Tags updated successfully.");
+      } catch (err) {
+        renderResultBanner(reviewResult, "error", "Save failed", err.message, err.details);
       }
     });
   }

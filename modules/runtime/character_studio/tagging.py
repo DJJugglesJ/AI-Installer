@@ -36,6 +36,12 @@ def _parse_tag_output(output: str) -> List[str]:
     return parsed
 
 
+def parse_tag_text(tag_text: str) -> List[str]:
+    """Parse tag text into a normalized list."""
+
+    return _parse_tag_output(tag_text)
+
+
 def _write_caption(image_path: Path, tags: List[str]) -> str:
     caption_text = ", ".join(tags)
     caption_path = image_path.with_suffix(".txt")

@@ -22,7 +22,7 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from modules.config_service import config_service
 from modules.runtime.character_studio.models import CharacterStudioError
@@ -599,6 +599,90 @@ class WebLauncherAPI:
         self.get_character(card_id)
         return character_dataset.get_dataset_summary(card_id)
 
+    def list_dataset_images(self, card_id: str, subset: str) -> Dict[str, object]:
+        self.get_character(card_id)
+        if not isinstance(subset, str) or not subset.strip():
+            raise ValueError("subset must be a non-empty string")
+        normalized_subset = subset.strip()
+        images = character_dataset.list_subset_images(card_id, normalized_subset)
+        items = []
+        for image_path in images:
+            caption_path = image_path.with_suffix(".txt")
+            items.append(
+                {
+                    "image_path": str(image_path),
+                    "filename": image_path.name,
+                    "caption_path": str(caption_path),
+                    "caption_exists": caption_path.exists(),
+                }
+            )
+        return {"subset": normalized_subset, "items": items, "count": len(items)}
+
+    def get_dataset_caption(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        image_path = payload.get("image_path")
+        if not isinstance(image_path, str) or not image_path.strip():
+            raise ValueError("image_path must be provided")
+        resolved = self._resolve_dataset_image(card_id, image_path)
+        caption_path = resolved.with_suffix(".txt")
+        caption_text = caption_path.read_text(encoding="utf-8") if caption_path.exists() else ""
+        tags = character_tagging.parse_tag_text(caption_text)
+        return {
+            "image_path": str(resolved),
+            "caption_path": str(caption_path),
+            "caption": caption_text,
+            "tags": tags,
+            "exists": caption_path.exists(),
+        }
+
+    def edit_dataset_tags(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        image_path = payload.get("image_path")
+        tags = payload.get("tags", [])
+        if not isinstance(image_path, str) or not image_path.strip():
+            raise ValueError("image_path must be provided")
+        if not isinstance(tags, list) or not all(isinstance(item, str) for item in tags):
+            raise ValueError("tags must be a list of strings")
+        resolved = self._resolve_dataset_image(card_id, image_path)
+        caption_path = character_tagging.edit_tags_for_image(str(resolved), new_tags=tags)
+        caption_text = Path(caption_path).read_text(encoding="utf-8")
+        return {
+            "image_path": str(resolved),
+            "caption_path": caption_path,
+            "caption": caption_text,
+            "tags": character_tagging.parse_tag_text(caption_text),
+        }
+
+    def bulk_edit_dataset_tags(self, card_id: str, payload: Dict[str, object]) -> Dict[str, object]:
+        image_paths = payload.get("image_paths", [])
+        append_tags = payload.get("append_tags")
+        replace_with = payload.get("replace_with")
+        if not isinstance(image_paths, list) or not all(isinstance(item, str) for item in image_paths):
+            raise ValueError("image_paths must be a list of strings")
+        if append_tags is not None and (
+            not isinstance(append_tags, list) or not all(isinstance(item, str) for item in append_tags)
+        ):
+            raise ValueError("append_tags must be a list of strings when provided")
+        if replace_with is not None and (
+            not isinstance(replace_with, list) or not all(isinstance(item, str) for item in replace_with)
+        ):
+            raise ValueError("replace_with must be a list of strings when provided")
+        resolved_paths = [str(self._resolve_dataset_image(card_id, path)) for path in image_paths]
+        caption_paths = character_tagging.bulk_edit_tags(
+            resolved_paths, append_tags=append_tags, replace_with=replace_with
+        )
+        return {"caption_paths": caption_paths, "count": len(caption_paths)}
+
+    def _resolve_dataset_image(self, card_id: str, image_path: str) -> Path:
+        self.get_character(card_id)
+        resolved = Path(image_path).expanduser().resolve()
+        dataset_root = character_dataset.get_character_dataset_dir(card_id).resolve()
+        if resolved.suffix.lower() not in character_dataset.IMAGE_EXTENSIONS:
+            raise ValueError("image_path must reference a dataset image")
+        if not resolved.exists():
+            raise ValueError("image_path does not exist")
+        if dataset_root not in resolved.parents:
+            raise ValueError("image_path is not within the dataset root")
+        return resolved
+
     def init_dataset(self, card_id: str) -> Dict[str, object]:
         character_dataset.create_dataset_structure(card_id)
         return self.get_dataset_summary(card_id)
@@ -885,6 +969,15 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(self.api.get_manifests())
             elif path == "/api/characters":
                 self._send_json({"items": self.api.list_characters()})
+            elif path.startswith("/api/characters/") and "/dataset/images" in path:
+                prefix = "/api/characters/"
+                remainder = path[len(prefix) :]
+                parts = remainder.split("/")
+                if len(parts) < 3 or parts[1] != "dataset" or parts[2] != "images":
+                    raise ValueError("Invalid dataset images endpoint")
+                card_id = parts[0]
+                subset = unquote(parts[3]) if len(parts) > 3 else "base"
+                self._send_json(self.api.list_dataset_images(card_id, subset))
             elif path.startswith("/api/characters/") and path.endswith("/dataset"):
                 card_id = path[len("/api/characters/") : -len("/dataset")].strip("/")
                 if not card_id:
@@ -996,6 +1089,7 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                     raise ValueError("Invalid dataset endpoint")
                 card_id = parts[0]
                 action = parts[2]
+                subaction = parts[3] if len(parts) > 3 else None
                 payload = self._read_json_body()
                 if action == "init":
                     result = self.api.init_dataset(card_id)
@@ -1008,6 +1102,15 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                     self._send_json(result)
                 elif action == "auto-tag":
                     result = self.api.auto_tag_dataset(card_id, payload)
+                    self._send_json(result)
+                elif action == "caption":
+                    result = self.api.get_dataset_caption(card_id, payload)
+                    self._send_json(result)
+                elif action == "tags" and subaction == "edit":
+                    result = self.api.edit_dataset_tags(card_id, payload)
+                    self._send_json(result)
+                elif action == "tags" and subaction == "bulk":
+                    result = self.api.bulk_edit_dataset_tags(card_id, payload)
                     self._send_json(result)
                 else:
                     self.send_error(HTTPStatus.NOT_FOUND, "Unknown dataset endpoint")
