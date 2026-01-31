@@ -84,18 +84,30 @@ quick_prompt_panel() {
 
   IFS='|' read -r setting mood style extras nsfw <<<"$output"
   local extras_array
-  extras_array=$(printf "%s" "$extras" | extras_to_json_array)
+  if ! extras_array=$(printf "%s" "$extras" | extras_to_json_array); then
+    show_error "Failed to serialize extras for the prompt."
+    return 1
+  fi
   local scene
-  scene=$(cat <<JSON
-{
-  "setting": "${setting}",
-  "mood": "${mood}",
-  "style": "${style}",
-  "nsfw_level": "${nsfw}",
-  "extra_elements": ${extras_array}
+  if ! scene=$(SETTING="$setting" MOOD="$mood" STYLE="$style" NSFW_LEVEL="$nsfw" EXTRAS_JSON="$extras_array" python - <<'PY'
+import json
+import os
+import sys
+
+scene = {
+    "setting": os.environ.get("SETTING", ""),
+    "mood": os.environ.get("MOOD", ""),
+    "style": os.environ.get("STYLE", ""),
+    "nsfw_level": os.environ.get("NSFW_LEVEL", ""),
+    "extra_elements": json.loads(os.environ.get("EXTRAS_JSON", "[]")),
 }
-JSON
-)
+
+json.dump(scene, sys.stdout)
+PY
+); then
+    show_error "Failed to generate prompt JSON."
+    return 1
+  fi
   save_scene_and_compile "$scene"
 }
 
@@ -109,23 +121,38 @@ guided_scene_panel() {
 
   IFS='|' read -r world setting mood style camera nsfw characters_raw extras <<<"$output"
   local extras_array
-  extras_array=$(printf "%s" "$extras" | extras_to_json_array)
+  if ! extras_array=$(printf "%s" "$extras" | extras_to_json_array); then
+    show_error "Failed to serialize extras for the prompt."
+    return 1
+  fi
   local characters_json
-  characters_json=$(printf "%s" "$characters_raw" | parse_characters)
+  if ! characters_json=$(printf "%s" "$characters_raw" | parse_characters); then
+    show_error "Failed to serialize characters for the prompt."
+    return 1
+  fi
   local scene
-  scene=$(cat <<JSON
-{
-  "world": "${world}",
-  "setting": "${setting}",
-  "mood": "${mood}",
-  "style": "${style}",
-  "camera": "${camera}",
-  "nsfw_level": "${nsfw}",
-  "characters": ${characters_json},
-  "extra_elements": ${extras_array}
+  if ! scene=$(WORLD="$world" SETTING="$setting" MOOD="$mood" STYLE="$style" CAMERA="$camera" NSFW_LEVEL="$nsfw" CHARACTERS_JSON="$characters_json" EXTRAS_JSON="$extras_array" python - <<'PY'
+import json
+import os
+import sys
+
+scene = {
+    "world": os.environ.get("WORLD", ""),
+    "setting": os.environ.get("SETTING", ""),
+    "mood": os.environ.get("MOOD", ""),
+    "style": os.environ.get("STYLE", ""),
+    "camera": os.environ.get("CAMERA", ""),
+    "nsfw_level": os.environ.get("NSFW_LEVEL", ""),
+    "characters": json.loads(os.environ.get("CHARACTERS_JSON", "[]")),
+    "extra_elements": json.loads(os.environ.get("EXTRAS_JSON", "[]")),
 }
-JSON
-)
+
+json.dump(scene, sys.stdout)
+PY
+); then
+    show_error "Failed to generate prompt JSON."
+    return 1
+  fi
   save_scene_and_compile "$scene"
 }
 
