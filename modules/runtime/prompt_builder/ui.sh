@@ -42,10 +42,16 @@ import json, sys
 
 raw = sys.stdin.read().strip().splitlines()
 entries = []
-for line in raw:
+for index, line in enumerate(raw, start=1):
     if not line.strip():
         continue
-    slot, character, *rest = (part.strip().replace('"', '') for part in line.split(',', 3))
+    parts = [part.strip().replace('"', '') for part in line.split(',', 3)]
+    if len(parts) < 2:
+        sys.stderr.write(
+            f"Invalid character line {index}: expected at least slot and character_id."
+        )
+        sys.exit(2)
+    slot, character, *rest = parts
     role = rest[0] if len(rest) >= 1 else ''
     override = rest[1] if len(rest) >= 2 else ''
     entry = {
@@ -113,7 +119,8 @@ PY
 
 guided_scene_panel() {
   local output
-  output=$(yad --form --title="Guided Scene Builder" --width=700 --height=400 \
+  output=$(yad --form --title="Guided Scene Builder" --text="Characters format: slot,character_id,role,override" \
+    --width=700 --height=400 \
     --field="World" --field="Setting" --field="Mood" --field="Style" --field="Camera" \
     --field="NSFW Level:CB" "safe!sfw!suggestive!explicit" \
     --field="Characters (slot,character_id,role,override per line):TXT" \
@@ -126,10 +133,19 @@ guided_scene_panel() {
     return 1
   fi
   local characters_json
-  if ! characters_json=$(printf "%s" "$characters_raw" | parse_characters); then
-    show_error "Failed to serialize characters for the prompt."
+  local characters_error_file
+  characters_error_file=$(mktemp)
+  if ! characters_json=$(printf "%s" "$characters_raw" | parse_characters 2>"$characters_error_file"); then
+    local characters_error
+    characters_error=$(cat "$characters_error_file")
+    rm -f "$characters_error_file"
+    if [[ -z "$characters_error" ]]; then
+      characters_error="Failed to serialize characters for the prompt."
+    fi
+    show_error "$characters_error"
     return 1
   fi
+  rm -f "$characters_error_file"
   local scene
   if ! scene=$(WORLD="$world" SETTING="$setting" MOOD="$mood" STYLE="$style" CAMERA="$camera" NSFW_LEVEL="$nsfw" CHARACTERS_JSON="$characters_json" EXTRAS_JSON="$extras_array" python - <<'PY'
 import json
