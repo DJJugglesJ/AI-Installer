@@ -9,6 +9,8 @@
       "size_bytes": 57420828,
       "checksum": "DF7C757437EF3696E76EE5CC18C063681478639132547B6292B0B4D773814BA5",
       "license": "Unknown (refer to CivitAI listing)",
+      "training_data": "Unknown (refer to CivitAI listing)",
+      "recommended_precision": "fp16",
       "tags": ["anime", "female", "male", "western art", "style", "ponyxl"],
       "notes": "Abstract painting style LoRA for Pony Diffusion V6 XL"
     },
@@ -20,6 +22,8 @@
       "size_bytes": 37861176,
       "checksum": "47AAAF0D2945CA937151D61304946DD229B3F072140B85484BC93E38F2A6E2F7",
       "license": "Unknown (refer to CivitAI listing)",
+      "training_data": "Unknown (refer to CivitAI listing)",
+      "recommended_precision": "fp16",
       "tags": ["anime", "photorealistic", "concept", "detailed", "lora"],
       "notes": "Adds crisp detailing to anime and photorealistic renders"
     },
