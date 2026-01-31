@@ -6,20 +6,22 @@ Current capabilities
 - Shell-first, modular architecture: installer and launcher helpers live in `modules/shell`, with runtime schemas and utilities (Prompt Builder, Character Studio, manifest validation) in `modules/runtime`.
 - Cross-platform installers: Linux and WSL are first-class, with native Windows wrappers (`.bat`/`.ps1`) that mirror shell flows and shared logging locations.
 - Defensive installation and GPU handling: prerequisite checks, resumable downloads, structured logs, and GPU probes (NVIDIA/AMD/Intel/DirectML) with safe CPU fallbacks.
-- Launcher coverage and parity: YAD desktop launcher plus a Web Launcher that shares install/update/launch flows, manifest access, and pairing workflows.
+- Launcher coverage and parity: YAD desktop launcher plus a Web Launcher that shares install/update/launch flows, manifest browsing, and pairing workflows where implemented.
 - Manifest and runtime validation: curated model/LoRA manifests with hashes, mirrors, and front-end hints; schemas validate manifests, Prompt Builder scenes, Character Cards, and LoRA metadata with structured errors.
 - Quickstart defaults: updated presets for SD1.5/SDXL, GPU hints, and safer defaults for new users.
 - Modular media agents: audio (TTS/ASR/voice profiles) and video (img2vid/txt2vid) runtime packages share a global registry and
   the common `Task` dataclass, with JSON CLIs and shell wrappers so the web launcher can discover and trigger them safely.
+- Prompt Builder and Character Studio foundations: schema-defined scenes and cards, prompt compilation, and apply-feedback utilities available via runtime/CLI entrypoints.
+- Guided Scene Builder UI: Web Launcher panels for world/setting/mood/camera/characters.
 
 Near-term milestones (1–2 releases)
 - Ship GPU diagnostics across CLI, menu, and Web UI (VRAM checks, driver details, ROCm/oneAPI/DirectML tips).
-- Achieve full Web Launcher parity: manifest browsing, model/LoRA pairing flows, inline quickstart guidance, and clearer loading/error states.
+- Expand Web Launcher parity: finish any remaining gaps in manifest browsing, model/LoRA pairing flows, inline quickstart guidance, and clearer loading/error states.
 - Harden download reliability with mirror health checks, checksums, resumable/offline bundles, and structured error reporting in the Web Launcher.
 - Complete Windows launcher parity with `.bat`/`.ps1` wrappers for all shell helpers, WSL fallbacks, and unified logging semantics.
-- Enrich manifest and content browsers: tag editing, checksum validation, metadata updates, refresh cadence, health indicators, and one-click installs for models and LoRAs.
-- Deliver Prompt Builder and Character Studio schemas plus prompt compilation: structured scene inputs produce prompts and LoRA call lists through an LLM abstraction layer.
-- Build UI/editor work: Guided Scene Builder panels (world/setting/mood/camera/characters), Quick Prompt mode, Character Card editing (anatomy, wardrobe, triggers, reference images, `nsfw_allowed`), and apply-feedback functions for refinement.
+- Real LLM provider integrations for Prompt Builder/Character Studio (bring-your-own key, pluggable providers, clear error paths).
+- Manifest editing and health checks: tag editing, checksum validation, metadata updates, refresh cadence, and health indicators across CLI and Web Launcher.
+- Dataset review UI: dataset browser, tagging/caption review queues, and safer editing flows in the Web Launcher.
 
 Mid-term milestones (quarterly)
 - Expand headless automation with fully configurable install profiles, schema-validated config ingestion, reproducible exports, and remote-friendly Web Launcher operation.
