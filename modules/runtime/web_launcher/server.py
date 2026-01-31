@@ -25,7 +25,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
 from modules.config_service import config_service
-from modules.runtime.character_studio.models import CharacterStudioError
+from modules.runtime.character_studio.models import CharacterCard, CharacterStudioError
 from modules.runtime.character_studio.registry import CharacterCardRegistry
 from modules.runtime.character_studio import dataset as character_dataset
 from modules.runtime.character_studio import services as character_services
@@ -850,8 +850,28 @@ class WebLauncherAPI:
     def apply_feedback(self, scene_json: Dict[str, object], feedback: str) -> Dict[str, object]:
         if not isinstance(scene_json, dict):
             raise ValueError("scene must be a JSON object")
-        updated = compiler.apply_feedback_to_scene(scene_json, feedback)
-        return {"scene": updated}
+        if not isinstance(feedback, str):
+            raise ValueError("feedback must be a string")
+        scene = compiler.parse_scene_description(scene_json)
+        updated = compiler.apply_feedback_to_scene(scene, feedback)
+        if isinstance(updated, compiler.Error):
+            raise ValueError(updated.error)
+        return {"scene": asdict(updated)}
+
+    def batch_tag_images(self, payload: Dict[str, object]) -> Dict[str, object]:
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be a JSON object")
+        card_payload = payload.get("card")
+        if not isinstance(card_payload, dict):
+            raise ValueError("card must be a JSON object")
+        image_contexts = payload.get("image_contexts", [])
+        if not isinstance(image_contexts, list):
+            raise ValueError("image_contexts must be a list")
+
+        card = CharacterCard.from_dict(card_payload)
+        card.normalize_triggers()
+        card.validate()
+        return character_tagging.batch_tag_images(card, image_contexts)
 
     def list_prompt_history(self) -> Dict[str, object]:
         entries = [entry.to_dict() for entry in self._prompt_history.list_entries()]
@@ -1038,6 +1058,10 @@ class LauncherRequestHandler(SimpleHTTPRequestHandler):
                 scene_payload = payload.get("scene", payload)
                 feedback = payload.get("feedback", "")
                 result = self.api.apply_feedback(scene_payload, feedback)
+                self._send_json(result)
+            elif path == "/api/characters/tags/batch":
+                payload = self._read_json_body()
+                result = self.api.batch_tag_images(payload)
                 self._send_json(result)
             elif path == "/api/prompt/history/favorite":
                 payload = self._read_json_body()
