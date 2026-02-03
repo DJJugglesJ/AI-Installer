@@ -49,6 +49,8 @@ PowerShell entrypoints use `launcher/windows/common.ps1` to invoke the shell hel
 | `launcher/windows/install_sillytavern.bat` | Windows | Install/update SillyTavern. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/install_models.ps1` | Windows | Install/update models into `~/ai-hub/models`. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/install_models.bat` | Windows | Install/update models into `~/ai-hub/models`. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/download_models_civitai.ps1` | Windows | Download models from CivitAI into `~/ai-hub/models`. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/download_models_civitai.bat` | Windows | Download models from CivitAI into `~/ai-hub/models`. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/install_loras.ps1` | Windows | Install/update LoRAs into `~/AI/LoRAs`. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/install_loras.bat` | Windows | Install/update LoRAs into `~/AI/LoRAs`. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/run_webui.ps1` | Windows | Run Stable Diffusion WebUI. | `README.md`, `tests/test_windows_wrappers.py` |
