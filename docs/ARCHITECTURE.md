@@ -167,15 +167,15 @@ AI Hub avoids hardcoded dependencies by relying on abstraction layers:
 - Shared schemas (SceneDescription, Character Card) are versioned in `modules/runtime` and imported by both the backend handlers and the frontend TypeScript types to keep compatibility across releases.
 
 ### Relationship to existing menus
-- The YAD/menu flows remain available as a compatibility layer but are gradually replaced by the web UI for cross-platform consistency (Linux desktop, WSL, headless servers). Both surfaces call the same runtime APIs so feature delivery remains unified.
-- Desktop launchers can open the local web UI in the default browser instead of YAD, while command-line users can access the same actions via HTTP or CLI wrappers.
+- The Web Launcher is the single UX surface for AI Hub across platforms. Legacy YAD entrypoints on Linux are deprecated and now redirect to the Web Launcher so behavior stays consistent without desktop widget dependencies.
+- Desktop launchers open the local web UI in the default browser, while command-line users can access the same actions via HTTP or CLI wrappers.
 - The web UI adds new affordances such as remote access, responsive layouts, and deeper module integrations (Prompt Builder + Character Studio) without forcing users to install desktop widget toolkits.
 
 ### Web launcher and manifest surface
 - A dedicated web-based launcher surface runs off the same lightweight HTTP server that serves compiled frontend assets, keeping all flows available on systems without desktop widget toolkits (including macOS/Windows) and WSL/headless Linux.
 - Launcher controls call existing shell helpers for install/update/launch actions through backend API handlers so logs, exit codes, and side effects remain identical to YAD dialogs.
 - Manifest browsing uses the same runtime metadata readers that power CLI flows, exposing search/filter/download triggers from the web UI while reusing checksum validation and hooks for runtime module updates.
-- OS integration favors opening the local browser pointing at the server host/port instead of spawning YAD; on Linux the YAD dialogs can be retained as a fallback, while non-Linux platforms rely exclusively on the web surface to deliver equivalent flows.
+- OS integration favors opening the local browser pointing at the server host/port instead of spawning YAD; Linux YAD dialogs are deprecated and retained only as legacy wrappers that forward to the web surface.
 - Backend handlers stay platform-aware: they leverage `modules/shell` scripts where available, provide WSL-aware bridges on Windows, and keep schema parity with runtime modules so new hooks (e.g., prompt tools) can be exposed without diverging UX between web and desktop dialogs.
 
 ## 8. Summary

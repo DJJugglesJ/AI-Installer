@@ -9,7 +9,7 @@ This inventory captures launcher entrypoints and helper scripts, plus where they
 | `install.sh` | Linux/macOS/WSL | Installer entrypoint (interactive/headless setup, config/logging). | `README.md`, `docs/quickstart_models.md`, `docs/config_service.md`, `tests/test_installer_config.py` |
 | `install.ps1` | Windows | PowerShell installer (headless options, GPU/install target flags). | `README.md`, `install.bat`, `tools/windows.ps1` |
 | `install.bat` | Windows | Batch wrapper that calls `install.ps1`. | `README.md`, `install.ps1` |
-| `launcher/linux/aihub_menu.sh` | Linux/WSL | YAD-driven menu for installs/launchers (legacy menu UI). | `README.md`, `docs/shortcuts.md`, `docs/quickstart_models.md`, `install.sh`, `modules/shell/self_update.sh` |
+| `launcher/linux/aihub_menu.sh` | Linux/WSL | **Deprecated** YAD menu wrapper that now launches the Web Launcher. | `README.md`, `docs/shortcuts.md`, `docs/quickstart_models.md`, `install.sh`, `modules/shell/self_update.sh` |
 
 ## Launcher entrypoints (`launcher/`)
 
@@ -17,7 +17,7 @@ This inventory captures launcher entrypoints and helper scripts, plus where they
 
 | Entrypoint | OS | Purpose | References |
 | --- | --- | --- | --- |
-| `launcher/linux/ai_hub_launcher.sh` | Linux/macOS/WSL | Status panel for installer/config/logs. | `launcher/linux/aihub_menu.sh`, `launcher/common/aihub_menu.py`, `tools/windows.ps1` |
+| `launcher/linux/ai_hub_launcher.sh` | Linux/macOS/WSL | **Deprecated** status panel wrapper that now launches the Web Launcher. | `launcher/linux/aihub_menu.sh`, `launcher/common/aihub_menu.py`, `tools/windows.ps1` |
 | `launcher/common/aihub_menu.py` | Windows/WSL | Headless-friendly action runner mirroring `launcher/linux/aihub_menu.sh`. | `launcher/windows/aihub_menu.ps1`, `launcher/windows/aihub_menu.bat`, `tests/test_windows_wrappers.py` |
 | `launcher/windows/aihub_menu.ps1` | Windows | PowerShell entrypoint to run `aihub_menu.py`. | `README.md`, `docs/shortcuts.md`, `tools/windows.ps1`, `install.sh`, `install.ps1` |
 | `launcher/windows/aihub_menu.bat` | Windows | Batch wrapper to run `aihub_menu.py`. | `install.sh` |

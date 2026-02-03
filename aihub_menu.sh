@@ -2,11 +2,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MENU_TARGET="$SCRIPT_DIR/launcher/linux/aihub_menu.sh"
+WEB_TARGET="$SCRIPT_DIR/launcher/linux/start_web_launcher.sh"
 
-if [[ -x "$MENU_TARGET" ]]; then
-  exec bash "$MENU_TARGET" "$@"
+if [[ -x "$WEB_TARGET" ]]; then
+  echo "[!] The YAD-based menu is deprecated. Launching the Web Launcher instead." >&2
+  exec bash "$WEB_TARGET" "$@"
 fi
 
-echo "[!] AI Hub menu launcher not found at $MENU_TARGET." >&2
+echo "[!] Web Launcher script not found at $WEB_TARGET." >&2
 exit 1
