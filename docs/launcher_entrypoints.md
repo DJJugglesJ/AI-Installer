@@ -85,6 +85,10 @@ PowerShell entrypoints use `launcher/windows/common.ps1` to invoke the shell hel
 | `launcher/windows/pair_sillytavern.bat` | Windows | Pick backend + model for SillyTavern. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/select_lora.ps1` | Windows | Choose a LoRA preset target. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/select_lora.bat` | Windows | Choose a LoRA preset target. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/save_pairing.ps1` | Windows | Save the current pairing preset. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/save_pairing.bat` | Windows | Save the current pairing preset. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/load_pairing.ps1` | Windows | Load a saved pairing preset. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/load_pairing.bat` | Windows | Load a saved pairing preset. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/save_pairing_preset.ps1` | Windows | Save the current pairing preset. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/save_pairing_preset.bat` | Windows | Save the current pairing preset. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/load_pairing_preset.ps1` | Windows | Load a saved pairing preset. | `tests/test_windows_wrappers.py` |
