@@ -1,6 +1,6 @@
 """Windows-friendly launcher for AI Hub actions.
 
-Mirrors the actions exposed by `aihub_menu.sh` while avoiding YAD
+Mirrors the actions exposed by `launcher/linux/aihub_menu.sh` while avoiding YAD
 dependencies. Provides lightweight GPU detection, manifest lookups,
 and a consistent log sink for actions triggered from Windows PowerShell
 or Command Prompt wrappers.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 """Windows-friendly entry point for AI Hub launcher actions.
 
-Provides a headless-friendly shim around the `aihub_menu.sh` options so
+Provides a headless-friendly shim around the `launcher/linux/aihub_menu.sh` options so
 Windows users (or WSL sessions without YAD) can trigger installs,
 launchers, and maintenance flows. Logs to the same installer log as the
 Linux shell scripts and surfaces manifest counts and GPU detection in a

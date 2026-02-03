@@ -47,7 +47,7 @@ This guide highlights the fastest way to install the default Stable Diffusion 1.
 ## Pairing flows
 ### Stable Diffusion WebUI
 1. Ensure models exist in `~/ai-hub/models/` (see above) and LoRAs in `~/AI/LoRAs/`.
-2. Launch WebUI (`aihub_menu.sh` ➜ **Run Stable Diffusion WebUI** or `bash modules/shell/run_webui.sh`).
+2. Launch WebUI (`launcher/linux/aihub_menu.sh` ➜ **Run Stable Diffusion WebUI** or `bash modules/shell/run_webui.sh`).
 3. Pick the SD1.5 checkpoint (e.g., `sd-v1-5.ckpt`) from the model dropdown and select a LoRA from the `Lora` selector. The symlinked LoRA folder makes downloads immediately visible.
 4. Apply the preset cheatsheet values above: sampler + steps/CFG, resolution, and LoRA weight. Save the combination as a WebUI preset for quick reuse.
 

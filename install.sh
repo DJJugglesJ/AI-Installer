@@ -117,8 +117,12 @@ source "$CONFIG_HELPERS"
 
 select_launcher_command() {
   local web_launcher="$INSTALL_PATH/launcher/linux/start_web_launcher.sh"
-  local menu_launcher="$INSTALL_PATH/aihub_menu.sh"
+  local menu_launcher="$INSTALL_PATH/launcher/linux/aihub_menu.sh"
   local requested_mode="${LAUNCHER_MODE,,}"
+
+  if [[ ! -f "$menu_launcher" ]]; then
+    menu_launcher="$INSTALL_PATH/aihub_menu.sh"
+  fi
 
   WINDOWS_NATIVE_LAUNCH_CMD=""
   WINDOWS_NATIVE_BATCH_CMD=""

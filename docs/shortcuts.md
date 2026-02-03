@@ -3,7 +3,7 @@
 The installer generates OS-aware shortcuts for the menu and web UI launchers so users can open the same experience from their desktop environment.
 
 ## How targets are chosen
-- The installer prefers the web launcher (`launcher/linux/start_web_launcher.sh`) and falls back to the YAD menu (`./aihub_menu.sh`) when the web script is missing. Set `AIHUB_LAUNCHER_MODE=menu` to force the legacy menu.
+- The installer prefers the web launcher (`launcher/linux/start_web_launcher.sh`) and falls back to the YAD menu (`launcher/linux/aihub_menu.sh`) when the web script is missing. Set `AIHUB_LAUNCHER_MODE=menu` to force the legacy menu.
 - Platform detection (Linux, macOS, Windows native, or WSL) and the detected desktop environment are logged in `install.log` so you can confirm where shortcuts land.
 
 ## Linux

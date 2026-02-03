@@ -182,7 +182,7 @@ if git -C "$INSTALL_DIR" pull >> "$LOG_FILE" 2>&1; then
   fi
 
   notify_info "✅ AI Installer has been updated (checksum: $UPDATED_HEAD). Relaunching..."
-  exec bash "$INSTALL_DIR/aihub_menu.sh"
+  exec bash "$INSTALL_DIR/launcher/linux/aihub_menu.sh"
 else
   notify_error $'❌ Git pull failed.\nRestoring previous version from backup. Check your internet connection or repository state.'
   restore_from_backup
