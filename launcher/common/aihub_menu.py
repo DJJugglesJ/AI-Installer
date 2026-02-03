@@ -152,6 +152,11 @@ ACTION_MAP: Dict[str, ActionSpec] = {
     "manifest_browser": ActionSpec(
         "manifest_browser", "Browse curated manifests", _shell_command("manifest_browser")
     ),
+    "artifact_manager": ActionSpec(
+        "artifact_manager",
+        "Run artifact manager",
+        _shell_command("artifact_manager"),
+    ),
     "artifact_maintenance": ActionSpec(
         "artifact_maintenance",
         "Run artifact maintenance",
@@ -174,8 +179,36 @@ ACTION_MAP: Dict[str, ActionSpec] = {
     "save_pairing": ActionSpec(
         "save_pairing", "Save the current pairing preset", _shell_command("save_pairing_preset")
     ),
+    "save_pairing_preset": ActionSpec(
+        "save_pairing_preset",
+        "Save the current pairing preset",
+        _shell_command("save_pairing_preset"),
+    ),
     "load_pairing": ActionSpec(
         "load_pairing", "Load a saved pairing preset", _shell_command("load_pairing_preset")
+    ),
+    "load_pairing_preset": ActionSpec(
+        "load_pairing_preset",
+        "Load a saved pairing preset",
+        _shell_command("load_pairing_preset"),
+    ),
+    "health_webui": ActionSpec(
+        "health_webui",
+        "Run WebUI health checks",
+        _shell_command("health_webui"),
+        env={"HEADLESS": "1"},
+    ),
+    "health_kobold": ActionSpec(
+        "health_kobold",
+        "Run KoboldAI health checks",
+        _shell_command("health_kobold"),
+        env={"HEADLESS": "1"},
+    ),
+    "health_sillytavern": ActionSpec(
+        "health_sillytavern",
+        "Run SillyTavern health checks",
+        _shell_command("health_sillytavern"),
+        env={"HEADLESS": "1"},
     ),
     "health_summary": ActionSpec(
         "health_summary",
