@@ -26,7 +26,16 @@ WRAPPER_ACTIONS = [
     "performance_flags",
     "manifest_browser",
     "artifact_maintenance",
+    "artifact_manager",
+    "pair_oobabooga",
+    "pair_sillytavern",
+    "select_lora",
+    "save_pairing_preset",
+    "load_pairing_preset",
     "health_summary",
+    "health_webui",
+    "health_kobold",
+    "health_sillytavern",
     "launcher_status",
 ]
 
@@ -51,7 +60,9 @@ def test_windows_wrappers_present_and_linked() -> None:
         ps1_contents = _read(ps1_path)
         bat_contents = _read(bat_path)
 
-        assert re.search(rf"--action',\s*'{action}'", ps1_contents)
+        assert re.search(rf"--action',\s*'{action}'", ps1_contents) or re.search(
+            rf'-ActionName\\s+"{action}"', ps1_contents
+        )
         assert re.search(rf"--action {action}(\s|$)", bat_contents)
 
         assert action in aihub_menu.ACTION_MAP

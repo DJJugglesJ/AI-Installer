@@ -71,12 +71,30 @@ PowerShell entrypoints use `launcher/windows/common.ps1` to invoke the shell hel
 | `launcher/windows/manifest_browser.bat` | Windows | Manifest browser (curated models/LoRAs). | `tests/test_windows_wrappers.py` |
 | `launcher/windows/artifact_maintenance.ps1` | Windows | Artifact maintenance (cleanup/rotation). | `tests/test_windows_wrappers.py` |
 | `launcher/windows/artifact_maintenance.bat` | Windows | Artifact maintenance (cleanup/rotation). | `tests/test_windows_wrappers.py` |
+| `launcher/windows/artifact_manager.ps1` | Windows | Artifact manager shell helper. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/artifact_manager.bat` | Windows | Artifact manager shell helper. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/self_update.ps1` | Windows | Self-update bundled installer scripts. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/self_update.bat` | Windows | Self-update bundled installer scripts. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/pull_updates.ps1` | Windows | `git pull` for cloned checkouts. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/pull_updates.bat` | Windows | `git pull` for cloned checkouts. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/pair_oobabooga.ps1` | Windows | Pair an oobabooga model with a LoRA. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/pair_oobabooga.bat` | Windows | Pair an oobabooga model with a LoRA. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/pair_sillytavern.ps1` | Windows | Pick backend + model for SillyTavern. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/pair_sillytavern.bat` | Windows | Pick backend + model for SillyTavern. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/select_lora.ps1` | Windows | Choose a LoRA preset target. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/select_lora.bat` | Windows | Choose a LoRA preset target. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/save_pairing_preset.ps1` | Windows | Save the current pairing preset. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/save_pairing_preset.bat` | Windows | Save the current pairing preset. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/load_pairing_preset.ps1` | Windows | Load a saved pairing preset. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/load_pairing_preset.bat` | Windows | Load a saved pairing preset. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/health_summary.ps1` | Windows | Health summary report. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/health_summary.bat` | Windows | Health summary report. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/health_webui.ps1` | Windows | Health checks for Stable Diffusion WebUI. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/health_webui.bat` | Windows | Health checks for Stable Diffusion WebUI. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/health_kobold.ps1` | Windows | Health checks for KoboldAI. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/health_kobold.bat` | Windows | Health checks for KoboldAI. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/health_sillytavern.ps1` | Windows | Health checks for SillyTavern. | `tests/test_windows_wrappers.py` |
+| `launcher/windows/health_sillytavern.bat` | Windows | Health checks for SillyTavern. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/launcher_status.ps1` | Windows | Show launcher status panel. | `tests/test_windows_wrappers.py` |
 | `launcher/windows/launcher_status.bat` | Windows | Show launcher status panel. | `tests/test_windows_wrappers.py` |
 
