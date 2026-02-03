@@ -4,23 +4,22 @@ This roadmap summarizes current capabilities and planned milestones for AI-Hub u
 
 Current capabilities
 - Shell-first, modular architecture: installer and launcher helpers live in `modules/shell`, with runtime schemas and utilities (Prompt Builder, Character Studio, manifest validation) in `modules/runtime`.
-- Cross-platform installers: Linux and WSL are first-class, with native Windows wrappers (`.bat`/`.ps1`) that mirror shell flows and shared logging locations.
-- Defensive installation and GPU handling: prerequisite checks, resumable downloads, structured logs, and GPU probes (NVIDIA/AMD/Intel/DirectML) with safe CPU fallbacks.
-- Launcher coverage and parity: YAD desktop launcher plus a Web Launcher that shares install/update/launch flows, manifest browsing, and pairing workflows where implemented.
+- Web Launcher as the primary UX surface: Linux YAD/menu wrappers now redirect to the Web Launcher, with a Windows-friendly CLI menu (`launcher/common/aihub_menu.py`) for headless actions.
+- Cross-platform installers: Linux/WSL launchers plus native Windows wrappers (`.bat`/`.ps1`) for core install, launch, health, pairing, and runtime task helpers with shared logging.
+- Defensive installation and GPU handling: prerequisite checks, resumable downloads, structured logs, and GPU probes (NVIDIA/AMD/Intel/DirectML) plus Web UI diagnostics with VRAM and backend readiness hints.
+- Web Launcher coverage: install/update/launch flows, manifest browsing/editing/validation, pairing presets, Prompt Builder + Character Studio panels, and runtime task panels for audio/video helpers.
 - Manifest and runtime validation: curated model/LoRA manifests with hashes, mirrors, and front-end hints; schemas validate manifests, Prompt Builder scenes, Character Cards, and LoRA metadata with structured errors.
 - Quickstart defaults: updated presets for SD1.5/SDXL, GPU hints, and safer defaults for new users.
-- Modular media agents: audio (TTS/ASR/voice profiles) and video (img2vid/txt2vid) runtime packages share a global registry and
-  the common `Task` dataclass, with JSON CLIs and shell wrappers so the web launcher can discover and trigger them safely.
-- Prompt Builder and Character Studio foundations: schema-defined scenes and cards, prompt compilation, and apply-feedback utilities available via runtime/CLI entrypoints.
-- Guided Scene Builder UI: Web Launcher panels for world/setting/mood/camera/characters.
+- Modular media agents: audio (TTS/ASR/voice profiles) and video (img2vid/txt2vid) runtime packages share a global registry and the common `Task` dataclass, with JSON CLIs and shell wrappers surfaced in the Web Launcher.
+- Prompt Builder and Character Studio foundations: schema-defined scenes and cards, prompt compilation, apply-feedback utilities, CLI entrypoints, and guided scene building in the Web Launcher.
 
 Near-term milestones (1–2 releases)
-- Ship GPU diagnostics across CLI, menu, and Web UI (VRAM checks, driver details, ROCm/oneAPI/DirectML tips).
-- Expand Web Launcher parity: finish any remaining gaps in manifest browsing, model/LoRA pairing flows, inline quickstart guidance, and clearer loading/error states.
+- Close Windows wrapper parity gaps for remaining Linux-only helpers (tag filters, backend detection, Prompt Builder YAD panels) and keep launcher/common menu options aligned.
+- Unify menu UX expectations: ensure docs and launcher entrypoints consistently point to the Web Launcher and reduce legacy YAD-only flows.
+- Expand Web Launcher guidance and resilience: inline quickstart help, clearer loading/error states, and end-to-end action status for installs and launches.
 - Harden download reliability with mirror health checks, checksums, resumable/offline bundles, and structured error reporting in the Web Launcher.
-- Complete Windows launcher parity with `.bat`/`.ps1` wrappers for all shell helpers, WSL fallbacks, and unified logging semantics.
 - Real LLM provider integrations for Prompt Builder/Character Studio (bring-your-own key, pluggable providers, clear error paths).
-- Manifest editing and health checks: tag editing, checksum validation, metadata updates, refresh cadence, and health indicators across CLI and Web Launcher.
+- Manifest health checks: checksum validation, metadata refresh cadence, and health indicators across CLI and Web Launcher.
 - Dataset review UI: dataset browser, tagging/caption review queues, and safer editing flows in the Web Launcher.
 
 Mid-term milestones (quarterly)
