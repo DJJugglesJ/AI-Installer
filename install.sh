@@ -124,6 +124,11 @@ select_launcher_command() {
     menu_launcher="$INSTALL_PATH/aihub_menu.sh"
   fi
 
+  if [[ "$requested_mode" == "menu" ]]; then
+    log_msg "YAD menu launchers are deprecated on Linux. Using the Web Launcher instead."
+    requested_mode="web"
+  fi
+
   WINDOWS_NATIVE_LAUNCH_CMD=""
   WINDOWS_NATIVE_BATCH_CMD=""
 

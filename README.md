@@ -13,8 +13,8 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    chmod +x install.sh
    ./install.sh
    ```
-3. Pick **Web Launcher** or **YAD Menu** when prompted. The installer records logs to `~/.config/aihub/logs/install-YYYYMMDD.log` and creates OS-appropriate shortcuts.
-4. Launch again anytime with `./launcher/linux/aihub_menu.sh` (Linux/WSL) or `launcher/windows/aihub_menu.ps1` (Windows). Use `./launcher/linux/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
+3. The installer defaults to the **Web Launcher** (the single UX surface). It records logs to `~/.config/aihub/logs/install-YYYYMMDD.log` and creates OS-appropriate shortcuts.
+4. Launch again anytime with `./launcher/linux/start_web_launcher.sh` (Linux/WSL) or `launcher/windows/start_web_launcher.ps1` (Windows). Legacy `./launcher/linux/aihub_menu.sh` now redirects to the Web Launcher at `http://127.0.0.1:3939`.
 
 ### Windows 10 quick start
 1. Install and open **Git Bash** (or use **WSL2 with Ubuntu**) so the repo can be cloned and bash-compatible paths resolve correctly.
@@ -26,7 +26,7 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    .\install.ps1
    ```
 4. The installer logs to `%APPDATA%\AIHub\logs\install-YYYYMMDD.log`, and shortcuts are created under the Start Menu and Desktop (matching `.lnk`, `.bat`, and `.ps1` wrappers called by the launchers).
-5. Re-launch anytime via `launcher\windows\aihub_menu.ps1` (menu), `launcher\windows\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`), or the dedicated action wrappers like `launcher\windows\install_webui.ps1` and `launcher\windows\run_webui.ps1`. Linux instructions above remain unchanged for WSL.
+5. Re-launch anytime via `launcher\windows\start_web_launcher.ps1` (web UI at `http://127.0.0.1:3939`) or the dedicated action wrappers like `launcher\windows\install_webui.ps1` and `launcher\windows\run_webui.ps1`. Linux instructions above remain unchanged for WSL.
 
 > **Need a hands-free run?** `./install.sh --headless --install webui --gpu nvidia` mirrors the guided flow without dialogs. Add `--config <file>` to feed a JSON/env config (see [`docs/headless_config.md`](docs/headless_config.md)).
 
@@ -68,8 +68,6 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
     │      └─ creates shortcuts + logs
     │
     └─► Launcher choice
-           ├─ YAD Menu (launcher/linux/aihub_menu.sh)
-           │     └─ calls shell helpers per action
            └─ Web Launcher (launcher/linux/start_web_launcher.sh)
                  └─ HTTP routes → Python runtimes → manifests/config
 ```
@@ -91,17 +89,15 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 ```
 
 ## Usage guide
-### Launcher menu (YAD)
-- Run `./launcher/linux/aihub_menu.sh` to open the dialog-based menu.
-- Actions include launching WebUI/KoboldAI/SillyTavern, installing or updating models/LoRAs, pairing LoRAs with models, self-updating the installer, and pulling git updates.
-- Menu buttons directly call the same shell helpers used by the headless and web flows.
-
 ### Web launcher
 - Start with `./launcher/linux/start_web_launcher.sh` (Linux/WSL) or the matching PowerShell/Batch/macOS wrappers in `launcher/windows` and `launcher/linux`.
 - Defaults to `http://127.0.0.1:3939`; override host/port with `AIHUB_WEB_HOST`/`AIHUB_WEB_PORT`.
 - Protect APIs with `AIHUB_WEB_TOKEN` or `--auth-token`.
 - The Web Launcher UI already includes Guided Scene Builder + Quick Prompt for Prompt Builder and a Character Studio page for cards, datasets, and tag helpers.
 - Surfaced routes include install triggers, manifest browsing, prompt compilation (with history saved to `~/.cache/aihub/prompt_builder/prompt_history.json`), character registry reads, and job logs. Prompt bundles are written to `~/.cache/aihub/prompt_builder/prompt_bundle.json` unless `PROMPT_BUNDLE_PATH` is set.
+
+### Legacy YAD menu (deprecated)
+- `./launcher/linux/aihub_menu.sh` now redirects to the Web Launcher to keep Linux UX aligned with other platforms.
 
 ### Command-line shortcuts
 - Headless install: `./install.sh --headless --gpu <nvidia|amd|intel|cpu> --install <webui|kobold|sillytavern|loras|models>`
