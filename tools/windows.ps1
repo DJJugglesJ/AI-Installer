@@ -162,7 +162,7 @@ function Show-HelperUsage {
   Write-Host "  lint    : Run Python bytecode compilation across launcher/modules/tests (syntax parity)." -ForegroundColor Gray
   Write-Host "  test    : Run pytest against the tests/ suite." -ForegroundColor Gray
   Write-Host "  install : Call install.ps1 with --headless/--config/--install/--gpu passthrough." -ForegroundColor Gray
-  Write-Host "  menu    : Launch launcher/windows/aihub_menu.ps1 (same as aihub_menu.sh)." -ForegroundColor Gray
+  Write-Host "  menu    : Launch launcher/windows/aihub_menu.ps1 (same as launcher/linux/aihub_menu.sh)." -ForegroundColor Gray
   Write-Host "  web     : Start launcher/windows/start_web_launcher.ps1 with -Host/-Port." -ForegroundColor Gray
   Write-Host "  status  : Show installer.conf, config.yaml, and log tail (parity with ai_hub_launcher.sh)." -ForegroundColor Gray
 }

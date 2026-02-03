@@ -14,7 +14,7 @@ AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative
    ./install.sh
    ```
 3. Pick **Web Launcher** or **YAD Menu** when prompted. The installer records logs to `~/.config/aihub/logs/install-YYYYMMDD.log` and creates OS-appropriate shortcuts.
-4. Launch again anytime with `./aihub_menu.sh` (Linux/WSL) or `launcher/windows/aihub_menu.ps1` (Windows). Use `./launcher/linux/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
+4. Launch again anytime with `./launcher/linux/aihub_menu.sh` (Linux/WSL) or `launcher/windows/aihub_menu.ps1` (Windows). Use `./launcher/linux/start_web_launcher.sh` for the browser UI at `http://127.0.0.1:3939`.
 
 ### Windows 10 quick start
 1. Install and open **Git Bash** (or use **WSL2 with Ubuntu**) so the repo can be cloned and bash-compatible paths resolve correctly.
@@ -68,7 +68,7 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
     │      └─ creates shortcuts + logs
     │
     └─► Launcher choice
-           ├─ YAD Menu (aihub_menu.sh)
+           ├─ YAD Menu (launcher/linux/aihub_menu.sh)
            │     └─ calls shell helpers per action
            └─ Web Launcher (launcher/linux/start_web_launcher.sh)
                  └─ HTTP routes → Python runtimes → manifests/config
@@ -92,7 +92,7 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 
 ## Usage guide
 ### Launcher menu (YAD)
-- Run `./aihub_menu.sh` to open the dialog-based menu.
+- Run `./launcher/linux/aihub_menu.sh` to open the dialog-based menu.
 - Actions include launching WebUI/KoboldAI/SillyTavern, installing or updating models/LoRAs, pairing LoRAs with models, self-updating the installer, and pulling git updates.
 - Menu buttons directly call the same shell helpers used by the headless and web flows.
 
@@ -106,7 +106,7 @@ Schema-first runtimes that expose structured JSON workflows used by the web laun
 ### Command-line shortcuts
 - Headless install: `./install.sh --headless --gpu <nvidia|amd|intel|cpu> --install <webui|kobold|sillytavern|loras|models>`
 - Use `--config <file>` for repeatable unattended runs (JSON or env-style). See [`docs/headless_config.md`](docs/headless_config.md).
-- After install, re-run launchers directly (e.g., `./launcher/start_webui.sh`, `./launcher/start_kobold.sh`) or use menu buttons. On Windows, the matching `.ps1`/`.bat` wrappers are available (for example, `launcher\windows\install_webui.ps1`, `launcher\windows\run_kobold.bat`, `launcher\windows\health_summary.ps1`).
+- After install, re-run launchers directly (e.g., `./modules/shell/run_webui.sh`, `./modules/shell/run_kobold.sh`) or use menu buttons. On Windows, the matching `.ps1`/`.bat` wrappers are available (for example, `launcher\windows\install_webui.ps1`, `launcher\windows\run_kobold.bat`, `launcher\windows\health_summary.ps1`).
 
 ## Advanced options and setup
 - **Performance flags:** FP16 defaults on NVIDIA; xFormers is offered for NVIDIA; DirectML toggles apply on Windows/WSL for AMD/Intel; low-VRAM mode adds `--medvram` for WebUI. Details in [`docs/performance_flags.md`](docs/performance_flags.md).

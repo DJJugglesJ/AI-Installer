@@ -124,7 +124,7 @@ Runtime modules typically **do not** call shell scripts directly.
 Instead, shell scripts are used by:
 
 - `install.sh`
-- `aihub_menu.sh`
+- `launcher/linux/aihub_menu.sh`
 - Backend launchers
 
 The Runtime Layer interacts with AI tools through **HTTP APIs**, not process control.
