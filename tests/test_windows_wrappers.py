@@ -13,6 +13,7 @@ WRAPPER_ACTIONS = [
     "install_kobold",
     "install_sillytavern",
     "install_models",
+    "download_models_civitai",
     "install_loras",
     "self_update",
     "pull_updates",
