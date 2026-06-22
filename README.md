@@ -1,5 +1,74 @@
 # AI-Hub
 
+> **One command to build your local AI cockpit. One launcher to run it. One hub to grow it.**
+
+AI-Hub is the control room for self-hosted creative and conversational AI: a cross-platform installer, launcher, and runtime toolkit that helps you bootstrap Stable Diffusion WebUI, KoboldAI, SillyTavern, models, LoRAs, prompts, and character workflows without turning setup into a side quest.
+
+## The vision
+
+AI tools are powerful, but the ecosystem can feel scattered: every frontend has different install steps, GPU flags, model folders, launch scripts, and update rituals. AI-Hub brings those pieces together into a predictable, approachable workspace where makers can install once, launch from one place, and keep building.
+
+- **From zero to running:** guided installers, headless automation, resilient downloads, logs, and shortcuts.
+- **From scripts to workflows:** Web Launcher actions connect shell helpers, manifests, and Python runtimes through structured JSON APIs.
+- **From prompt ideas to reusable systems:** Prompt Builder turns scene descriptions into structured prompt bundles and supports deterministic feedback loops.
+- **From character concepts to production packs:** Character Studio organizes cards, datasets, captions, tags, and training-ready assets.
+- **From one machine to many setups:** Linux, WSL2, and Windows launchers stay separate, safe, and symmetrical where practical.
+
+## What you get
+
+| Area | What AI-Hub does |
+| --- | --- |
+| **Install & launch** | Bootstraps Stable Diffusion WebUI, KoboldAI, SillyTavern, ComfyUI, dependencies, shortcuts, and logs. |
+| **Web Launcher** | Provides the main browser-based UX at `http://127.0.0.1:3939` for installs, manifests, prompts, characters, and job logs. |
+| **Prompt Builder** | Compiles structured scene JSON into prompt output, LoRA call lists, history, and prompt bundles. |
+| **Character Studio** | Manages character cards, dataset prep, captioning/tagging helpers, and registry views. |
+| **Manifest-driven models** | Uses curated JSON metadata for predictable model and LoRA downloads. |
+| **Cross-platform wrappers** | Keeps Linux/WSL bash and Windows PowerShell/batch launchers aligned without mixing platform-specific concerns. |
+
+## Start here
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+Then open the Web Launcher with:
+
+```bash
+./launcher/linux/start_web_launcher.sh
+```
+
+Windows users can start from PowerShell instead:
+
+```powershell
+.\install.ps1
+.\launcher\windows\start_web_launcher.ps1
+```
+
+Need an unattended setup? Use the headless flow:
+
+```bash
+./install.sh --headless --install webui --gpu nvidia
+```
+
+## Why it matters
+
+AI-Hub is designed around a simple promise: **local AI should feel like a workspace, not a pile of fragile setup notes.** Installers stay idempotent, runtime logic stays schema-first, manifests stay transparent, and launchers stay thin. That separation makes the project easier to trust, debug, extend, and run again tomorrow.
+
+## Explore the hub
+
+1. **Install** a target app or model from the Web Launcher.
+2. **Run** Stable Diffusion WebUI, KoboldAI, SillyTavern, or supporting services with GPU-aware defaults.
+3. **Build prompts** from structured scenes and refine them with deterministic feedback.
+4. **Manage characters** with cards, datasets, tags, captions, and training-pack workflows.
+5. **Automate** repeatable setup with headless configs and direct CLI wrappers.
+
+---
+
+# Complete project reference
+
+The original detailed README content is preserved below for setup, architecture, usage, troubleshooting, and contribution details.
+
 AI-Hub is a cross-platform installer, launcher, and runtime toolkit for creative and conversational AI workflows. It ships safe-by-default shell helpers, schema-driven Python runtimes, curated manifests, and lightweight launchers so newcomers can get Stable Diffusion, KoboldAI, and SillyTavern running with predictable results.
 
 - **Platforms:** Linux (desktop/headless) with first-class WSL2 and Windows launcher parity.
